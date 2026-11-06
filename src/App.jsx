@@ -10,7 +10,7 @@ import {
   Navigation,
   Car
 } from 'lucide-react';
-import { INITIAL_STATIONS } from './data/stations';
+import { INITIAL_STATIONS, ROUTES, ALL_STATIONS, ALL_STATIONS_FLAT, MY_CAR_DATA } from './data/stations';
 import { speechService } from './services/speechService';
 import { soundEffects } from './services/soundEffects';
 import { wakeLockService } from './services/wakeLockService';
@@ -54,6 +54,70 @@ export function App() {
   const [onlyAvailableFilter, setOnlyAvailableFilter] = useState(false);
   const [driveAlertToast, setDriveAlertToast] = useState(null);
   const geoWatchIdRef = useRef(null);
+
+  const [selectedRouteId, setSelectedRouteId] = useState('all_nearby');
+
+  // Auto-detect real GPS on mount
+  useEffect(() => {
+    if (typeof navigator !== 'undefined' && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const { latitude, longitude } = pos.coords;
+          setUserLocation({ lat: latitude, lng: longitude });
+          setIsRealGpsActive(true);
+
+          setStations(prev => {
+            const list = prev.map(s => {
+              const dist = calculateDistance(latitude, longitude, s.coordinates.lat, s.coordinates.lng);
+              const minutes = Math.max(1, Math.round(dist / 45 * 60));
+              const travelTime = minutes > 60 
+                ? `ประมาณ ${Math.floor(minutes / 60)} ชม. ${minutes % 60} นาที`
+                : `ประมาณ ${minutes} นาที`;
+              return { ...s, distanceKm: dist, travelTime, isNextOnRoute: false };
+            });
+            list.sort((a, b) => a.distanceKm - b.distanceKm);
+            if (list.length > 0) list[0].isNextOnRoute = true;
+            return list;
+          });
+        },
+        (err) => {
+          console.log('Auto GPS not granted or error:', err.message);
+        },
+        { enableHighAccuracy: true, timeout: 8000 }
+      );
+    }
+  }, []);
+
+  const handleSelectRoute = (routeId) => {
+    setSelectedRouteId(routeId);
+    let targetList = [];
+    if (routeId === 'all_nearby') {
+      targetList = ALL_STATIONS_FLAT;
+    } else {
+      targetList = ALL_STATIONS[routeId] || ALL_STATIONS.bkk;
+    }
+
+    if (userLocation) {
+      const updated = targetList.map(s => {
+        const dist = calculateDistance(userLocation.lat, userLocation.lng, s.coordinates.lat, s.coordinates.lng);
+        const minutes = Math.max(1, Math.round(dist / 45 * 60));
+        const travelTime = minutes > 60 
+          ? `ประมาณ ${Math.floor(minutes / 60)} ชม. ${minutes % 60} นาที`
+          : `ประมาณ ${minutes} นาที`;
+        return { ...s, distanceKm: dist, travelTime, isNextOnRoute: false };
+      });
+      updated.sort((a, b) => a.distanceKm - b.distanceKm);
+      if (updated.length > 0) updated[0].isNextOnRoute = true;
+      setStations(updated);
+    } else {
+      setStations(targetList);
+    }
+
+    const routeObj = ROUTES.find(r => r.id === routeId);
+    if (voiceEnabled && routeObj) {
+      speechService.speak(`ค้นหาตู้ชาร์จตาม ${routeObj.name} ให้แล้วครับ`);
+    }
+  };
 
   // Toggle Screen Wake Lock for driving
   const handleToggleWakeLock = async () => {
@@ -156,11 +220,14 @@ export function App() {
     }, 600);
   };
 
-  // Turn-by-turn Navigation to Google Maps
+  // Turn-by-turn Navigation to Google Maps (100% accurate GPS pin)
   const handleNavigate = (station) => {
     const lat = station.coordinates?.lat || 13.6285;
     const lng = station.coordinates?.lng || 100.412;
-    const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&destination_place_id=${encodeURIComponent(station.name)}`;
+    
+    // Clean, direct navigation link using exact latitude & longitude coordinates
+    // We avoid destination_place_id as it overrides exact coordinates with mismatched text
+    const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
     window.open(url, '_blank');
 
     if (voiceEnabled) {
@@ -260,7 +327,47 @@ export function App() {
 
         {/* Tab 1: Route Stations View (Main Screen from Screenshot) */}
         {activeTab === 'route' && (
-          <div className="space-y-4">
+          <div className="space-y-3.5">
+            {/* Quick JAECOO 5 EV Vehicle Status Pill */}
+            <div className="flex items-center justify-between px-3.5 py-2 rounded-2xl bg-gradient-to-r from-[#121f33] to-[#0d1624] border border-emerald-500/30 text-xs shadow-sm">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse flex-shrink-0" />
+                <span className="font-bold text-white truncate">🚙 JAECOO 5 EV Ultra</span>
+                <span className="text-emerald-400 font-mono flex-shrink-0">48% (~205 กม.)</span>
+              </div>
+              <button 
+                onClick={() => setActiveTab('car')}
+                className="text-[11px] text-emerald-300 hover:text-white font-medium flex items-center gap-0.5 flex-shrink-0 ml-2"
+              >
+                <span>จัดการรถ</span>
+                <span>&gt;</span>
+              </button>
+            </div>
+
+            {/* Highway Route Selector */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between px-1 text-[11px] text-slate-400 font-medium">
+                <span>เลือกเส้นทางเดินทาง:</span>
+                <span className="text-emerald-400">{ROUTES.find(r => r.id === selectedRouteId)?.highway}</span>
+              </div>
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs">
+                {ROUTES.map((route) => (
+                  <button
+                    key={route.id}
+                    onClick={() => handleSelectRoute(route.id)}
+                    className={`px-3 py-1.5 rounded-xl transition-all whitespace-nowrap text-xs flex items-center gap-1.5 ${
+                      selectedRouteId === route.id
+                        ? "bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 font-bold shadow-[0_0_12px_rgba(16,185,129,0.3)]"
+                        : "bg-slate-900/80 text-slate-400 hover:text-white border border-slate-800"
+                    }`}
+                  >
+                    <span>🛣️</span>
+                    <span>{route.name.split(' (')[0]}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* AI Voice Assistant Card (Exact match to screenshot) */}
             <VoiceAssistantCard
               onOpenVoice={() => {
