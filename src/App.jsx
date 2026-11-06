@@ -8,7 +8,9 @@ import {
   AlertCircle,
   Volume2,
   Navigation,
-  Car
+  Car,
+  Search,
+  X
 } from 'lucide-react';
 import { INITIAL_STATIONS, ROUTES, ALL_STATIONS, ALL_STATIONS_FLAT, MY_CAR_DATA } from './data/stations';
 import { speechService } from './services/speechService';
@@ -52,6 +54,9 @@ export function App() {
   const [activeTab, setActiveTab] = useState('route'); // route, saved, plan, car
   const [providerFilter, setProviderFilter] = useState('ALL'); // ALL, PEA VOLTA, EA ANYWHERE, EV STATION PLUZ
   const [onlyAvailableFilter, setOnlyAvailableFilter] = useState(false);
+  const [ccs2OnlyFilter, setCcs2OnlyFilter] = useState(false);
+  const [fastOnlyFilter, setFastOnlyFilter] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const [driveAlertToast, setDriveAlertToast] = useState(null);
   const geoWatchIdRef = useRef(null);
 
@@ -259,10 +264,20 @@ export function App() {
     }));
   };
 
-  // Filter stations based on selection
+  // Filter stations based on selection and search
   const filteredStations = stations.filter(s => {
     if (providerFilter !== 'ALL' && s.provider !== providerFilter) return false;
     if (onlyAvailableFilter && s.availablePlugs === 0) return false;
+    if (ccs2OnlyFilter && !s.plugs?.some(p => p.type.includes('CCS2') && p.status === 'available')) return false;
+    if (fastOnlyFilter && (s.powerKw || 0) < 150) return false;
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      const matchName = (s.name || '').toLowerCase().includes(q);
+      const matchProv = (s.province || '').toLowerCase().includes(q);
+      const matchAddr = (s.address || '').toLowerCase().includes(q);
+      const matchProvider = (s.provider || '').toLowerCase().includes(q);
+      if (!matchName && !matchProv && !matchAddr && !matchProvider) return false;
+    }
     return true;
   });
 
@@ -368,6 +383,26 @@ export function App() {
               </div>
             </div>
 
+            {/* Search Input Bar */}
+            <div className="relative">
+              <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input 
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="ค้นหาชื่อสถานี, จังหวัด (เช่น เชียงใหม่, พัทยา, โคราช, บางนา)..."
+                className="w-full pl-10 pr-9 py-2.5 rounded-2xl bg-slate-900/90 border border-slate-700/80 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-emerald-500 shadow-inner"
+              />
+              {searchQuery && (
+                <button 
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-white"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+
             {/* AI Voice Assistant Card (Exact match to screenshot) */}
             <VoiceAssistantCard
               onOpenVoice={() => {
@@ -398,15 +433,6 @@ export function App() {
                 PEA VOLTA
               </button>
               <button
-                onClick={() => setProviderFilter('EA ANYWHERE')}
-                className={`px-3 py-1.5 rounded-full font-medium transition-all whitespace-nowrap ${providerFilter === 'EA ANYWHERE'
-                    ? "bg-blue-600 text-white font-bold"
-                    : "bg-slate-800/80 text-slate-400 hover:text-white"
-                  }`}
-              >
-                EA Anywhere
-              </button>
-              <button
                 onClick={() => setProviderFilter('EV STATION PLUZ')}
                 className={`px-3 py-1.5 rounded-full font-medium transition-all whitespace-nowrap ${providerFilter === 'EV STATION PLUZ'
                     ? "bg-emerald-600 text-white font-bold"
@@ -416,6 +442,24 @@ export function App() {
                 EV Station PluZ
               </button>
               <button
+                onClick={() => setProviderFilter('EA ANYWHERE')}
+                className={`px-3 py-1.5 rounded-full font-medium transition-all whitespace-nowrap ${providerFilter === 'EA ANYWHERE'
+                    ? "bg-blue-600 text-white font-bold"
+                    : "bg-slate-800/80 text-slate-400 hover:text-white"
+                  }`}
+              >
+                EA Anywhere
+              </button>
+              <button
+                onClick={() => setProviderFilter('SHELL RECHARGE')}
+                className={`px-3 py-1.5 rounded-full font-medium transition-all whitespace-nowrap ${providerFilter === 'SHELL RECHARGE'
+                    ? "bg-amber-600 text-white font-bold"
+                    : "bg-slate-800/80 text-slate-400 hover:text-white"
+                  }`}
+              >
+                Shell
+              </button>
+              <button
                 onClick={() => setOnlyAvailableFilter(!onlyAvailableFilter)}
                 className={`px-3 py-1.5 rounded-full font-medium transition-all whitespace-nowrap ${onlyAvailableFilter
                     ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/50"
@@ -423,6 +467,24 @@ export function App() {
                   }`}
               >
                 {onlyAvailableFilter ? "✓ เฉพาะตู้ว่าง" : "เฉพาะตู้ว่าง"}
+              </button>
+              <button
+                onClick={() => setCcs2OnlyFilter(!ccs2OnlyFilter)}
+                className={`px-3 py-1.5 rounded-full font-medium transition-all whitespace-nowrap ${ccs2OnlyFilter
+                    ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/50"
+                    : "bg-slate-800/80 text-slate-400 hover:text-white"
+                  }`}
+              >
+                {ccs2OnlyFilter ? "✓ หัว CCS2 (JAECOO)" : "หัว CCS2"}
+              </button>
+              <button
+                onClick={() => setFastOnlyFilter(!fastOnlyFilter)}
+                className={`px-3 py-1.5 rounded-full font-medium transition-all whitespace-nowrap ${fastOnlyFilter
+                    ? "bg-amber-500/20 text-amber-300 border border-amber-500/50"
+                    : "bg-slate-800/80 text-slate-400 hover:text-white"
+                  }`}
+              >
+                {fastOnlyFilter ? "✓ Ultra Fast (>=150kW)" : "Ultra Fast"}
               </button>
             </div>
 

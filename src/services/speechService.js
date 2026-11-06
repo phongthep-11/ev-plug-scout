@@ -132,6 +132,32 @@ class SpeechService {
       };
     }
 
+    // Case: Search by City or Province (ทั่วประเทศไทย)
+    const majorLocations = [
+      { key: 'เชียงใหม่', label: 'เชียงใหม่' },
+      { key: 'พัทยา', label: 'พัทยา' },
+      { key: 'โคราช', label: 'นครราชสีมา' },
+      { key: 'ขอนแก่น', label: 'ขอนแก่น' },
+      { key: 'หัวหิน', label: 'หัวหิน' },
+      { key: 'ภูเก็ต', label: 'ภูเก็ต' },
+      { key: 'บางนา', label: 'บางนา' },
+      { key: 'อยุธยา', label: 'อยุธยา' },
+      { key: 'ชะอำ', label: 'ชะอำ' },
+      { key: 'ระยอง', label: 'ระยอง' },
+      { key: 'สุราษฎร์', label: 'สุราษฎร์ธานี' }
+    ];
+    for (const loc of majorLocations) {
+      if (q.includes(loc.key)) {
+        const found = stations.find(s => (s.name || '').includes(loc.label) || (s.address || '').includes(loc.label) || (s.province || '').includes(loc.label));
+        if (found) {
+          return {
+            text: `พบสถานีชาร์จในพื้นที่ ${loc.label} คือ ${found.name} มีตู้ว่าง ${found.availablePlugs} จาก ${found.totalPlugs} หัวจ่าย กำลังไฟ ${found.power} ครับ`,
+            targetStation: found
+          };
+        }
+      }
+    }
+
     // Case 1: Ultra Fast chargers
     if (q.includes('ultra') || q.includes('เร็วสุด') || q.includes('360')) {
       const ultra = stations.find(s => s.powerKw >= 300);
