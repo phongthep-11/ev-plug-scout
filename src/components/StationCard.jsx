@@ -33,10 +33,16 @@ export function StationCard({ station, onSelect, onNavigate }) {
           {/* Distance and ETA */}
           <div className="text-right">
             <div className="text-white font-bold text-base sm:text-lg leading-tight tracking-tight">
-              {station.distanceKm} <span className="text-xs font-normal text-slate-300">กม.</span>
+              {station.distanceKm != null ? (
+                <>
+                  {station.distanceKm} <span className="text-xs font-normal text-slate-300">กม.</span>
+                </>
+              ) : (
+                <span className="text-xs font-medium text-cyan-300 animate-pulse">กำลังคำนวณ...</span>
+              )}
             </div>
             <div className="text-[11px] text-slate-400 mt-0.5">
-              {station.travelTime}
+              {station.travelTime || "พิกัดดาวเทียม"}
             </div>
           </div>
         </div>

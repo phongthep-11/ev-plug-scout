@@ -60,63 +60,118 @@ export function App() {
   const [driveAlertToast, setDriveAlertToast] = useState(null);
   const geoWatchIdRef = useRef(null);
 
-  const [selectedRouteId, setSelectedRouteId] = useState('all_nearby');
+  const [selectedRouteId, setSelectedRouteId] = useState('all');
+  const [gpsAccuracy, setGpsAccuracy] = useState(null);
+  const [isLocating, setIsLocating] = useState(false);
 
-  // Auto-detect real GPS on mount
-  useEffect(() => {
-    if (typeof navigator !== 'undefined' && navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const { latitude, longitude } = pos.coords;
-          setUserLocation({ lat: latitude, lng: longitude });
-          setIsRealGpsActive(true);
-
-          setStations(prev => {
-            const list = prev.map(s => {
-              const dist = calculateDistance(latitude, longitude, s.coordinates.lat, s.coordinates.lng);
-              const minutes = Math.max(1, Math.round(dist / 45 * 60));
-              const travelTime = minutes > 60 
-                ? `ประมาณ ${Math.floor(minutes / 60)} ชม. ${minutes % 60} นาที`
-                : `ประมาณ ${minutes} นาที`;
-              return { ...s, distanceKm: dist, travelTime, isNextOnRoute: false };
-            });
-            list.sort((a, b) => a.distanceKm - b.distanceKm);
-            if (list.length > 0) list[0].isNextOnRoute = true;
-            return list;
-          });
-        },
-        (err) => {
-          console.log('Auto GPS not granted or error:', err.message);
-        },
-        { enableHighAccuracy: true, timeout: 8000 }
-      );
+  // Recalculate distances for any station list based on coordinates
+  const calculateStationDistances = (targetList, coords) => {
+    if (!coords || !coords.lat || !coords.lng) {
+      return targetList.map(s => ({
+        ...s,
+        distanceKm: null,
+        travelTime: "รอสัญญาณ GPS",
+        isNextOnRoute: false
+      }));
     }
+
+    const updated = targetList.map(s => {
+      const dist = calculateDistance(coords.lat, coords.lng, s.coordinates.lat, s.coordinates.lng);
+      const minutes = Math.max(1, Math.round(dist / 50 * 60)); // 50 km/h average
+      const travelTime = minutes > 60 
+        ? `ประมาณ ${Math.floor(minutes / 60)} ชม. ${minutes % 60} นาที`
+        : `ประมาณ ${minutes} นาที`;
+      return { ...s, distanceKm: dist, travelTime, isNextOnRoute: false };
+    });
+
+    // Sort closest to furthest
+    updated.sort((a, b) => (a.distanceKm ?? 9999) - (b.distanceKm ?? 9999));
+    if (updated.length > 0) updated[0].isNextOnRoute = true;
+    return updated;
+  };
+
+  // Start continuous GPS tracking
+  const startGpsTracking = () => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      alert('อุปกรณ์หรือเบราว์เซอร์ไม่รองรับระบบพิกัดตำแหน่ง GPS');
+      return;
+    }
+
+    setIsLocating(true);
+    // Request current position first
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude, accuracy } = pos.coords;
+        const coords = { lat: latitude, lng: longitude };
+        setUserLocation(coords);
+        setGpsAccuracy(Math.round(accuracy));
+        setIsRealGpsActive(true);
+        setIsLocating(false);
+
+        // Update stations according to current route
+        const targetList = (selectedRouteId === 'all' || !selectedRouteId)
+          ? ALL_STATIONS_FLAT
+          : (ALL_STATIONS[selectedRouteId] || ALL_STATIONS_FLAT);
+
+        setStations(calculateStationDistances(targetList, coords));
+      },
+      (err) => {
+        console.warn('GPS single position warn:', err.message);
+        setIsLocating(false);
+      },
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 10000 }
+    );
+
+    // Then start continuous watch for driving updates
+    if (geoWatchIdRef.current !== null) {
+      navigator.geolocation.clearWatch(geoWatchIdRef.current);
+    }
+
+    geoWatchIdRef.current = navigator.geolocation.watchPosition(
+      (pos) => {
+        const { latitude, longitude, accuracy } = pos.coords;
+        const coords = { lat: latitude, lng: longitude };
+        setUserLocation(coords);
+        setGpsAccuracy(Math.round(accuracy));
+        setIsRealGpsActive(true);
+        setIsLocating(false);
+
+        setStations(prev => {
+          const updated = prev.map(s => {
+            const dist = calculateDistance(latitude, longitude, s.coordinates.lat, s.coordinates.lng);
+            const minutes = Math.max(1, Math.round(dist / 50 * 60));
+            const travelTime = minutes > 60
+              ? `ประมาณ ${Math.floor(minutes / 60)} ชม. ${minutes % 60} นาที`
+              : `ประมาณ ${minutes} นาที`;
+            return { ...s, distanceKm: dist, travelTime, isNextOnRoute: false };
+          });
+          updated.sort((a, b) => (a.distanceKm ?? 9999) - (b.distanceKm ?? 9999));
+          if (updated.length > 0) updated[0].isNextOnRoute = true;
+          return updated;
+        });
+      },
+      (err) => {
+        console.warn('GPS continuous watch error:', err.message);
+      },
+      { enableHighAccuracy: true, timeout: 25000, maximumAge: 5000 }
+    );
+  };
+
+  // Auto-start GPS on app load
+  useEffect(() => {
+    startGpsTracking();
   }, []);
 
   const handleSelectRoute = (routeId) => {
     setSelectedRouteId(routeId);
     let targetList = [];
-    if (routeId === 'all_nearby') {
+    if (!routeId || routeId === 'all') {
       targetList = ALL_STATIONS_FLAT;
     } else {
       targetList = ALL_STATIONS[routeId] || ALL_STATIONS.bkk;
     }
 
-    if (userLocation) {
-      const updated = targetList.map(s => {
-        const dist = calculateDistance(userLocation.lat, userLocation.lng, s.coordinates.lat, s.coordinates.lng);
-        const minutes = Math.max(1, Math.round(dist / 45 * 60));
-        const travelTime = minutes > 60 
-          ? `ประมาณ ${Math.floor(minutes / 60)} ชม. ${minutes % 60} นาที`
-          : `ประมาณ ${minutes} นาที`;
-        return { ...s, distanceKm: dist, travelTime, isNextOnRoute: false };
-      });
-      updated.sort((a, b) => a.distanceKm - b.distanceKm);
-      if (updated.length > 0) updated[0].isNextOnRoute = true;
-      setStations(updated);
-    } else {
-      setStations(targetList);
-    }
+    setStations(calculateStationDistances(targetList, userLocation));
 
     const routeObj = ROUTES.find(r => r.id === routeId);
     if (voiceEnabled && routeObj) {
@@ -143,56 +198,25 @@ export function App() {
     if (isRealGpsActive) {
       if (geoWatchIdRef.current !== null && navigator.geolocation) {
         navigator.geolocation.clearWatch(geoWatchIdRef.current);
+        geoWatchIdRef.current = null;
       }
       setIsRealGpsActive(false);
       setUserLocation(null);
-      // Reset to original highway baseline distances
-      setStations(INITIAL_STATIONS);
+      setGpsAccuracy(null);
+      const targetList = (selectedRouteId === 'all' || !selectedRouteId)
+        ? ALL_STATIONS_FLAT
+        : (ALL_STATIONS[selectedRouteId] || ALL_STATIONS_FLAT);
+      setStations(targetList);
+      if (voiceEnabled) speechService.speak('ปิดระบบติดตาม GPS ชั่วคราว');
     } else {
-      if (!navigator.geolocation) {
-        alert('อุปกรณ์ของคุณไม่รองรับ Geolocation หรือเบราว์เซอร์บล็อกสิทธิ์ตำแหน่ง');
-        return;
-      }
-
-      setIsRealGpsActive(true);
+      startGpsTracking();
       if (voiceEnabled) speechService.speak('เปิดระบบตรวจจับพิกัดดาวเทียม GPS จริงแล้วครับ');
-
-      geoWatchIdRef.current = navigator.geolocation.watchPosition(
-        (pos) => {
-          const { latitude, longitude } = pos.coords;
-          setUserLocation({ lat: latitude, lng: longitude });
-
-          // Re-calculate real-world distance to every station
-          setStations(prev => {
-            const updated = prev.map(s => {
-              const dist = calculateDistance(latitude, longitude, s.coordinates.lat, s.coordinates.lng);
-              const minutes = Math.max(1, Math.round(dist / 60 * 60));
-              const travelTime = minutes > 60
-                ? `ประมาณ ${Math.floor(minutes / 60)} ชม. ${minutes % 60} นาที`
-                : `ประมาณ ${minutes} นาที`;
-              return {
-                ...s,
-                distanceKm: dist,
-                travelTime,
-                isNextOnRoute: false
-              };
-            });
-
-            // Sort by nearest
-            updated.sort((a, b) => a.distanceKm - b.distanceKm);
-            if (updated.length > 0) {
-              updated[0].isNextOnRoute = true;
-            }
-            return updated;
-          });
-        },
-        (err) => {
-          console.warn('Geolocation error:', err);
-          setIsRealGpsActive(false);
-        },
-        { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 }
-      );
     }
+  };
+
+  const handleRefreshGps = () => {
+    startGpsTracking();
+    soundEffects.playListening();
   };
 
   useEffect(() => {
@@ -227,16 +251,22 @@ export function App() {
 
   // Turn-by-turn Navigation to Google Maps (100% accurate GPS pin)
   const handleNavigate = (station) => {
-    const lat = station.coordinates?.lat || 13.6285;
-    const lng = station.coordinates?.lng || 100.412;
+    const lat = station.coordinates?.lat;
+    const lng = station.coordinates?.lng;
+    if (!lat || !lng) return;
     
-    // Clean, direct navigation link using exact latitude & longitude coordinates
-    // We avoid destination_place_id as it overrides exact coordinates with mismatched text
-    const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
-    window.open(url, '_blank');
+    // Direct Google Maps navigation link with exact coordinates
+    // Includes user's live vehicle origin coordinates when available for instant turn-by-turn routing
+    let url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
+    if (userLocation && userLocation.lat && userLocation.lng) {
+      url += `&origin=${userLocation.lat},${userLocation.lng}`;
+    }
+
+    window.open(url, '_blank') || (window.location.href = url);
 
     if (voiceEnabled) {
-      speechService.speak(`เริ่มนำทางไปยัง ${station.name} ระยะทาง ${station.distanceKm} กิโลเมตรครับ`);
+      const distInfo = station.distanceKm != null ? ` ระยะทาง ${station.distanceKm} กิโลเมตร` : '';
+      speechService.speak(`เริ่มนำทางไปยัง ${station.name}${distInfo} ขอให้เดินทางปลอดภัยครับ`);
     }
   };
 
@@ -329,16 +359,41 @@ export function App() {
           </div>
         )}
 
-        {/* Real GPS Banner if active */}
-        {isRealGpsActive && userLocation && (
-          <div className="mb-3 px-3 py-2 rounded-xl bg-cyan-950/40 border border-cyan-500/40 text-xs text-cyan-300 flex items-center justify-between">
-            <span className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
-              <span>ตรวจพบพิกัดจริง: {userLocation.lat.toFixed(4)}, {userLocation.lng.toFixed(4)}</span>
-            </span>
-            <span className="text-[10px] text-cyan-400 font-medium">เรียงตามใกล้-ไกล</span>
+        {/* GPS Live Status Bar */}
+        <div className="mb-3 px-3.5 py-2.5 rounded-2xl bg-gradient-to-r from-slate-900/90 to-slate-950/90 border border-slate-800 text-xs shadow-sm">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className={`w-2.5 h-2.5 rounded-full ${
+                userLocation ? 'bg-emerald-400 animate-pulse' : isLocating ? 'bg-amber-400 animate-ping' : 'bg-slate-500'
+              }`} />
+              <div>
+                <span className="font-semibold text-white block text-xs">
+                  {userLocation 
+                    ? `พิกัดรถ: ${userLocation.lat.toFixed(4)}, ${userLocation.lng.toFixed(4)}` 
+                    : isLocating 
+                      ? "กำลังค้นหาสัญญาณดาวเทียม GPS..." 
+                      : "ยังไม่ได้เปิดสัญญาณ GPS จริง"}
+                </span>
+                <span className="text-[10px] text-slate-400">
+                  {userLocation 
+                    ? (gpsAccuracy ? `ความแม่นยำรัศมี ~${gpsAccuracy} เมตร • เรียงตามตู้ชาร์จที่ใกล้รถที่สุด` : "คำนวณระยะทางและเวลานำทางตรง 100%")
+                    : "แตะปุ่มด้านขวาเพื่อเปิด GPS นำทางจริง"}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={handleRefreshGps}
+                title="อัปเดตตำแหน่ง GPS ทันที"
+                className="px-2.5 py-1.5 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 text-[11px] font-medium transition-all flex items-center gap-1 active:scale-95"
+              >
+                <RotateCw size={12} className={isLocating ? "animate-spin" : ""} />
+                <span>{isLocating ? "กำลังจับพิกัด" : "อัปเดต GPS"}</span>
+              </button>
+            </div>
           </div>
-        )}
+        </div>
 
         {/* Tab 1: Route Stations View (Main Screen from Screenshot) */}
         {activeTab === 'route' && (
