@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   RotateCw, 
   MapPin, 
@@ -12,6 +12,8 @@ import {
 } from 'lucide-react';
 import { INITIAL_STATIONS } from './data/stations';
 import { speechService } from './services/speechService';
+import { soundEffects } from './services/soundEffects';
+import { wakeLockService } from './services/wakeLockService';
 import { Header } from './components/Header';
 import { VoiceAssistantCard } from './components/VoiceAssistantCard';
 import { StationCard } from './components/StationCard';
@@ -23,6 +25,19 @@ import { SavedStationsTab } from './components/SavedStationsTab';
 import { RoutePlannerTab } from './components/RoutePlannerTab';
 import { MyCarTab } from './components/MyCarTab';
 
+// Haversine distance calculator
+function calculateDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371; // Earth radius in km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = 
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c * 10) / 10;
+}
+
 export function App() {
   const [stations, setStations] = useState(INITIAL_STATIONS);
   const [selectedStation, setSelectedStation] = useState(null);
@@ -31,18 +46,101 @@ export function App() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [isSimulating, setIsSimulating] = useState(false);
+  const [isRealGpsActive, setIsRealGpsActive] = useState(false);
+  const [isWakeLocked, setIsWakeLocked] = useState(false);
+  const [userLocation, setUserLocation] = useState(null);
   const [activeTab, setActiveTab] = useState('route'); // route, saved, plan, car
   const [providerFilter, setProviderFilter] = useState('ALL'); // ALL, PEA VOLTA, EA ANYWHERE, EV STATION PLUZ
   const [onlyAvailableFilter, setOnlyAvailableFilter] = useState(false);
   const [driveAlertToast, setDriveAlertToast] = useState(null);
+  const geoWatchIdRef = useRef(null);
+
+  // Toggle Screen Wake Lock for driving
+  const handleToggleWakeLock = async () => {
+    if (isWakeLocked) {
+      wakeLockService.releaseWakeLock();
+      setIsWakeLocked(false);
+    } else {
+      const success = await wakeLockService.requestWakeLock();
+      if (success) {
+        setIsWakeLocked(true);
+        if (voiceEnabled) speechService.speak('เปิดโหมดจอสว่างตลอดขณะขับขี่แล้วครับ');
+      }
+    }
+  };
+
+  // Toggle Real GPS Location
+  const handleToggleRealGps = () => {
+    if (isRealGpsActive) {
+      if (geoWatchIdRef.current !== null && navigator.geolocation) {
+        navigator.geolocation.clearWatch(geoWatchIdRef.current);
+      }
+      setIsRealGpsActive(false);
+      setUserLocation(null);
+      // Reset to original highway baseline distances
+      setStations(INITIAL_STATIONS);
+    } else {
+      if (!navigator.geolocation) {
+        alert('อุปกรณ์ของคุณไม่รองรับ Geolocation หรือเบราว์เซอร์บล็อกสิทธิ์ตำแหน่ง');
+        return;
+      }
+
+      setIsRealGpsActive(true);
+      if (voiceEnabled) speechService.speak('เปิดระบบตรวจจับพิกัดดาวเทียม GPS จริงแล้วครับ');
+
+      geoWatchIdRef.current = navigator.geolocation.watchPosition(
+        (pos) => {
+          const { latitude, longitude } = pos.coords;
+          setUserLocation({ lat: latitude, lng: longitude });
+
+          // Re-calculate real-world distance to every station
+          setStations(prev => {
+            const updated = prev.map(s => {
+              const dist = calculateDistance(latitude, longitude, s.coordinates.lat, s.coordinates.lng);
+              const minutes = Math.max(1, Math.round(dist / 60 * 60));
+              const travelTime = minutes > 60 
+                ? `ประมาณ ${Math.floor(minutes / 60)} ชม. ${minutes % 60} นาที`
+                : `ประมาณ ${minutes} นาที`;
+              return {
+                ...s,
+                distanceKm: dist,
+                travelTime,
+                isNextOnRoute: false
+              };
+            });
+
+            // Sort by nearest
+            updated.sort((a, b) => a.distanceKm - b.distanceKm);
+            if (updated.length > 0) {
+              updated[0].isNextOnRoute = true;
+            }
+            return updated;
+          });
+        },
+        (err) => {
+          console.warn('Geolocation error:', err);
+          setIsRealGpsActive(false);
+        },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 }
+      );
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (geoWatchIdRef.current !== null && navigator.geolocation) {
+        navigator.geolocation.clearWatch(geoWatchIdRef.current);
+      }
+      wakeLockService.releaseWakeLock();
+    };
+  }, []);
 
   // Manual or periodic refresh simulation of live charger states
   const handleRefresh = () => {
     setIsRefreshing(true);
+    soundEffects.playListening();
     setTimeout(() => {
-      // Simulate real-time plug state fluctuation
       setStations(prev => prev.map(s => {
-        // randomly toggle one plug state slightly for dynamic realism
         const shouldTweak = Math.random() > 0.6;
         if (!shouldTweak) return s;
 
@@ -72,12 +170,26 @@ export function App() {
 
   // Trigger from Driving Simulator
   const handleStationAlert = ({ station, message, remainingDistance }) => {
+    soundEffects.playAlert();
     setDriveAlertToast({
       title: station.name,
       message,
       station
     });
     setTimeout(() => setDriveAlertToast(null), 6000);
+  };
+
+  // Handle Crowdsource user status report
+  const handleReportStatus = (stationId, reportType) => {
+    setStations(prev => prev.map(s => {
+      if (s.id !== stationId) return s;
+      if (reportType === 'full') {
+        return { ...s, availablePlugs: 0, waitingQueue: 1 };
+      } else if (reportType === 'available') {
+        return { ...s, availablePlugs: Math.max(1, s.availablePlugs), waitingQueue: 0 };
+      }
+      return s;
+    }));
   };
 
   // Filter stations based on selection
@@ -95,7 +207,10 @@ export function App() {
         setVoiceEnabled={setVoiceEnabled}
         isSimulating={isSimulating}
         setIsSimulating={setIsSimulating}
-        onResetData={() => setStations(INITIAL_STATIONS)}
+        isRealGpsActive={isRealGpsActive}
+        onToggleRealGps={handleToggleRealGps}
+        isWakeLocked={isWakeLocked}
+        onToggleWakeLock={handleToggleWakeLock}
       />
 
       {/* Main Content Area */}
@@ -132,12 +247,26 @@ export function App() {
           </div>
         )}
 
+        {/* Real GPS Banner if active */}
+        {isRealGpsActive && userLocation && (
+          <div className="mb-3 px-3 py-2 rounded-xl bg-cyan-950/40 border border-cyan-500/40 text-xs text-cyan-300 flex items-center justify-between">
+            <span className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
+              <span>ตรวจพบพิกัดจริง: {userLocation.lat.toFixed(4)}, {userLocation.lng.toFixed(4)}</span>
+            </span>
+            <span className="text-[10px] text-cyan-400 font-medium">เรียงตามใกล้-ไกล</span>
+          </div>
+        )}
+
         {/* Tab 1: Route Stations View (Main Screen from Screenshot) */}
         {activeTab === 'route' && (
           <div className="space-y-4">
             {/* AI Voice Assistant Card (Exact match to screenshot) */}
             <VoiceAssistantCard 
-              onOpenVoice={() => setIsVoiceModalOpen(true)}
+              onOpenVoice={() => {
+                soundEffects.playListening();
+                setIsVoiceModalOpen(true);
+              }}
               isSpeaking={isSpeaking}
             />
 
@@ -261,6 +390,7 @@ export function App() {
         station={selectedStation}
         onClose={() => setSelectedStation(null)}
         onNavigate={handleNavigate}
+        onReportStatus={handleReportStatus}
       />
 
       {/* Voice Assistant Modal */}

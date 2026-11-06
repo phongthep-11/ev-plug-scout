@@ -33,3 +33,4 @@ class WakeLockService {
 }
 
 export const wakeLockService = new WakeLockService();
+
