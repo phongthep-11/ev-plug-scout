@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  RotateCw, 
-  MapPin, 
-  Compass, 
-  Filter, 
-  Zap, 
-  AlertCircle, 
-  Volume2, 
+import {
+  RotateCw,
+  MapPin,
+  Compass,
+  Filter,
+  Zap,
+  AlertCircle,
+  Volume2,
   Navigation,
   Car
 } from 'lucide-react';
@@ -30,9 +30,9 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
   const R = 6371; // Earth radius in km
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = 
+  const a =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
     Math.sin(dLon / 2) * Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return Math.round(R * c * 10) / 10;
@@ -98,7 +98,7 @@ export function App() {
             const updated = prev.map(s => {
               const dist = calculateDistance(latitude, longitude, s.coordinates.lat, s.coordinates.lng);
               const minutes = Math.max(1, Math.round(dist / 60 * 60));
-              const travelTime = minutes > 60 
+              const travelTime = minutes > 60
                 ? `ประมาณ ${Math.floor(minutes / 60)} ชม. ${minutes % 60} นาที`
                 : `ประมาณ ${minutes} นาที`;
               return {
@@ -202,7 +202,7 @@ export function App() {
   return (
     <div className="min-h-screen bg-[#0b0f17] text-slate-100 flex flex-col font-sans">
       {/* Top Header */}
-      <Header 
+      <Header
         voiceEnabled={voiceEnabled}
         setVoiceEnabled={setVoiceEnabled}
         isSimulating={isSimulating}
@@ -226,7 +226,7 @@ export function App() {
 
         {/* Live Notification Toast when driving alerts trigger */}
         {driveAlertToast && (
-          <div 
+          <div
             onClick={() => setSelectedStation(driveAlertToast.station)}
             className="mb-4 p-3.5 rounded-2xl bg-emerald-950/90 border border-emerald-500/60 shadow-[0_0_25px_rgba(16,185,129,0.3)] cursor-pointer animate-fade-in flex items-center justify-between gap-3 text-slate-100"
           >
@@ -262,7 +262,7 @@ export function App() {
         {activeTab === 'route' && (
           <div className="space-y-4">
             {/* AI Voice Assistant Card (Exact match to screenshot) */}
-            <VoiceAssistantCard 
+            <VoiceAssistantCard
               onOpenVoice={() => {
                 soundEffects.playListening();
                 setIsVoiceModalOpen(true);
@@ -274,51 +274,46 @@ export function App() {
             <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs">
               <button
                 onClick={() => setProviderFilter('ALL')}
-                className={`px-3 py-1.5 rounded-full font-medium transition-all whitespace-nowrap ${
-                  providerFilter === 'ALL'
+                className={`px-3 py-1.5 rounded-full font-medium transition-all whitespace-nowrap ${providerFilter === 'ALL'
                     ? "bg-slate-200 text-slate-900 font-bold"
                     : "bg-slate-800/80 text-slate-400 hover:text-white"
-                }`}
+                  }`}
               >
                 ทั้งหมด ({stations.length})
               </button>
               <button
                 onClick={() => setProviderFilter('PEA VOLTA')}
-                className={`px-3 py-1.5 rounded-full font-medium transition-all whitespace-nowrap ${
-                  providerFilter === 'PEA VOLTA'
+                className={`px-3 py-1.5 rounded-full font-medium transition-all whitespace-nowrap ${providerFilter === 'PEA VOLTA'
                     ? "bg-purple-600 text-white font-bold"
                     : "bg-slate-800/80 text-slate-400 hover:text-white"
-                }`}
+                  }`}
               >
                 PEA VOLTA
               </button>
               <button
                 onClick={() => setProviderFilter('EA ANYWHERE')}
-                className={`px-3 py-1.5 rounded-full font-medium transition-all whitespace-nowrap ${
-                  providerFilter === 'EA ANYWHERE'
+                className={`px-3 py-1.5 rounded-full font-medium transition-all whitespace-nowrap ${providerFilter === 'EA ANYWHERE'
                     ? "bg-blue-600 text-white font-bold"
                     : "bg-slate-800/80 text-slate-400 hover:text-white"
-                }`}
+                  }`}
               >
                 EA Anywhere
               </button>
               <button
                 onClick={() => setProviderFilter('EV STATION PLUZ')}
-                className={`px-3 py-1.5 rounded-full font-medium transition-all whitespace-nowrap ${
-                  providerFilter === 'EV STATION PLUZ'
+                className={`px-3 py-1.5 rounded-full font-medium transition-all whitespace-nowrap ${providerFilter === 'EV STATION PLUZ'
                     ? "bg-emerald-600 text-white font-bold"
                     : "bg-slate-800/80 text-slate-400 hover:text-white"
-                }`}
+                  }`}
               >
                 EV Station PluZ
               </button>
               <button
                 onClick={() => setOnlyAvailableFilter(!onlyAvailableFilter)}
-                className={`px-3 py-1.5 rounded-full font-medium transition-all whitespace-nowrap ${
-                  onlyAvailableFilter
+                className={`px-3 py-1.5 rounded-full font-medium transition-all whitespace-nowrap ${onlyAvailableFilter
                     ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/50"
                     : "bg-slate-800/80 text-slate-400 hover:text-white"
-                }`}
+                  }`}
               >
                 {onlyAvailableFilter ? "✓ เฉพาะตู้ว่าง" : "เฉพาะตู้ว่าง"}
               </button>
@@ -344,7 +339,7 @@ export function App() {
             {/* Station Cards List */}
             <div className="space-y-4 pt-1">
               {filteredStations.map((station) => (
-                <StationCard 
+                <StationCard
                   key={station.id}
                   station={station}
                   onSelect={(s) => setSelectedStation(s)}
@@ -363,7 +358,7 @@ export function App() {
 
         {/* Tab 2: Saved Favorites */}
         {activeTab === 'saved' && (
-          <SavedStationsTab 
+          <SavedStationsTab
             stations={stations}
             onSelect={(s) => setSelectedStation(s)}
             onNavigate={(s) => handleNavigate(s)}
@@ -372,7 +367,7 @@ export function App() {
 
         {/* Tab 3: Route Planner */}
         {activeTab === 'plan' && (
-          <RoutePlannerTab 
+          <RoutePlannerTab
             stations={stations}
             onSelect={(s) => setSelectedStation(s)}
             onNavigate={(s) => handleNavigate(s)}
@@ -402,7 +397,7 @@ export function App() {
       />
 
       {/* Bottom Fixed Navigation Bar */}
-      <BottomNav 
+      <BottomNav
         activeTab={activeTab}
         setActiveTab={setActiveTab}
       />
