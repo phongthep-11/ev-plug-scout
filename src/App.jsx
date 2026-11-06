@@ -737,6 +737,9 @@ export function App() {
         {activeTab === 'plan' && (
           <RoutePlannerTab
             stations={stations}
+            userLocation={userLocation}
+            carData={carData}
+            batteryPct={batteryPct}
             onSelect={(s) => setSelectedStation(s)}
             onNavigate={(s) => handleNavigate(s)}
           />
