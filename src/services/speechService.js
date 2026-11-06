@@ -124,6 +124,14 @@ class SpeechService {
     const q = (query || '').toLowerCase().trim();
     const nextStation = stations.find(s => s.isNextOnRoute) || stations[0];
 
+    // Case: Inquire about user's car (Jaecoo 5 EV Ultra)
+    if (q.includes('รถฉัน') || q.includes('jaecoo') || q.includes('แจกู') || q.includes('สเปก') || q.includes('เหมาะกับ')) {
+      return {
+        text: `รถ JAECOO 5 EV Ultra ของพี่นิค แบตเตอรี่ 67 กิโลวัตต์ชั่วโมง รองรับหัวจ่าย CCS2 ความเร็ว DC สูงสุด 130 kW ครับ สามารถแวะชาร์จที่สถานีข้างหน้า ${nextStation.name} ซึ่งมีตู้ ${nextStation.power} ได้เต็มกำลังสปีด ชาร์จ 30 ถึง 80% ใช้เวลาเพียง 28 นาทีครับ`,
+        targetStation: nextStation
+      };
+    }
+
     // Case 1: Ultra Fast chargers
     if (q.includes('ultra') || q.includes('เร็วสุด') || q.includes('360')) {
       const ultra = stations.find(s => s.powerKw >= 300);

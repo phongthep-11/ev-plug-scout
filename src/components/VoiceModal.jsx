@@ -13,9 +13,9 @@ export function VoiceModal({ isOpen, onClose, stations, onSelectStation }) {
   // Quick preset questions for driver safety
   const PRESET_QUESTIONS = [
     "ปั๊มข้างหน้าว่างไหม?",
+    "รถ JAECOO 5 ชาร์จตู้ข้างหน้าได้ไหม?",
     "หาตู้ว่างที่ใกล้ที่สุด",
-    "มีหัวชาร์จ Ultra Fast 360 kW ไหม?",
-    "สถานี EA Anywhere มหาชัย เต็มไหม?"
+    "มีหัวชาร์จ Ultra Fast 360 kW ไหม?"
   ];
 
   useEffect(() => {
