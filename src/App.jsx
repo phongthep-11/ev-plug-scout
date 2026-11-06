@@ -64,6 +64,42 @@ export function App() {
   const [gpsAccuracy, setGpsAccuracy] = useState(null);
   const [isLocating, setIsLocating] = useState(false);
 
+  // Persistent Car & Battery state
+  const [carData, setCarData] = useState(() => {
+    try {
+      const saved = localStorage.getItem('ev_plug_scout_my_car');
+      return saved ? JSON.parse(saved) : MY_CAR_DATA;
+    } catch {
+      return MY_CAR_DATA;
+    }
+  });
+
+  const [batteryPct, setBatteryPct] = useState(() => {
+    try {
+      const saved = localStorage.getItem('ev_plug_scout_battery_pct');
+      return saved ? Number(saved) : (MY_CAR_DATA.batteryCurrentPct || 100);
+    } catch {
+      return MY_CAR_DATA.batteryCurrentPct || 100;
+    }
+  });
+
+  const estimatedRange = Math.round((batteryPct / 100) * (carData.batterySizeKwh * 6.3));
+
+  const handleSaveCarSettings = (updatedCar, updatedBattery) => {
+    setCarData(updatedCar);
+    setBatteryPct(updatedBattery);
+    try {
+      localStorage.setItem('ev_plug_scout_my_car', JSON.stringify(updatedCar));
+      localStorage.setItem('ev_plug_scout_battery_pct', String(updatedBattery));
+    } catch (e) {
+      console.warn('LocalStorage error:', e);
+    }
+    soundEffects.playListening();
+    if (voiceEnabled) {
+      speechService.speak(`บันทึกข้อมูลรถ ${updatedCar.model} แบตเตอรี่ ${updatedBattery} เปอร์เซ็นต์แล้วครับ`);
+    }
+  };
+
   // Recalculate distances for any station list based on coordinates
   const calculateStationDistances = (targetList, coords) => {
     if (!coords || !coords.lat || !coords.lng) {
@@ -398,12 +434,12 @@ export function App() {
         {/* Tab 1: Route Stations View (Main Screen from Screenshot) */}
         {activeTab === 'route' && (
           <div className="space-y-3.5">
-            {/* Quick JAECOO 5 EV Vehicle Status Pill */}
+            {/* Quick JAECOO 5 EV Vehicle Status Pill (Linked to saved vehicle state & battery) */}
             <div className="flex items-center justify-between px-3.5 py-2 rounded-2xl bg-gradient-to-r from-[#121f33] to-[#0d1624] border border-emerald-500/30 text-xs shadow-sm">
               <div className="flex items-center gap-2 min-w-0">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse flex-shrink-0" />
-                <span className="font-bold text-white truncate">🚙 JAECOO 5 EV Ultra</span>
-                <span className="text-emerald-400 font-mono flex-shrink-0">48% (~205 กม.)</span>
+                <span className="font-bold text-white truncate">🚙 {carData.model}</span>
+                <span className="text-emerald-400 font-mono flex-shrink-0">{batteryPct}% (~{estimatedRange} กม.)</span>
               </div>
               <button 
                 onClick={() => setActiveTab('car')}
@@ -598,9 +634,13 @@ export function App() {
           />
         )}
 
-        {/* Tab 4: My EV Car */}
+        {/* Tab 4: My EV Car (With Persistent Save) */}
         {activeTab === 'car' && (
-          <MyCarTab />
+          <MyCarTab 
+            car={carData}
+            batteryPct={batteryPct}
+            onSaveCarSettings={handleSaveCarSettings}
+          />
         )}
       </main>
 
