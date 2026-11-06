@@ -17,6 +17,55 @@ export const NATIONWIDE_STATIONS = [
   // 1. กรุงเทพฯ และปริมณฑล (BANGKOK & METRO)
   // ==========================================
   {
+    id: "bkk-pluz-sainoi",
+    region: "bkk",
+    province: "นนทบุรี",
+    name: "EV Station PluZ - ปตท. ไทรน้อย (ถ.บางกรวย-ไทรน้อย)",
+    provider: "EV STATION PLUZ",
+    providerTheme: { bg: "bg-teal-950/70", text: "text-emerald-300", border: "border-emerald-600/40", accent: "#10b981" },
+    power: "160 kW DC",
+    powerKw: 160,
+    availablePlugs: 3,
+    totalPlugs: 4,
+    waitingQueue: 0,
+    status: "available",
+    address: "ปั๊ม ปตท. ถนนบางกรวย-ไทรน้อย ต.ไทรน้อย อ.ไทรน้อย จ.นนทบุรี",
+    coordinates: { lat: 13.9785, lng: 100.3160 },
+    plugs: [
+      { id: 1, type: "CCS2", power: "160 kW DC", status: "available", car: null },
+      { id: 2, type: "CCS2", power: "160 kW DC", status: "available", car: null },
+      { id: 3, type: "CCS2", power: "160 kW DC", status: "available", car: null },
+      { id: 4, type: "Type 2 AC", power: "22 kW AC", status: "available", car: null }
+    ],
+    pricing: { onPeak: "7.70 บาท/kWh", offPeak: "4.70 บาท/kWh", note: "จุดเริ่มต้นย่านไทรน้อย นนทบุรี หัวชาร์จไว 160 kW เหมาะกับ JAECOO 5" },
+    amenities: ["Café Amazon", "7-Eleven", "7-Delivery", "ห้องน้ำสะอาด"],
+    providerAppUrl: "https://www.pttor.com"
+  },
+  {
+    id: "bkk-pea-westgate",
+    region: "bkk",
+    province: "นนทบุรี",
+    name: "PEA VOLTA เซ็นทรัล เวสต์เกต บางใหญ่ (ถ.กาญจนาภิเษก)",
+    provider: "PEA VOLTA",
+    providerTheme: { bg: "bg-purple-950/70", text: "text-purple-300", border: "border-purple-600/40", accent: "#a855f7" },
+    power: "150 kW DC",
+    powerKw: 150,
+    availablePlugs: 2,
+    totalPlugs: 3,
+    waitingQueue: 0,
+    status: "available",
+    address: "ศูนย์การค้าเซ็นทรัล เวสต์เกต เสา F14 ชั้น 1 ถ.กาญจนาภิเษก ต.เสาธงหิน อ.บางใหญ่ จ.นนทบุรี",
+    coordinates: { lat: 13.8760, lng: 100.4115 },
+    plugs: [
+      { id: 1, type: "CCS2", power: "150 kW DC", status: "available", car: null },
+      { id: 2, type: "CCS2", power: "150 kW DC", status: "available", car: null },
+      { id: 3, type: "Type 2 AC", power: "22 kW AC", status: "available", car: null }
+    ],
+    pricing: { onPeak: "7.69 บาท/kWh", offPeak: "4.69 บาท/kWh", note: "จุดเชื่อมต่อวงแหวนตะวันตก กาญจนาภิเษก ทล.9 ลงใต้หรือไปสาย 7" },
+    amenities: ["Central Westgate", "IKEA บางใหญ่", "Starbucks", "Food Park"],
+    providerAppUrl: "https://peavolta.pea.co.th"
+  },
+  {
     id: "bkk-mega-bangna",
     region: "bkk",
     province: "สมุทรปราการ",

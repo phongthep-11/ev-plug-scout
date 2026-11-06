@@ -1,30 +1,156 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { Route, MapPin, ArrowRight, Zap, CheckCircle2, AlertCircle, Compass, Navigation, Car, Clock, Search, Sparkles } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Route, MapPin, ArrowRight, Zap, CheckCircle2, AlertCircle, Compass, Navigation, Car, Clock, Search, Sparkles, RefreshCw } from 'lucide-react';
 import { NATIONWIDE_STATIONS } from '../data/thailandStations';
 
-// Comprehensive Geographic Hubs & Districts in Thailand
+// Comprehensive Geographic Hubs & Districts in Thailand with Typo Tolerance
 const KNOWN_LOCATIONS = [
-  { name: "ไทรน้อย (จ.นนทบุรี)", keywords: ["ไทรน้อย", "sainoi", "sai noi"], lat: 13.980, lng: 100.315, corridor: "west" },
-  { name: "บางใหญ่ (เซ็นทรัล เวสต์เกต)", keywords: ["บางใหญ่", "เวสต์เกต", "westgate", "bangyai"], lat: 13.875, lng: 100.410, corridor: "west" },
-  { name: "กรุงเทพฯ (เซ็นทรัล พระราม 2)", keywords: ["พระราม 2", "พระราม2", "บางขุนเทียน", "rama 2", "rama2"], lat: 13.628, lng: 100.412, corridor: "south" },
-  { name: "กรุงเทพฯ (เมกาบางนา)", keywords: ["บางนา", "เมกาบางนา", "mega bangna", "bangna"], lat: 13.646, lng: 100.680, corridor: "east" },
-  { name: "กรุงเทพฯ (ฟิวเจอร์พาร์ค รังสิต)", keywords: ["รังสิต", "ฟิวเจอร์", "future park", "rangsit", "ปทุมธานี"], lat: 13.989, lng: 100.617, corridor: "north" },
-  { name: "กรุงเทพฯ (ปิ่นเกล้า / บรมราชชนนี)", keywords: ["ปิ่นเกล้า", "บรมราชชนนี", "pinklao", "ตลิ่งชัน"], lat: 13.780, lng: 100.450, corridor: "west" },
-  { name: "กรุงเทพฯ (สยาม / ใจกลางเมือง)", keywords: ["สยาม", "พารากอน", "กทม", "กรุงเทพ", "siam"], lat: 13.746, lng: 100.535, corridor: "central" },
-  { name: "หัวหิน (จ.ประจวบคีรีขันธ์)", keywords: ["หัวหิน", "huahin", "hua hin", "ประจวบ"], lat: 12.553, lng: 99.960, corridor: "south" },
-  { name: "ชะอำ / ท่ายาง (จ.เพชรบุรี)", keywords: ["ชะอำ", "chaam", "ท่ายาง", "เพชรบุรี"], lat: 12.964, lng: 99.988, corridor: "south" },
-  { name: "พัทยา / จอมเทียน (จ.ชลบุรี)", keywords: ["พัทยา", "pattaya", "จอมเทียน", "สัตหีบ"], lat: 12.920, lng: 100.880, corridor: "east" },
-  { name: "ชลบุรี / บางแสน", keywords: ["ชลบุรี", "บางแสน", "chonburi"], lat: 13.360, lng: 100.980, corridor: "east" },
-  { name: "ระยอง (จ.ระยอง)", keywords: ["ระยอง", "rayong", "มาบตาพุด"], lat: 12.680, lng: 101.280, corridor: "east" },
-  { name: "นครราชสีมา (โคราช)", keywords: ["โคราช", "นครราชสีมา", "korat"], lat: 14.970, lng: 102.100, corridor: "northeast" },
-  { name: "ขอนแก่น (จ.ขอนแก่น)", keywords: ["ขอนแก่น", "khonkaen"], lat: 16.430, lng: 102.830, corridor: "northeast" },
-  { name: "เชียงใหม่ (จ.เชียงใหม่)", keywords: ["เชียงใหม่", "chiangmai", "chiang mai"], lat: 18.790, lng: 98.980, corridor: "north" },
-  { name: "นครสวรรค์ (จ.นครสวรรค์)", keywords: ["นครสวรรค์", "nakhonsawan"], lat: 15.700, lng: 100.140, corridor: "north" },
-  { name: "อยุธยา (จ.พระนครศรีอยุธยา)", keywords: ["อยุธยา", "ayutthaya"], lat: 14.350, lng: 100.570, corridor: "north" },
-  { name: "กาญจนบุรี (จ.กาญจนบุรี)", keywords: ["กาญจนบุรี", "kanchanaburi", "เมืองกาญจน์"], lat: 14.020, lng: 99.530, corridor: "west" },
-  { name: "นครปฐม (จ.นครปฐม)", keywords: ["นครปฐม", "nakhon pathom", "นครชัยศรี"], lat: 13.820, lng: 100.060, corridor: "west" },
-  { name: "ราชบุรี (จ.ราชบุรี)", keywords: ["ราชบุรี", "ratchaburi", "วังมะนาว"], lat: 13.530, lng: 99.820, corridor: "west" },
-  { name: "ภูเก็ต (จ.ภูเก็ต)", keywords: ["ภูเก็ต", "phuket"], lat: 7.880, lng: 98.390, corridor: "south" }
+  { 
+    name: "ไทรน้อย (จ.นนทบุรี)", 
+    keywords: ["ไทรน้อย", "ไทรนอน", "sainoi", "sai noi", "ไทร", "บางบัวทอง"], 
+    lat: 13.980, 
+    lng: 100.315, 
+    corridor: "west" 
+  },
+  { 
+    name: "บางใหญ่ (เซ็นทรัล เวสต์เกต)", 
+    keywords: ["บางใหญ่", "เวสต์เกต", "เวสเกต", "westgate", "bangyai"], 
+    lat: 13.875, 
+    lng: 100.410, 
+    corridor: "west" 
+  },
+  { 
+    name: "กรุงเทพฯ (เซ็นทรัล พระราม 2)", 
+    keywords: ["พระราม 2", "พระราม2", "บางขุนเทียน", "rama 2", "rama2", "สมุทรสาคร"], 
+    lat: 13.628, 
+    lng: 100.412, 
+    corridor: "south" 
+  },
+  { 
+    name: "กรุงเทพฯ (เมกาบางนา)", 
+    keywords: ["บางนา", "เมกาบางนา", "mega bangna", "bangna", "สมุทรปราการ"], 
+    lat: 13.646, 
+    lng: 100.680, 
+    corridor: "east" 
+  },
+  { 
+    name: "กรุงเทพฯ (ฟิวเจอร์พาร์ค รังสิต)", 
+    keywords: ["รังสิต", "ฟิวเจอร์", "future park", "rangsit", "ปทุมธานี"], 
+    lat: 13.989, 
+    lng: 100.617, 
+    corridor: "north" 
+  },
+  { 
+    name: "กรุงเทพฯ (ปิ่นเกล้า / บรมราชชนนี)", 
+    keywords: ["ปิ่นเกล้า", "บรมราชชนนี", "pinklao", "ตลิ่งชัน", "ราชพฤกษ์"], 
+    lat: 13.780, 
+    lng: 100.450, 
+    corridor: "west" 
+  },
+  { 
+    name: "กรุงเทพฯ (สยาม / ใจกลางเมือง)", 
+    keywords: ["สยาม", "พารากอน", "กทม", "กรุงเทพ", "กรุงเทพฯ", "siam", "bkk", "bangkok"], 
+    lat: 13.746, 
+    lng: 100.535, 
+    corridor: "central" 
+  },
+  { 
+    name: "หัวหิน (จ.ประจวบคีรีขันธ์)", 
+    keywords: ["หัวหิน", "huahin", "hua hin", "ประจวบ", "ประจวบคีรีขันธ์", "ปราณบุรี"], 
+    lat: 12.553, 
+    lng: 99.960, 
+    corridor: "south" 
+  },
+  { 
+    name: "ชะอำ / ท่ายาง (จ.เพชรบุรี)", 
+    keywords: ["ชะอำ", "chaam", "cha-am", "ท่ายาง", "เพชรบุรี", "เขาย้อย"], 
+    lat: 12.875, 
+    lng: 99.921, 
+    corridor: "south" 
+  },
+  { 
+    name: "พัทยา / จอมเทียน (จ.ชลบุรี)", 
+    keywords: ["พัทยา", "pattaya", "จอมเทียน", "สัตหีบ", "แหลมฉบัง"], 
+    lat: 12.920, 
+    lng: 100.880, 
+    corridor: "east" 
+  },
+  { 
+    name: "ชลบุรี / บางแสน", 
+    keywords: ["ชลบุรี", "บางแสน", "chonburi", "ศรีราชา"], 
+    lat: 13.360, 
+    lng: 100.980, 
+    corridor: "east" 
+  },
+  { 
+    name: "ระยอง (จ.ระยอง)", 
+    keywords: ["ระยอง", "rayong", "มาบตาพุด", "บ้านฉาง", "แกลง"], 
+    lat: 12.680, 
+    lng: 101.280, 
+    corridor: "east" 
+  },
+  { 
+    name: "นครราชสีมา (โคราช)", 
+    keywords: ["โคราช", "นครราชสีมา", "korat", "ปากช่อง", "สีคิ้ว", "มวกเหล็ก"], 
+    lat: 14.970, 
+    lng: 102.100, 
+    corridor: "northeast" 
+  },
+  { 
+    name: "ขอนแก่น (จ.ขอนแก่น)", 
+    keywords: ["ขอนแก่น", "khonkaen", "บ้านไผ่", "เมืองพล"], 
+    lat: 16.430, 
+    lng: 102.830, 
+    corridor: "northeast" 
+  },
+  { 
+    name: "เชียงใหม่ (จ.เชียงใหม่)", 
+    keywords: ["เชียงใหม่", "chiangmai", "chiang mai", "ดอยสุเทพ", "หางดง"], 
+    lat: 18.790, 
+    lng: 98.980, 
+    corridor: "north" 
+  },
+  { 
+    name: "นครสวรรค์ (จ.นครสวรรค์)", 
+    keywords: ["นครสวรรค์", "nakhonsawan", "ปากน้ำโพ"], 
+    lat: 15.700, 
+    lng: 100.140, 
+    corridor: "north" 
+  },
+  { 
+    name: "อยุธยา (จ.พระนครศรีอยุธยา)", 
+    keywords: ["อยุธยา", "ayutthaya", "บางปะอิน", "วังน้อย"], 
+    lat: 14.350, 
+    lng: 100.570, 
+    corridor: "north" 
+  },
+  { 
+    name: "กาญจนบุรี (จ.กาญจนบุรี)", 
+    keywords: ["กาญจนบุรี", "kanchanaburi", "เมืองกาญจน์", "ท่าม่วง", "ไทรโยค"], 
+    lat: 14.020, 
+    lng: 99.530, 
+    corridor: "west" 
+  },
+  { 
+    name: "นครปฐม (จ.นครปฐม)", 
+    keywords: ["นครปฐม", "nakhon pathom", "นครชัยศรี", "ศาลายา"], 
+    lat: 13.820, 
+    lng: 100.060, 
+    corridor: "west" 
+  },
+  { 
+    name: "ราชบุรี (จ.ราชบุรี)", 
+    keywords: ["ราชบุรี", "ratchaburi", "วังมะนาว", "บ้านโป่ง", "โพธาราม"], 
+    lat: 13.530, 
+    lng: 99.820, 
+    corridor: "west" 
+  },
+  { 
+    name: "ภูเก็ต (จ.ภูเก็ต)", 
+    keywords: ["ภูเก็ต", "phuket", "ป่าตอง"], 
+    lat: 7.880, 
+    lng: 98.390, 
+    corridor: "south" 
+  }
 ];
 
 function calculateHaversine(lat1, lon1, lat2, lon2) {
@@ -39,39 +165,54 @@ function calculateHaversine(lat1, lon1, lat2, lon2) {
   return Math.round(R * c * 10) / 10;
 }
 
-// Resolver that matches typed text to geographic coordinates
+// Resolver that matches typed text to geographic coordinates with typo tolerance
 function resolveLocation(queryText, fallback) {
   if (!queryText) return fallback;
   const q = queryText.trim().toLowerCase();
+  
+  // 1. Direct keyword match
   for (const loc of KNOWN_LOCATIONS) {
-    if (loc.keywords.some(k => q.includes(k) || k.includes(q))) {
+    if (loc.keywords.some(k => q.includes(k) || (k.length >= 3 && k.includes(q)))) {
       return loc;
     }
   }
+
+  // 2. Fuzzy fallback: prefix match (first 3 chars)
+  const qSub = q.slice(0, 3);
+  if (qSub.length >= 3) {
+    for (const loc of KNOWN_LOCATIONS) {
+      if (loc.keywords.some(k => k.startsWith(qSub))) {
+        return loc;
+      }
+    }
+  }
+
   return fallback;
 }
 
 export function RoutePlannerTab({ stations, onSelect, onNavigate }) {
   const [originText, setOriginText] = useState("ไทรน้อย (จ.นนทบุรี)");
   const [destText, setDestText] = useState("หัวหิน (จ.ประจวบคีรีขันธ์)");
-  const [isCalculated, setIsCalculated] = useState(true);
+  const [calcCounter, setCalcCounter] = useState(0);
 
-  // Dynamic Calculation based on user input
+  // Dynamic Calculation based on user input and corridor vector math
   const routeCalculation = useMemo(() => {
     const originLoc = resolveLocation(originText, {
-      name: originText,
+      name: originText || "ไทรน้อย (จ.นนทบุรี)",
       lat: 13.980,
       lng: 100.315
     });
 
     const destLoc = resolveLocation(destText, {
-      name: destText,
+      name: destText || "หัวหิน (จ.ประจวบคีรีขันธ์)",
       lat: 12.553,
       lng: 99.960
     });
 
-    // Calculate straight-line distance & highway driving estimate (~1.25x road curvature)
+    // Haversine straight-line distance
     const straightDist = calculateHaversine(originLoc.lat, originLoc.lng, destLoc.lat, destLoc.lng);
+    
+    // Highway driving multiplier (1.25x for road curves)
     const drivingDistanceKm = Math.max(15, Math.round(straightDist * 1.25));
 
     // Calculate drive time at highway speeds (~70-80 km/h average)
@@ -80,13 +221,13 @@ export function RoutePlannerTab({ stations, onSelect, onNavigate }) {
     const minsPart = minutes % 60;
     const driveTimeText = hoursPart > 0 ? `~${hoursPart} ชม. ${minsPart} นาที` : `~${minsPart} นาที`;
 
-    // Battery usage for JAECOO 5 EV Ultra (67.0 kWh, ~6.0-6.3 km/kWh)
+    // Battery usage for JAECOO 5 EV Ultra (67.0 kWh, ~6.0 km/kWh)
     const batteryUsedKwh = Math.round((drivingDistanceKm / 6.0) * 10) / 10;
     const batteryUsedPct = Math.min(100, Math.round((batteryUsedKwh / 67.0) * 100));
 
     // Determine Highway corridor name
     let highwayName = "ถ.กาญจนาภิเษก ทล.9 ➡️ ถ.พระราม 2 ทล.35 ➡️ ถ.เพชรเกษม ทล.4";
-    const destLower = destText.toLowerCase();
+    const destLower = (destLoc.name + " " + destText).toLowerCase();
     if (destLower.includes("พัทยา") || destLower.includes("ระยอง") || destLower.includes("ชลบุรี")) {
       highwayName = "ถ.กาญจนาภิเษก ทล.9 ➡️ มอเตอร์เวย์ สาย 7 ➡️ ถ.สุขุมวิท ทล.3";
     } else if (destLower.includes("โคราช") || destLower.includes("ขอนแก่น") || destLower.includes("อีสาน")) {
@@ -97,47 +238,75 @@ export function RoutePlannerTab({ stations, onSelect, onNavigate }) {
       highwayName = "ถ.บางบัวทอง-สุพรรณบุรี ทล.340 ➡️ ถ.มาลัยแมน ➡️ ถ.แสงชูโต ทล.323";
     }
 
-    // Filter & Sequence Stations situated along this route
-    // Calculate distance from origin to each candidate station
-    const stationsWithRouteDist = NATIONWIDE_STATIONS.map(st => {
-      const distFromOrigin = calculateHaversine(originLoc.lat, originLoc.lng, st.coordinates.lat, st.coordinates.lng);
-      const distToDest = calculateHaversine(st.coordinates.lat, st.coordinates.lng, destLoc.lat, destLoc.lng);
-      // Detour factor: check if station is reasonably on the way
-      const isAlongRoute = (distFromOrigin + distToDest) <= (straightDist * 1.35 + 20);
-      return {
-        ...st,
-        distFromOrigin: Math.round(distFromOrigin * 1.25),
-        isAlongRoute
-      };
-    });
+    // VECTOR PROJECTION CORRIDOR ALGORITHM
+    // Origin vector O(lat, lng), Dest vector D(lat, lng)
+    const dLat = destLoc.lat - originLoc.lat;
+    const dLng = destLoc.lng - originLoc.lng;
+    const L2 = dLat * dLat + dLng * dLng || 0.00001;
 
-    // Select candidates on route and sort by sequence from origin
-    let candidateStops = stationsWithRouteDist
-      .filter(s => s.isAlongRoute)
-      .sort((a, b) => a.distFromOrigin - b.distFromOrigin);
+    // Filter stations situated strictly along this route corridor
+    const candidateStops = [];
+    const isInterprovincial = drivingDistanceKm >= 70;
 
-    // Fallback if too few candidates
-    if (candidateStops.length < 2) {
-      candidateStops = stationsWithRouteDist
+    for (const st of NATIONWIDE_STATIONS) {
+      // Exclude inner-city Bangkok downtown malls if on an interprovincial highway trip
+      if (isInterprovincial && (st.id.includes("siamparagon") || st.id.includes("iconsiam"))) {
+        continue;
+      }
+
+      const vLat = st.coordinates.lat - originLoc.lat;
+      const vLng = st.coordinates.lng - originLoc.lng;
+      
+      // Scalar projection t along the route vector
+      const t = (vLat * dLat + vLng * dLng) / L2;
+      
+      // Perpendicular cross-track distance in kilometers
+      const perpDist = (Math.abs(dLat * vLng - dLng * vLat) / Math.sqrt(L2)) * 111.0;
+
+      // Allow stations forward in route direction (t between -0.05 and 1.05)
+      // and within highway corridor width (perpDist <= 48 km)
+      if (t >= -0.05 && t <= 1.05 && perpDist <= 48) {
+        const kmAlongRoute = Math.max(0, Math.min(drivingDistanceKm, Math.round(t * drivingDistanceKm)));
+        candidateStops.push({
+          ...st,
+          t,
+          distFromOrigin: kmAlongRoute,
+          perpDist: Math.round(perpDist * 10) / 10
+        });
+      }
+    }
+
+    // Sort strictly chronological from start to destination
+    candidateStops.sort((a, b) => a.distFromOrigin - b.distFromOrigin);
+
+    // If too few candidates, provide nearest fallback
+    let finalStops = candidateStops;
+    if (finalStops.length < 2) {
+      finalStops = NATIONWIDE_STATIONS
+        .map(st => ({
+          ...st,
+          distFromOrigin: Math.round(calculateHaversine(originLoc.lat, originLoc.lng, st.coordinates.lat, st.coordinates.lng) * 1.25)
+        }))
         .sort((a, b) => a.distFromOrigin - b.distFromOrigin)
         .slice(0, 5);
     }
 
-    // Pick recommended stop (ideally around 50-75% of route, with highest power)
-    let recommendedStopId = candidateStops[0]?.id;
+    // Select recommended stop:
+    // Ideal charging point is between 40% - 85% of trip distance, prioritizing high power (>= 150 kW)
+    let recommendedStopId = finalStops[0]?.id;
     let maxPower = 0;
-    candidateStops.forEach(st => {
+    finalStops.forEach(st => {
       const ratio = st.distFromOrigin / (drivingDistanceKm || 1);
-      if (ratio >= 0.4 && ratio <= 0.85 && st.powerKw >= maxPower) {
+      if (ratio >= 0.35 && ratio <= 0.85 && st.powerKw >= maxPower) {
         maxPower = st.powerKw;
         recommendedStopId = st.id;
       }
     });
 
-    const recommendedStopObj = candidateStops.find(s => s.id === recommendedStopId) || candidateStops[0];
+    const recommendedStopObj = finalStops.find(s => s.id === recommendedStopId) || finalStops[0];
 
-    // Build specific recommendation text for Nick's JAECOO 5
-    let adviceText = `เดินทางจาก ${originLoc.name.split(' (')[0]} ไป ${destLoc.name.split(' (')[0]} (${drivingDistanceKm} กม.) แนะนำแวะชาร์จที่ ${recommendedStopObj ? recommendedStopObj.name : "สถานีระหว่างทาง"} เพื่อชาร์จด่วน 130-360 kW แบตเตอรี่ขึ้นถึง 80% ถึงที่หมายได้อย่างสบายใจครับ`;
+    // Build personalized recommendation text for Nick's JAECOO 5
+    let adviceText = `เดินทางจาก ${originLoc.name.split(' (')[0]} ไป ${destLoc.name.split(' (')[0]} (${drivingDistanceKm} กม.) แนะนำแวะชาร์จที่ ${recommendedStopObj ? recommendedStopObj.name : "สถานีระหว่างทาง"} (กำลังไฟ ${recommendedStopObj?.power || "150 kW DC"}) เพื่อชาร์จด่วน 30% ➡️ 80% ใช้เวลาเพียง ~20-25 นาที ถึงที่หมายได้อย่างปลอดภัยครับ`;
 
     return {
       originLoc,
@@ -147,18 +316,18 @@ export function RoutePlannerTab({ stations, onSelect, onNavigate }) {
       highwayName,
       batteryUsedKwh,
       batteryUsedPct,
-      stops: candidateStops.map(st => ({
+      stops: finalStops.map(st => ({
         ...st,
         isRecommended: st.id === recommendedStopId
       })),
       adviceText
     };
-  }, [originText, destText]);
+  }, [originText, destText, calcCounter]);
 
   const handleApplyPreset = (origin, dest) => {
     setOriginText(origin);
     setDestText(dest);
-    setIsCalculated(true);
+    setCalcCounter(prev => prev + 1);
   };
 
   return (
@@ -167,11 +336,51 @@ export function RoutePlannerTab({ stations, onSelect, onNavigate }) {
       <div>
         <h2 className="text-lg font-bold text-white flex items-center gap-2">
           <Route className="text-emerald-400" size={20} />
-          <span>วางแผนชาร์จตามเส้นทาง (Smart Route Engine)</span>
+          <span>วางแผนชาร์จตามเส้นทาง (Smart Highway Route Engine)</span>
         </h2>
         <p className="text-xs text-slate-400 mt-0.5">
-          ระบบคำนวณระยะทางจริง จุดแวะชาร์จ และ % แบตเตอรี่รถ JAECOO 5 อัตโนมัติ
+          ระบบคำนวณระยะทางจริง จุดแวะชาร์จตรงทิศทาง และ % แบตเตอรี่ JAECOO 5 อัตโนมัติ
         </p>
+      </div>
+
+      {/* Preset Quick Route Chips */}
+      <div className="space-y-1.5">
+        <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1.5">
+          <Sparkles size={12} className="text-amber-400" />
+          <span>เส้นทางยอดนิยมของพี่นิค:</span>
+        </span>
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+          <button 
+            onClick={() => handleApplyPreset("ไทรน้อย (จ.นนทบุรี)", "หัวหิน (จ.ประจวบคีรีขันธ์)")}
+            className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-950 to-slate-900 border border-emerald-500/50 text-emerald-300 text-xs font-semibold whitespace-nowrap active:scale-95 transition"
+          >
+            🏖️ ไทรน้อย ➡️ หัวหิน
+          </button>
+          <button 
+            onClick={() => handleApplyPreset("ไทรน้อย (จ.นนทบุรี)", "พัทยา / จอมเทียน (จ.ชลบุรี)")}
+            className="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-700/80 hover:border-cyan-500 text-cyan-300 text-xs font-medium whitespace-nowrap active:scale-95 transition"
+          >
+            🌊 ไทรน้อย ➡️ พัทยา
+          </button>
+          <button 
+            onClick={() => handleApplyPreset("ไทรน้อย (จ.นนทบุรี)", "นครราชสีมา (โคราช)")}
+            className="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-700/80 hover:border-amber-500 text-amber-300 text-xs font-medium whitespace-nowrap active:scale-95 transition"
+          >
+            🌾 ไทรน้อย ➡️ โคราช
+          </button>
+          <button 
+            onClick={() => handleApplyPreset("ไทรน้อย (จ.นนทบุรี)", "เชียงใหม่ (จ.เชียงใหม่)")}
+            className="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-700/80 hover:border-blue-500 text-blue-300 text-xs font-medium whitespace-nowrap active:scale-95 transition"
+          >
+            ⛰️ ไทรน้อย ➡️ เชียงใหม่
+          </button>
+          <button 
+            onClick={() => handleApplyPreset("กรุงเทพฯ (เซ็นทรัล พระราม 2)", "หัวหิน (จ.ประจวบคีรีขันธ์)")}
+            className="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-700/80 hover:border-emerald-500 text-slate-300 text-xs font-medium whitespace-nowrap active:scale-95 transition"
+          >
+            🚗 พระราม 2 ➡️ หัวหิน
+          </button>
+        </div>
       </div>
 
       {/* Origin - Destination Interactive Box */}
@@ -189,24 +398,19 @@ export function RoutePlannerTab({ stations, onSelect, onNavigate }) {
                 <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">จุดเริ่มต้น (Origin)</span>
                 <span className="text-[10px] text-emerald-400 font-semibold">{routeCalculation.originLoc.name}</span>
               </div>
-              <div className="relative">
-                <input 
-                  type="text" 
-                  value={originText}
-                  onChange={(e) => setOriginText(e.target.value)}
-                  placeholder="พิมพ์จุดเริ่มต้น (เช่น ไทรน้อย, บางใหญ่, พระราม 2, เมกาบางนา)..."
-                  className="w-full bg-slate-950/90 border border-slate-700/80 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 font-medium"
-                />
-              </div>
-
-              {/* Quick Origin Suggestions */}
+              <input 
+                type="text" 
+                value={originText}
+                onChange={(e) => setOriginText(e.target.value)}
+                placeholder="พิมพ์จุดเริ่มต้น (เช่น ไทรน้อย, บางใหญ่, พระราม 2)..."
+                className="w-full bg-slate-950/90 border border-slate-700/80 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 font-medium"
+              />
               <div className="flex items-center gap-1 overflow-x-auto pt-1 text-[11px] no-scrollbar">
                 <span className="text-slate-500 text-[10px] flex-shrink-0">เลือกด่วน:</span>
                 <button onClick={() => setOriginText("ไทรน้อย (จ.นนทบุรี)")} className="px-2 py-0.5 rounded bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 font-medium flex-shrink-0">ไทรน้อย</button>
                 <button onClick={() => setOriginText("บางใหญ่ (เซ็นทรัล เวสต์เกต)")} className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-300 flex-shrink-0">บางใหญ่</button>
                 <button onClick={() => setOriginText("กรุงเทพฯ (เซ็นทรัล พระราม 2)")} className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-300 flex-shrink-0">พระราม 2</button>
                 <button onClick={() => setOriginText("กรุงเทพฯ (เมกาบางนา)")} className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-300 flex-shrink-0">บางนา</button>
-                <button onClick={() => setOriginText("กรุงเทพฯ (ฟิวเจอร์พาร์ค รังสิต)")} className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-300 flex-shrink-0">รังสิต</button>
               </div>
             </div>
 
@@ -215,24 +419,19 @@ export function RoutePlannerTab({ stations, onSelect, onNavigate }) {
                 <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">จุดหมายปลายทาง (Destination)</span>
                 <span className="text-[10px] text-amber-300 font-semibold">{routeCalculation.destLoc.name}</span>
               </div>
-              <div className="relative">
-                <input 
-                  type="text" 
-                  value={destText}
-                  onChange={(e) => setDestText(e.target.value)}
-                  placeholder="พิมพ์ปลายทาง (เช่น หัวหิน, พัทยา, โคราช, เชียงใหม่)..."
-                  className="w-full bg-slate-950/90 border border-slate-700/80 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 font-medium"
-                />
-              </div>
-
-              {/* Quick Destination Suggestions */}
+              <input 
+                type="text" 
+                value={destText}
+                onChange={(e) => setDestText(e.target.value)}
+                placeholder="พิมพ์ปลายทาง (เช่น หัวหิน, พัทยา, โคราช, เชียงใหม่)..."
+                className="w-full bg-slate-950/90 border border-slate-700/80 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 font-medium"
+              />
               <div className="flex items-center gap-1 overflow-x-auto pt-1 text-[11px] no-scrollbar">
                 <span className="text-slate-500 text-[10px] flex-shrink-0">เลือกด่วน:</span>
                 <button onClick={() => setDestText("หัวหิน (จ.ประจวบคีรีขันธ์)")} className="px-2 py-0.5 rounded bg-amber-950/60 border border-amber-500/40 text-amber-300 font-medium flex-shrink-0">หัวหิน</button>
                 <button onClick={() => setDestText("พัทยา / จอมเทียน (จ.ชลบุรี)")} className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-300 flex-shrink-0">พัทยา</button>
                 <button onClick={() => setDestText("นครราชสีมา (โคราช)")} className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-300 flex-shrink-0">โคราช</button>
                 <button onClick={() => setDestText("เชียงใหม่ (จ.เชียงใหม่)")} className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-300 flex-shrink-0">เชียงใหม่</button>
-                <button onClick={() => setDestText("กาญจนบุรี (จ.กาญจนบุรี)")} className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-300 flex-shrink-0">กาญจนบุรี</button>
               </div>
             </div>
           </div>
@@ -241,7 +440,7 @@ export function RoutePlannerTab({ stations, onSelect, onNavigate }) {
         {/* Dynamic Calculation Stats Box */}
         <div className="pt-2.5 border-t border-slate-800/80 grid grid-cols-2 gap-2 text-xs">
           <div className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800/80">
-            <span className="text-slate-400 block text-[10px]">ระยะทางรวมคำนวณจริง:</span>
+            <span className="text-slate-400 block text-[10px]">ระยะทางจริงตามถนน:</span>
             <span className="text-white font-bold text-lg font-mono">{routeCalculation.drivingDistanceKm} กม.</span>
             <span className="text-[10px] text-emerald-400 block mt-0.5 line-clamp-1">{routeCalculation.highwayName}</span>
           </div>
@@ -255,13 +454,22 @@ export function RoutePlannerTab({ stations, onSelect, onNavigate }) {
           </div>
         </div>
 
+        {/* Action Button: Recalculate */}
+        <button
+          onClick={() => setCalcCounter(prev => prev + 1)}
+          className="w-full py-2.5 px-3 rounded-xl bg-slate-800/90 hover:bg-slate-700/90 border border-slate-700 text-xs font-semibold text-emerald-400 flex items-center justify-center gap-1.5 transition active:scale-[0.98]"
+        >
+          <RefreshCw size={13} className="text-emerald-400 animate-spin-once" />
+          <span>⚡ คำนวณเส้นทางและจุดแวะใหม่ทันที (Recalculate Route)</span>
+        </button>
+
         {/* JAECOO 5 EV Ultra Charging Strategy */}
         <div className="p-3.5 rounded-2xl bg-gradient-to-r from-emerald-950/60 to-slate-900 border border-emerald-500/40 text-xs text-emerald-200 flex items-start gap-2.5">
           <div className="p-1.5 rounded-lg bg-emerald-500/20 text-emerald-400 flex-shrink-0">
             <Zap size={16} />
           </div>
           <div className="leading-relaxed">
-            <span className="font-bold text-white block mb-0.5">คำแนะนำสำหรับ JAECOO 5 EV Ultra (67 kWh):</span>
+            <span className="font-bold text-white block mb-0.5">คำแนะนำการชาร์จสำหรับ JAECOO 5 EV Ultra (67 kWh):</span>
             <span className="text-slate-300 text-xs">{routeCalculation.adviceText}</span>
           </div>
         </div>
@@ -271,13 +479,13 @@ export function RoutePlannerTab({ stations, onSelect, onNavigate }) {
       <div className="space-y-2.5">
         <div className="flex items-center justify-between px-1">
           <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
-            <span>จุดแวะชาร์จบนเส้นทางจริง</span>
+            <span>จุดแวะชาร์จบนแนวเส้นทางจริง (SMART STOPS)</span>
             <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-semibold">
               {routeCalculation.stops.length} จุดแวะ
             </span>
           </h3>
           <span className="text-[11px] text-emerald-400 font-medium">
-            คัดกรองตู้ความเร็วสูง CCS2 ตรงสาย
+            เรียงตามลำดับกิโลเมตรเดินทาง
           </span>
         </div>
 
@@ -296,7 +504,7 @@ export function RoutePlannerTab({ stations, onSelect, onNavigate }) {
             >
               {st.isRecommended && (
                 <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500 text-slate-950 text-[10px] font-bold mb-2 shadow-sm">
-                  <span>⭐ แนะนำแวะชาร์จจุดนี้ (หัวชาร์จเร็วและเหมาะสมที่สุด)</span>
+                  <span>⭐ จุดแวะชาร์จแนะนำ (หัวชาร์จแรง เหมาะสมกับรอบแบตเตอรี่ที่สุด)</span>
                 </div>
               )}
 
@@ -316,7 +524,7 @@ export function RoutePlannerTab({ stations, onSelect, onNavigate }) {
                         {st.provider}
                       </span>
                       <span className="text-[11px] text-slate-400 font-mono">
-                        ~กม.ที่ {st.distFromOrigin} จาก {routeCalculation.originLoc.name.split(' (')[0]}
+                        ~กม.ที่ {st.distFromOrigin} บนเส้นทาง
                       </span>
                     </div>
 
