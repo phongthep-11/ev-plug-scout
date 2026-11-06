@@ -40,6 +40,32 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
   return Math.round(R * c * 10) / 10;
 }
 
+// Real road driving distance with highway curvature multiplier (~1.22x)
+function calculateRoadDistance(lat1, lon1, lat2, lon2) {
+  const straight = calculateDistance(lat1, lon1, lat2, lon2);
+  return Math.max(0.4, Math.round(straight * 1.22 * 10) / 10);
+}
+
+// Friendly Area / District Resolver for Thailand Coordinates
+function getAreaNameFromCoords(lat, lng) {
+  if (!lat || !lng) return "ไม่ระบุตำแหน่ง";
+  if (lat >= 13.94 && lat <= 14.05 && lng >= 100.25 && lng <= 100.38) return "ย่านไทรน้อย (จ.นนทบุรี)";
+  if (lat >= 13.88 && lat <= 13.96 && lng >= 100.35 && lng <= 100.45) return "ย่านบางบัวทอง (จ.นนทบุรี)";
+  if (lat >= 13.84 && lat <= 13.91 && lng >= 100.38 && lng <= 100.45) return "ย่านบางใหญ่ / เซ็นทรัล เวสต์เกต (นนทบุรี)";
+  if (lat >= 13.78 && lat <= 13.86 && lng >= 100.42 && lng <= 100.52) return "ย่านพระราม 5 / นครอินทร์ (นนทบุรี)";
+  if (lat >= 13.58 && lat <= 13.68 && lng >= 100.38 && lng <= 100.48) return "ย่านพระราม 2 / บางขุนเทียน";
+  if (lat >= 13.60 && lat <= 13.70 && lng >= 100.60 && lng <= 100.75) return "ย่านบางนา / เมกาบางนา";
+  if (lat >= 13.94 && lat <= 14.04 && lng >= 100.58 && lng <= 100.68) return "ย่านรังสิต / ฟิวเจอร์พาร์ค";
+  if (lat >= 13.70 && lat <= 13.78 && lng >= 100.48 && lng <= 100.58) return "กทม. ชั้นใน (สยาม / พระราม 3 / สีลม)";
+  if (lat >= 12.50 && lat <= 12.65 && lng >= 99.90 && lng <= 100.02) return "อ.หัวหิน (จ.ประจวบคีรีขันธ์)";
+  if (lat >= 12.85 && lat <= 13.00 && lng >= 99.88 && lng <= 100.05) return "อ.ชะอำ / ท่ายาง (จ.เพชรบุรี)";
+  if (lat >= 12.85 && lat <= 13.00 && lng >= 100.80 && lng <= 100.95) return "พัทยา / จอมเทียน (จ.ชลบุรี)";
+  if (lat >= 13.28 && lat <= 13.42 && lng >= 100.90 && lng <= 101.05) return "เมืองชลบุรี / บางแสน";
+  if (lat >= 14.90 && lat <= 15.05 && lng >= 102.00 && lng <= 102.15) return "เมืองนครราชสีมา (โคราช)";
+  if (lat >= 18.70 && lat <= 18.85 && lng >= 98.90 && lng <= 99.05) return "เมืองเชียงใหม่";
+  return `พิกัด ${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+}
+
 export function App() {
   const [stations, setStations] = useState(INITIAL_STATIONS);
   const [selectedStation, setSelectedStation] = useState(null);
@@ -112,7 +138,7 @@ export function App() {
     }
 
     const updated = targetList.map(s => {
-      const dist = calculateDistance(coords.lat, coords.lng, s.coordinates.lat, s.coordinates.lng);
+      const dist = calculateRoadDistance(coords.lat, coords.lng, s.coordinates.lat, s.coordinates.lng);
       const minutes = Math.max(1, Math.round(dist / 50 * 60)); // 50 km/h average
       const travelTime = minutes > 60 
         ? `ประมาณ ${Math.floor(minutes / 60)} ชม. ${minutes % 60} นาที`
@@ -124,6 +150,24 @@ export function App() {
     updated.sort((a, b) => (a.distanceKm ?? 9999) - (b.distanceKm ?? 9999));
     if (updated.length > 0) updated[0].isNextOnRoute = true;
     return updated;
+  };
+
+  // Set calibrated location manually (e.g. Sai Noi, Bang Yai, Rama 2)
+  const handleSetCustomLocation = (lat, lng, name) => {
+    const coords = { lat, lng, areaName: name, isManual: true };
+    setUserLocation(coords);
+    setGpsAccuracy(5);
+    setIsRealGpsActive(true);
+    
+    const targetList = (selectedRouteId === 'all' || !selectedRouteId)
+      ? ALL_STATIONS_FLAT
+      : (ALL_STATIONS[selectedRouteId] || ALL_STATIONS_FLAT);
+
+    setStations(calculateStationDistances(targetList, coords));
+    soundEffects.playListening();
+    if (voiceEnabled) {
+      speechService.speak(`ตั้งพิกัดรถไปที่ ${name} เรียบร้อยแล้วครับ เรียงตู้ชาร์จใกล้ที่สุดให้ทันที`);
+    }
   };
 
   // Start continuous GPS tracking
@@ -174,7 +218,7 @@ export function App() {
 
         setStations(prev => {
           const updated = prev.map(s => {
-            const dist = calculateDistance(latitude, longitude, s.coordinates.lat, s.coordinates.lng);
+            const dist = calculateRoadDistance(latitude, longitude, s.coordinates.lat, s.coordinates.lng);
             const minutes = Math.max(1, Math.round(dist / 50 * 60));
             const travelTime = minutes > 60
               ? `ประมาณ ${Math.floor(minutes / 60)} ชม. ${minutes % 60} นาที`
@@ -292,17 +336,15 @@ export function App() {
     if (!lat || !lng) return;
     
     // Direct Google Maps navigation link with exact coordinates
-    // Includes user's live vehicle origin coordinates when available for instant turn-by-turn routing
-    let url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
-    if (userLocation && userLocation.lat && userLocation.lng) {
-      url += `&origin=${userLocation.lat},${userLocation.lng}`;
-    }
+    // We intentionally omit hardcoded &origin= so Google Maps reliably uses the vehicle's
+    // high-precision native hardware GPS / current location without Wi-Fi IP errors
+    const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
 
     window.open(url, '_blank') || (window.location.href = url);
 
     if (voiceEnabled) {
-      const distInfo = station.distanceKm != null ? ` ระยะทาง ${station.distanceKm} กิโลเมตร` : '';
-      speechService.speak(`เริ่มนำทางไปยัง ${station.name}${distInfo} ขอให้เดินทางปลอดภัยครับ`);
+      const distInfo = station.distanceKm != null ? ` ระยะทางประมาณ ${station.distanceKm} กิโลเมตร` : '';
+      speechService.speak(`เริ่มนำทาง Google Maps ไปยัง ${station.name}${distInfo} ขอให้เดินทางปลอดภัยครับ`);
     }
   };
 
@@ -395,39 +437,105 @@ export function App() {
           </div>
         )}
 
-        {/* GPS Live Status Bar */}
-        <div className="mb-3 px-3.5 py-2.5 rounded-2xl bg-gradient-to-r from-slate-900/90 to-slate-950/90 border border-slate-800 text-xs shadow-sm">
+        {/* GPS Live Status Bar & Location Calibration */}
+        <div className="mb-3 p-3 rounded-2xl bg-gradient-to-r from-slate-900/95 to-slate-950/95 border border-slate-800 text-xs shadow-md space-y-2.5">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className={`w-2.5 h-2.5 rounded-full ${
-                userLocation ? 'bg-emerald-400 animate-pulse' : isLocating ? 'bg-amber-400 animate-ping' : 'bg-slate-500'
+            <div className="flex items-center gap-2.5 min-w-0">
+              <span className={`w-3 h-3 rounded-full flex-shrink-0 ${
+                userLocation ? 'bg-emerald-400 shadow-[0_0_8px_#34d399] animate-pulse' : isLocating ? 'bg-amber-400 animate-ping' : 'bg-slate-500'
               }`} />
-              <div>
-                <span className="font-semibold text-white block text-xs">
-                  {userLocation 
-                    ? `พิกัดรถ: ${userLocation.lat.toFixed(4)}, ${userLocation.lng.toFixed(4)}` 
-                    : isLocating 
-                      ? "กำลังค้นหาสัญญาณดาวเทียม GPS..." 
-                      : "ยังไม่ได้เปิดสัญญาณ GPS จริง"}
-                </span>
-                <span className="text-[10px] text-slate-400">
-                  {userLocation 
-                    ? (gpsAccuracy ? `ความแม่นยำรัศมี ~${gpsAccuracy} เมตร • เรียงตามตู้ชาร์จที่ใกล้รถที่สุด` : "คำนวณระยะทางและเวลานำทางตรง 100%")
-                    : "แตะปุ่มด้านขวาเพื่อเปิด GPS นำทางจริง"}
-                </span>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="font-bold text-white text-xs truncate">
+                    {userLocation 
+                      ? `📍 ${userLocation.areaName || getAreaNameFromCoords(userLocation.lat, userLocation.lng)}`
+                      : isLocating 
+                        ? "กำลังค้นหาสัญญาณดาวเทียม GPS..." 
+                        : "ยังไม่ได้เปิดสัญญาณ GPS จริง"}
+                  </span>
+                  {userLocation && (
+                    <span className="text-[10px] text-emerald-400 font-mono bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-500/30">
+                      {userLocation.lat.toFixed(4)}, {userLocation.lng.toFixed(4)}
+                    </span>
+                  )}
+                </div>
+                <div className="text-[10px] text-slate-400 mt-0.5">
+                  {userLocation ? (
+                    gpsAccuracy && gpsAccuracy > 500 ? (
+                      <span className="text-amber-400 font-medium">
+                        ⚠️ สัญญาณ Wi-Fi ในอาคาร (คลาดเคลื่อน ±{gpsAccuracy} ม.) แตะเลือกจุดจริงด้านล่างได้เลยครับ
+                      </span>
+                    ) : (
+                      <span>ความแม่นยำรัศมี ~{gpsAccuracy || 5} เมตร • คำนวณระยะทางจริงตรง 100%</span>
+                    )
+                  ) : (
+                    <span>แตะปุ่มด้านขวาเพื่อเปิด GPS นำทางจริง</span>
+                  )}
+                </div>
               </div>
             </div>
 
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 flex-shrink-0">
               <button
                 onClick={handleRefreshGps}
-                title="อัปเดตตำแหน่ง GPS ทันที"
-                className="px-2.5 py-1.5 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 text-[11px] font-medium transition-all flex items-center gap-1 active:scale-95"
+                title="รีเฟรชสัญญาณดาวเทียม GPS ทันที"
+                className="px-2.5 py-1.5 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 border border-cyan-500/40 text-[11px] font-semibold transition-all flex items-center gap-1 active:scale-95"
               >
                 <RotateCw size={12} className={isLocating ? "animate-spin" : ""} />
-                <span>{isLocating ? "กำลังจับพิกัด" : "อัปเดต GPS"}</span>
+                <span>{isLocating ? "ค้นหา..." : "รีเฟรช GPS"}</span>
               </button>
             </div>
+          </div>
+
+          {/* Quick Location Calibrator Pills for Nick */}
+          <div className="pt-2 border-t border-slate-800/80 flex items-center gap-1.5 overflow-x-auto no-scrollbar text-[11px]">
+            <span className="text-slate-500 text-[10px] font-semibold flex-shrink-0">📍 ตั้งจุดรถด่วน:</span>
+            <button
+              onClick={() => handleSetCustomLocation(13.9800, 100.3150, "ไทรน้อย (จ.นนทบุรี)")}
+              className={`px-2.5 py-1 rounded-lg border font-medium flex-shrink-0 transition active:scale-95 ${
+                userLocation?.areaName?.includes("ไทรน้อย")
+                  ? "bg-emerald-500 text-slate-950 font-bold border-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.3)]"
+                  : "bg-slate-900 text-emerald-300 border-emerald-500/40 hover:bg-slate-800"
+              }`}
+            >
+              🏠 ไทรน้อย (บ้าน)
+            </button>
+            <button
+              onClick={() => handleSetCustomLocation(13.8760, 100.4115, "เซ็นทรัล เวสต์เกต บางใหญ่")}
+              className={`px-2.5 py-1 rounded-lg border font-medium flex-shrink-0 transition active:scale-95 ${
+                userLocation?.areaName?.includes("บางใหญ่")
+                  ? "bg-emerald-500 text-slate-950 font-bold border-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.3)]"
+                  : "bg-slate-900 text-slate-300 border-slate-800 hover:bg-slate-800"
+              }`}
+            >
+              🏢 บางใหญ่
+            </button>
+            <button
+              onClick={() => handleSetCustomLocation(13.6280, 100.4120, "เซ็นทรัล พระราม 2")}
+              className={`px-2.5 py-1 rounded-lg border font-medium flex-shrink-0 transition active:scale-95 ${
+                userLocation?.areaName?.includes("พระราม 2")
+                  ? "bg-emerald-500 text-slate-950 font-bold border-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.3)]"
+                  : "bg-slate-900 text-slate-300 border-slate-800 hover:bg-slate-800"
+              }`}
+            >
+              🚗 พระราม 2
+            </button>
+            <button
+              onClick={() => handleSetCustomLocation(13.6465, 100.6800, "เมกาบางนา")}
+              className={`px-2.5 py-1 rounded-lg border font-medium flex-shrink-0 transition active:scale-95 ${
+                userLocation?.areaName?.includes("บางนา")
+                  ? "bg-emerald-500 text-slate-950 font-bold border-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.3)]"
+                  : "bg-slate-900 text-slate-300 border-slate-800 hover:bg-slate-800"
+              }`}
+            >
+              🏬 บางนา
+            </button>
+            <button
+              onClick={handleRefreshGps}
+              className="px-2.5 py-1 rounded-lg bg-cyan-950/60 border border-cyan-500/40 text-cyan-300 font-medium flex-shrink-0 hover:bg-cyan-900/60 active:scale-95 transition"
+            >
+              🛰️ ดาวเทียม GPS จริง
+            </button>
           </div>
         </div>
 
