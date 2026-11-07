@@ -82,8 +82,13 @@ export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 
   const [originText, setOriginText] = useState(() => originPlace.name);
   const [destText, setDestText] = useState(() => destPlace.name);
 
+  // Optional Mid-Trip Waypoint (จุดแวะระหว่างทาง)
+  const [hasWaypoint, setHasWaypoint] = useState(false);
+  const [waypointPlace, setWaypointPlace] = useState(null);
+  const [waypointText, setWaypointText] = useState('');
+
   // Google Maps-style Autocomplete Dropdown state
-  const [activeField, setActiveField] = useState(null); // 'origin' | 'dest' | null
+  const [activeField, setActiveField] = useState(null); // 'origin' | 'waypoint' | 'dest' | null
   const [isRoundTrip, setIsRoundTrip] = useState(false); // One-way vs Round-trip
   const [onlineSuggestions, setOnlineSuggestions] = useState([]);
   const [isSearchingOnline, setIsSearchingOnline] = useState(false);
@@ -127,7 +132,8 @@ export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 
       return;
     }
 
-    const query = activeField === 'origin' ? originText : destText;
+    const query =
+      activeField === 'origin' ? originText : activeField === 'waypoint' ? waypointText : destText;
     const cleanQ = (query || '').replace(/ตำแหน่งปัจจุบัน.*/, '').trim();
 
     if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
@@ -148,7 +154,7 @@ export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 
     return () => {
       if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
     };
-  }, [originText, destText, activeField, userLocation]);
+  }, [originText, waypointText, destText, activeField, userLocation]);
 
   // Resolve active Origin & Destination coordinates
   const resolvedOrigin = useMemo(() => {
@@ -188,7 +194,8 @@ export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 
   // Combine instant local places + live online Thailand places for the active input
   const combinedSuggestions = useMemo(() => {
     if (!activeField) return [];
-    const query = activeField === 'origin' ? originText : destText;
+    const query =
+      activeField === 'origin' ? originText : activeField === 'waypoint' ? waypointText : destText;
     const cleanQ = (query || '').replace(/ตำแหน่งปัจจุบัน.*/, '').trim();
     const localList = searchLocalThailandPlaces(cleanQ, userLocation, NATIONWIDE_STATIONS);
 
@@ -203,12 +210,15 @@ export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 
       }
     }
     return merged.slice(0, 12);
-  }, [activeField, originText, destText, onlineSuggestions, userLocation]);
+  }, [activeField, originText, waypointText, destText, onlineSuggestions, userLocation]);
 
   const handleSelectSuggestion = (field, place) => {
     if (field === 'origin') {
       setOriginPlace(place);
       setOriginText(place.name);
+    } else if (field === 'waypoint') {
+      setWaypointPlace(place);
+      setWaypointText(place.name);
     } else {
       setDestPlace(place);
       setDestText(place.name);
@@ -243,8 +253,16 @@ export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 
     const originLoc = resolvedOrigin;
     const destLoc = resolvedDest;
 
-    const straightDist = calculateHaversineKm(originLoc.lat, originLoc.lng, destLoc.lat, destLoc.lng) || 120;
-    const oneWayDistanceKm = realRoadRoute?.distanceKm || Math.max(10, Math.round(straightDist * 1.26));
+    let straightDist = calculateHaversineKm(originLoc.lat, originLoc.lng, destLoc.lat, destLoc.lng) || 120;
+    if (hasWaypoint && waypointPlace?.lat) {
+      const leg1 = calculateHaversineKm(originLoc.lat, originLoc.lng, waypointPlace.lat, waypointPlace.lng) || 40;
+      const leg2 = calculateHaversineKm(waypointPlace.lat, waypointPlace.lng, destLoc.lat, destLoc.lng) || 80;
+      straightDist = leg1 + leg2;
+    }
+    const oneWayDistanceKm =
+      hasWaypoint && waypointPlace?.lat
+        ? Math.max(15, Math.round(straightDist * 1.25))
+        : realRoadRoute?.distanceKm || Math.max(10, Math.round(straightDist * 1.26));
     const drivingDistanceKm = isRoundTrip ? oneWayDistanceKm * 2 : oneWayDistanceKm;
 
     const oneWayMinutes = realRoadRoute?.durationMin || Math.round((oneWayDistanceKm / 75) * 60);
@@ -433,7 +451,7 @@ export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 
       allCorridorStops,
       adviceText
     };
-  }, [resolvedOrigin, resolvedDest, realRoadRoute, carData, batteryPct, isRoundTrip]);
+  }, [resolvedOrigin, resolvedDest, realRoadRoute, carData, batteryPct, isRoundTrip, hasWaypoint, waypointPlace]);
 
   const handleSwapRoute = () => {
     const tempPlace = resolvedOrigin;
@@ -453,9 +471,16 @@ export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 
       : `&origin=${encodeURIComponent(originLoc.name || `${originLoc.lat},${originLoc.lng}`)}`;
     const destPlaceStr = destLoc.name || `${destLoc.lat},${destLoc.lng}`;
     let url = `https://www.google.com/maps/dir/?api=1${originParam}&destination=${encodeURIComponent(destPlaceStr)}&travelmode=driving`;
+    const waypointsList = [];
+    if (hasWaypoint && waypointText.trim()) {
+      waypointsList.push(waypointText.trim());
+    }
     if (primaryStop) {
       const stopPlace = primaryStop.googleMapsQuery || `${primaryStop.name} ${primaryStop.province || ''}`.trim();
-      url += `&waypoints=${encodeURIComponent(stopPlace)}`;
+      waypointsList.push(stopPlace);
+    }
+    if (waypointsList.length > 0) {
+      url += `&waypoints=${encodeURIComponent(waypointsList.join('|'))}`;
     }
     window.open(url, '_blank') || (window.location.href = url);
   };
@@ -681,8 +706,8 @@ export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 
             )}
           </div>
 
-          {/* Swap Direction Button */}
-          <div className="flex items-center justify-center -my-1.5 relative z-10">
+          {/* Swap Direction + Add Waypoint Controls */}
+          <div className="flex items-center justify-center gap-2 -my-1.5 relative z-10">
             <button
               type="button"
               onClick={handleSwapRoute}
@@ -692,7 +717,114 @@ export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 
               <ArrowUpDown size={12} />
               <span>สลับขาไป - ขากลับ</span>
             </button>
+
+            {!hasWaypoint ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setHasWaypoint(true);
+                  setActiveField('waypoint');
+                }}
+                className="px-3.5 py-1 rounded-full bg-slate-800 hover:bg-cyan-500 hover:text-slate-950 text-cyan-300 border border-slate-700 text-[11px] font-bold shadow-md flex items-center gap-1 transition-all active:scale-95"
+              >
+                <span>+ เพิ่มจุดแวะระหว่างทาง</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setHasWaypoint(false);
+                  setWaypointPlace(null);
+                  setWaypointText('');
+                  if (activeField === 'waypoint') setActiveField(null);
+                }}
+                className="px-3 py-1 rounded-full bg-rose-950/70 hover:bg-rose-500 hover:text-white text-rose-300 border border-rose-500/40 text-[11px] font-bold shadow-md flex items-center gap-1 transition-all active:scale-95"
+              >
+                <X size={12} />
+                <span>ลบจุดแวะ</span>
+              </button>
+            )}
           </div>
+
+          {/* ================= OPTIONAL WAYPOINT INPUT BOX ================= */}
+          {hasWaypoint && (
+            <div className="p-3 rounded-2xl bg-slate-950/90 border border-cyan-500/40 relative animate-fade-in">
+              <div className="flex items-center justify-between mb-1.5 gap-2">
+                <span className="text-[11px] text-cyan-400 font-bold flex items-center gap-1.5 flex-shrink-0">
+                  <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 shadow-[0_0_8px_#22d3ee]" />
+                  <span>จุดแวะระหว่างทาง (Waypoint)</span>
+                </span>
+                <span className="text-[11px] text-cyan-300/90 font-medium truncate">
+                  {waypointPlace?.sub || 'แวะพัก / ทานข้าว / เที่ยวระหว่างทาง'}
+                </span>
+              </div>
+
+              <div className="relative flex items-center">
+                <Search size={15} className="absolute left-3 text-cyan-400 pointer-events-none" />
+                <input
+                  type="text"
+                  value={waypointText}
+                  onFocus={() => setActiveField('waypoint')}
+                  onChange={(e) => {
+                    setWaypointText(e.target.value);
+                    setActiveField('waypoint');
+                  }}
+                  placeholder="พิมพ์จุดแวะระหว่างทาง (เช่น นครปฐม, แม่กลอง, ชะอำ, ปากช่อง)..."
+                  className="w-full bg-slate-900/95 border border-slate-700/90 rounded-xl pl-9 pr-10 py-2.5 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400 font-semibold"
+                />
+                {waypointText && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setWaypointText('');
+                      setWaypointPlace(null);
+                      setActiveField('waypoint');
+                    }}
+                    className="absolute right-2.5 p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+
+              {activeField === 'waypoint' && (
+                <div className="mt-2 rounded-2xl bg-[#0e1525] border border-cyan-500/50 shadow-2xl overflow-hidden z-30 max-h-56 overflow-y-auto divide-y divide-slate-800/80">
+                  <div className="px-3 py-1.5 bg-slate-900/90 flex items-center justify-between text-[10px] text-slate-400">
+                    <span>เลือกจุดแวะระหว่างทาง (ค้นหาสดทั่วไทย)</span>
+                    <button
+                      type="button"
+                      onClick={() => setActiveField(null)}
+                      className="text-cyan-400 font-bold hover:underline"
+                    >
+                      ปิดรายการ
+                    </button>
+                  </div>
+
+                  {combinedSuggestions.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => handleSelectSuggestion('waypoint', item)}
+                      className="w-full px-3.5 py-2.5 text-left hover:bg-slate-800/80 flex items-center justify-between gap-2 transition"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <MapPin size={14} className="text-cyan-400 flex-shrink-0" />
+                        <div className="min-w-0">
+                          <div className="text-xs font-bold text-white truncate">{item.name}</div>
+                          <div className="text-[10px] text-slate-400 truncate">{item.sub}</div>
+                        </div>
+                      </div>
+                      {item.distanceKm != null && (
+                        <span className="text-[10px] font-mono text-slate-400 flex-shrink-0">
+                          {item.distanceKm} กม.
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* ================= DESTINATION INPUT BOX (GOOGLE MAPS STYLE) ================= */}
           <div className="p-3 rounded-2xl bg-slate-950/90 border border-slate-800/90 relative">

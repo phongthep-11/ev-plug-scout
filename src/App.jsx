@@ -1126,6 +1126,7 @@ export function App() {
         {activeTab === 'saved' && (
           <SavedStationsTab
             stations={stations}
+            userLocation={userLocation}
             onSelect={(s) => setSelectedStation(s)}
             onNavigate={(s) => handleNavigate(s)}
           />
@@ -1135,6 +1136,8 @@ export function App() {
       {/* Station Details Bottom Sheet / Modal */}
       <StationDetailModal
         station={selectedStation}
+        carData={carData}
+        batteryPct={batteryPct}
         onClose={() => setSelectedStation(null)}
         onNavigate={handleNavigate}
         onReportStatus={handleReportStatus}
