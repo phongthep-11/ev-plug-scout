@@ -1,6 +1,26 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Route, MapPin, ArrowRight, Zap, CheckCircle2, AlertCircle, Compass, Navigation, Car, Clock, Search, Sparkles, RefreshCw, ChevronDown, ChevronUp, ShieldCheck } from 'lucide-react';
+import {
+  Route,
+  MapPin,
+  Zap,
+  Compass,
+  Navigation,
+  Car,
+  ChevronDown,
+  ChevronUp,
+  ShieldCheck,
+  ArrowUpDown,
+  Flag,
+  Building2,
+  Home,
+  Crosshair,
+  Award,
+  List,
+  CheckCircle2,
+  CalendarCheck
+} from 'lucide-react';
 import { NATIONWIDE_STATIONS } from '../data/stations';
+import { getStationAccessInfo } from '../utils/stationStatus';
 
 // Comprehensive Geographic Hubs in Thailand with Typo Tolerance
 const KNOWN_LOCATIONS = [
@@ -144,12 +164,10 @@ function calculateHaversine(lat1, lon1, lat2, lon2) {
   return Math.round(R * c * 10) / 10;
 }
 
-// Resolver that matches typed text to geographic coordinates with typo tolerance
 function resolveLocation(queryText, userLocation, fallback) {
   if (!queryText) return fallback;
   const q = queryText.trim().toLowerCase();
 
-  // Check if user chose current GPS location
   if (q.includes("ตำแหน่งปัจจุบัน") || q.includes("พิกัดรถ") || q.includes("current")) {
     if (userLocation && userLocation.lat && userLocation.lng) {
       return {
@@ -161,14 +179,12 @@ function resolveLocation(queryText, userLocation, fallback) {
     }
   }
 
-  // 1. Direct keyword match
   for (const loc of KNOWN_LOCATIONS) {
     if (loc.keywords.some(k => q.includes(k) || (k.length >= 3 && k.includes(q)))) {
       return loc;
     }
   }
 
-  // 2. Fuzzy fallback: prefix match (first 3 chars)
   const qSub = q.slice(0, 3);
   if (qSub.length >= 3) {
     for (const loc of KNOWN_LOCATIONS) {
@@ -182,10 +198,9 @@ function resolveLocation(queryText, userLocation, fallback) {
 }
 
 export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 80, onSelect, onNavigate }) {
-  // Default origin to user's real GPS location (Bang Yai / Phra Pin 3) if available
   const [originText, setOriginText] = useState(() => {
     if (userLocation && userLocation.lat && userLocation.lng) {
-      return "📍 ตำแหน่งปัจจุบันของฉัน (บางใหญ่ / นนทบุรี)";
+      return "ตำแหน่งปัจจุบันของฉัน (บางใหญ่ / นนทบุรี)";
     }
     return "บางใหญ่ (เซ็นทรัล เวสต์เกต / พระปิ่น 3)";
   });
@@ -194,14 +209,12 @@ export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 
   const [calcCounter, setCalcCounter] = useState(0);
   const [showAllCorridorStops, setShowAllCorridorStops] = useState(false);
 
-  // Auto-sync origin if real GPS becomes available
   useEffect(() => {
     if (userLocation && userLocation.lat && userLocation.lng && originText.includes("ตำแหน่งปัจจุบัน")) {
       setCalcCounter(prev => prev + 1);
     }
   }, [userLocation]);
 
-  // Dynamic Calculation based on user input and corridor vector math
   const routeCalculation = useMemo(() => {
     const defaultOriginLoc = (userLocation && userLocation.lat && userLocation.lng)
       ? { name: "ตำแหน่งปัจจุบันของรถ (บางใหญ่ / พระปิ่น 3)", lat: userLocation.lat, lng: userLocation.lng }
@@ -215,59 +228,49 @@ export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 
       lng: 99.9600
     });
 
-    // Haversine straight-line distance & highway driving estimate (~1.25x road curvature)
     const straightDist = calculateHaversine(originLoc.lat, originLoc.lng, destLoc.lat, destLoc.lng);
     const drivingDistanceKm = Math.max(15, Math.round(straightDist * 1.25));
 
-    // Calculate drive time at highway speeds (~70-80 km/h average)
     const minutes = Math.round(drivingDistanceKm / 75 * 60);
     const hoursPart = Math.floor(minutes / 60);
     const minsPart = minutes % 60;
     const driveTimeText = hoursPart > 0 ? `~${hoursPart} ชม. ${minsPart} นาที` : `~${minsPart} นาที`;
 
-    // Battery usage for JAECOO 5 EV Ultra (67.0 kWh, ~6.0 km/kWh)
     const batteryCapacityKwh = carData?.batterySizeKwh || 67.0;
     const batteryUsedKwh = Math.round((drivingDistanceKm / 6.0) * 10) / 10;
     const batteryUsedPct = Math.min(100, Math.round((batteryUsedKwh / batteryCapacityKwh) * 100));
 
-    // Determine Highway corridor name
-    let highwayName = "ถ.กาญจนาภิเษก ทล.9 ➡️ ถ.พระราม 2 ทล.35 ➡️ ถ.เพชรเกษม ทล.4";
+    let highwayName = "ถ.กาญจนาภิเษก ทล.9 -> ถ.พระราม 2 ทล.35 -> ถ.เพชรเกษม ทล.4";
     const destLower = (destLoc.name + " " + destText).toLowerCase();
     if (destLower.includes("พัทยา") || destLower.includes("ระยอง") || destLower.includes("ชลบุรี")) {
-      highwayName = "ถ.กาญจนาภิเษก ทล.9 ➡️ มอเตอร์เวย์ สาย 7 ➡️ ถ.สุขุมวิท ทล.3";
+      highwayName = "ถ.กาญจนาภิเษก ทล.9 -> มอเตอร์เวย์ สาย 7 -> ถ.สุขุมวิท ทล.3";
     } else if (destLower.includes("โคราช") || destLower.includes("ขอนแก่น") || destLower.includes("อีสาน")) {
-      highwayName = "ถ.กาญจนาภิเษก ทล.9 ➡️ ถ.พหลโยธิน ➡️ ถ.มิตรภาพ ทล.2";
+      highwayName = "ถ.กาญจนาภิเษก ทล.9 -> ถ.พหลโยธิน -> ถ.มิตรภาพ ทล.2";
     } else if (destLower.includes("เชียงใหม่") || destLower.includes("นครสวรรค์") || destLower.includes("เหนือ")) {
-      highwayName = "ถ.กาญจนาภิเษก ทล.9 ➡️ ถ.สายเอเชีย ทล.32 ➡️ ถ.พหลโยธิน ทล.1";
+      highwayName = "ถ.กาญจนาภิเษก ทล.9 -> ถ.สายเอเชีย ทล.32 -> ถ.พหลโยธิน ทล.1";
     } else if (destLower.includes("กาญจนบุรี")) {
-      highwayName = "ถ.บางบัวทอง-สุพรรณบุรี ทล.340 ➡️ มอเตอร์เวย์ M81 ➡️ ทล.323";
+      highwayName = "ถ.บางบัวทอง-สุพรรณบุรี ทล.340 -> มอเตอร์เวย์ M81 -> ทล.323";
     }
 
-    // VECTOR PROJECTION HIGHWAY CORRIDOR ALGORITHM
     const dLat = destLoc.lat - originLoc.lat;
     const dLng = destLoc.lng - originLoc.lng;
     const L2 = dLat * dLat + dLng * dLng || 0.00001;
     const destCorridor = destLoc.corridor || "";
     const maxPerpKm = drivingDistanceKm > 400 ? 75 : 45;
 
-    // Filter candidate stations situated strictly along the forward highway route
     const allCorridorStops = [];
     for (const st of NATIONWIDE_STATIONS) {
-      // Exclude opposite direction / inner Bangkok shopping malls on highway trip
       if (st.id.includes("siamparagon") || st.id.includes("iconsiam") || st.id.includes("vibhavadi") || st.id.includes("ngamwongwan")) {
         continue;
       }
 
-      // Motorway M7 directional filter (prevent inbound station when driving outbound East, and vice versa)
       if (dLng > 0 && st.id === "east-pluz-motorway-inbound") continue;
       if (dLng < 0 && st.id === "east-pluz-motorway-outbound") continue;
 
-      // Corridor-region alignment (e.g., Kanchanaburi 'west' route must not pull Rama 2 'south' stations)
       if (destCorridor && destCorridor !== "bkk" && st.region !== "bkk" && st.region !== destCorridor) {
         continue;
       }
 
-      // If traveling south (towards Hua Hin / Phuket), strictly exclude stations located North of origin (like Sai Noi)
       if (destCorridor === "south" || destLower.includes("หัวหิน") || destLower.includes("ชะอำ") || destLower.includes("เพชรบุรี")) {
         if (st.coordinates.lat > originLoc.lat + 0.02) continue;
       }
@@ -277,8 +280,6 @@ export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 
       const t = (vLat * dLat + vLng * dLng) / L2;
       const perpDist = (Math.abs(dLat * vLng - dLng * vLat) / Math.sqrt(L2)) * 111.0;
 
-      // Allow forward progression (t between 0.10 and 1.05) and within highway corridor width
-      // IMPORTANT: DO NOT include stations at km 0 or within 20 km from start! Drivers don't charge right as they start!
       if (t >= 0.10 && t <= 1.05 && perpDist <= maxPerpKm) {
         const kmAlongRoute = Math.max(15, Math.min(drivingDistanceKm, Math.round(t * drivingDistanceKm)));
         if (kmAlongRoute >= 20) {
@@ -294,14 +295,10 @@ export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 
 
     allCorridorStops.sort((a, b) => a.distFromOrigin - b.distFromOrigin);
 
-    // =========================================================
-    // SMART EV STOP CURATION (ABRP / TESLA STYLE: 2-3 STOPS ONLY!)
-    // =========================================================
     const curatedStops = [];
     let primaryStop = allCorridorStops[0];
 
     if (drivingDistanceKm > 400) {
-      // Long-Haul Multi-Stop Trip (e.g., Chiang Mai 713 km, Phuket 866 km)
       const stop1 =
         allCorridorStops.find(st => st.distFromOrigin >= 180 && st.distFromOrigin <= 330 && st.powerKw >= 120) ||
         allCorridorStops.find(st => st.distFromOrigin >= 150 && st.distFromOrigin <= 350);
@@ -314,7 +311,7 @@ export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 
       if (stop1) {
         curatedStops.push({
           ...stop1,
-          stopRole: "⭐ จุดแวะชาร์จหลักที่ 1",
+          stopRole: "จุดแวะชาร์จหลักที่ 1",
           roleBadge: "bg-emerald-500 text-slate-950 font-bold shadow-md",
           isRecommended: true
         });
@@ -322,7 +319,7 @@ export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 
       if (stop2) {
         curatedStops.push({
           ...stop2,
-          stopRole: "⭐ จุดแวะชาร์จหลักที่ 2",
+          stopRole: "จุดแวะชาร์จหลักที่ 2",
           roleBadge: "bg-emerald-500 text-slate-950 font-bold shadow-md",
           isRecommended: true
         });
@@ -336,7 +333,6 @@ export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 
         });
       }
     } else {
-      // Medium-Haul Single-Stop Trip (e.g., Hua Hin 199 km, Pattaya 144 km, Korat 264 km, Kanchanaburi 120 km)
       let maxPower = 0;
       allCorridorStops.forEach(st => {
         const ratio = st.distFromOrigin / (drivingDistanceKm || 1);
@@ -366,7 +362,7 @@ export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 
       if (primaryStop) {
         curatedStops.push({
           ...primaryStop,
-          stopRole: "⭐ จุดแวะชาร์จหลักที่แนะนำ",
+          stopRole: "จุดแวะชาร์จหลักที่แนะนำ",
           roleBadge: "bg-emerald-500 text-slate-950 font-bold shadow-md",
           isRecommended: true
         });
@@ -381,10 +377,8 @@ export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 
       }
     }
 
-    // Ensure strict distance ordering from origin
     curatedStops.sort((a, b) => a.distFromOrigin - b.distFromOrigin);
 
-    // Advice text tailored to JAECOO 5 EV Ultra (67 kWh)
     const arrivalBatteryAtPrimary = Math.max(15, Math.round(batteryPct - (primaryStop?.distFromOrigin / 6.0 / batteryCapacityKwh * 100)));
     let adviceText = `เดินทางจาก ${originLoc.name.split(' (')[0]} ไป ${destLoc.name.split(' (')[0]} (${drivingDistanceKm} กม.) แนะนำแวะชาร์จที่ "${primaryStop ? primaryStop.name : "สถานีระหว่างทาง"}" (กม.ที่ ${primaryStop?.distFromOrigin}) เสียบชาร์จด่วน 130-360 kW เพียง ~20 นาที แบตจะขึ้นมาถึง 80% ถึงที่หมายได้อย่างสบายใจครับ`;
 
@@ -403,12 +397,6 @@ export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 
       adviceText
     };
   }, [originText, destText, userLocation, calcCounter, batteryPct]);
-
-  const handleApplyPreset = (origin, dest) => {
-    setOriginText(origin);
-    setDestText(dest);
-    setCalcCounter(prev => prev + 1);
-  };
 
   const handleSwapRoute = () => {
     const tempOrigin = originText;
@@ -430,12 +418,12 @@ export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 
   };
 
   const QUICK_DESTINATIONS = [
-    { label: "🏖️ หัวหิน", value: "หัวหิน (จ.ประจวบคีรีขันธ์)", sub: "ประจวบฯ • ทล.4" },
-    { label: "🌊 พัทยา", value: "พัทยา / จอมเทียน (จ.ชลบุรี)", sub: "ชลบุรี • มอเตอร์เวย์ 7" },
-    { label: "⛰️ โคราช", value: "นครราชสีมา (โคราช)", sub: "ปากช่อง • มิตรภาพ" },
-    { label: "🌸 เชียงใหม่", value: "เชียงใหม่ (จ.เชียงใหม่)", sub: "ภาคเหนือ • สายเอเชีย" },
-    { label: "🏞️ กาญจนบุรี", value: "กาญจนบุรี (จ.กาญจนบุรี)", sub: "เมืองกาญจน์ • M81" },
-    { label: "🏝️ ระยอง", value: "ระยอง (จ.ระยอง)", sub: "บ้านเพ • ทล.36" },
+    { label: "หัวหิน", value: "หัวหิน (จ.ประจวบคีรีขันธ์)", sub: "ประจวบฯ • ทล.4" },
+    { label: "พัทยา", value: "พัทยา / จอมเทียน (จ.ชลบุรี)", sub: "ชลบุรี • มอเตอร์เวย์ 7" },
+    { label: "โคราช", value: "นครราชสีมา (โคราช)", sub: "ปากช่อง • มิตรภาพ" },
+    { label: "เชียงใหม่", value: "เชียงใหม่ (จ.เชียงใหม่)", sub: "ภาคเหนือ • สายเอเชีย" },
+    { label: "กาญจนบุรี", value: "กาญจนบุรี (จ.กาญจนบุรี)", sub: "เมืองกาญจน์ • M81" },
+    { label: "ระยอง", value: "ระยอง (จ.ระยอง)", sub: "บ้านเพ • ทล.36" },
   ];
 
   return (
@@ -448,15 +436,15 @@ export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 
             <span>วางแผนเดินทางอัจฉริยะ (Smart Trip)</span>
           </h2>
           <p className="text-xs text-slate-400 mt-0.5">
-            แตะเลือกปลายทางเพียง 1 ครั้ง คัดจุดแวะชาร์จเร็วตรงเส้นทางให้ทันที
+            แตะเลือกปลายทางเพียง 1 ครั้ง คัดจุดแวะชาร์จเร็วตรงเส้นทางพร้อมแจ้งสถานะการจอง
           </p>
         </div>
       </div>
 
-      {/* 1-Tap Visual Destination Grid (Modern & Effortless) */}
+      {/* 1-Tap Visual Destination Grid (Zero Emoji) */}
       <div className="space-y-2">
         <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-          <Sparkles size={13} className="text-amber-400" />
+          <Compass size={13} className="text-emerald-400" />
           <span>1. แตะเลือกจังหวัดปลายทางด่วน (1-Tap Destination):</span>
         </span>
         <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
@@ -475,7 +463,10 @@ export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 
                     : "bg-[#131b2e] border-slate-800 text-slate-200 hover:border-slate-700"
                 }`}
               >
-                <div className="text-xs sm:text-sm font-bold truncate">{d.label}</div>
+                <div className="text-xs sm:text-sm font-bold truncate flex items-center gap-1">
+                  <MapPin size={12} className={isSelected ? "text-slate-950 flex-shrink-0" : "text-emerald-400 flex-shrink-0"} />
+                  <span>{d.label}</span>
+                </div>
                 <div className={`text-[10px] truncate mt-0.5 ${isSelected ? "text-slate-900 font-semibold" : "text-slate-400"}`}>
                   {d.sub}
                 </div>
@@ -509,32 +500,36 @@ export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 
             <div className="flex items-center gap-1.5 overflow-x-auto pt-2 text-[11px] no-scrollbar">
               <span className="text-slate-500 text-[10px] font-semibold flex-shrink-0">ต้นทางด่วน:</span>
               <button
-                onClick={() => setOriginText("📍 ตำแหน่งปัจจุบันของฉัน (บางใหญ่ / นนทบุรี)")}
-                className={`px-2.5 py-1 rounded-lg font-semibold flex-shrink-0 border transition ${
+                onClick={() => setOriginText("ตำแหน่งปัจจุบันของฉัน (บางใหญ่ / นนทบุรี)")}
+                className={`px-2.5 py-1 rounded-lg font-semibold flex-shrink-0 border transition flex items-center gap-1 ${
                   originText.includes("ตำแหน่งปัจจุบัน")
                     ? "bg-emerald-500 text-slate-950 border-emerald-400"
                     : "bg-slate-900 text-emerald-300 border-emerald-500/40"
                 }`}
               >
-                📍 พิกัดรถปัจจุบัน (GPS)
+                <Crosshair size={11} />
+                <span>พิกัดรถปัจจุบัน (GPS)</span>
               </button>
               <button
                 onClick={() => setOriginText("บางใหญ่ (เซ็นทรัล เวสต์เกต / พระปิ่น 3)")}
-                className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-white flex-shrink-0"
+                className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-white flex-shrink-0 flex items-center gap-1"
               >
-                🏢 บางใหญ่ / พระปิ่น 3
+                <Building2 size={11} />
+                <span>บางใหญ่ / พระปิ่น 3</span>
               </button>
               <button
                 onClick={() => setOriginText("ไทรน้อย (จ.นนทบุรี)")}
-                className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-white flex-shrink-0"
+                className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-white flex-shrink-0 flex items-center gap-1"
               >
-                🏠 ไทรน้อย
+                <Home size={11} />
+                <span>ไทรน้อย</span>
               </button>
               <button
                 onClick={() => setOriginText("กรุงเทพฯ (เซ็นทรัล พระราม 2)")}
-                className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-white flex-shrink-0"
+                className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-white flex-shrink-0 flex items-center gap-1"
               >
-                🚗 พระราม 2
+                <Car size={11} />
+                <span>พระราม 2</span>
               </button>
             </div>
           </div>
@@ -543,10 +538,11 @@ export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 
           <div className="flex items-center justify-center -my-1.5 relative z-10">
             <button
               onClick={handleSwapRoute}
-              title="สลับต้นทาง-ปลายทาง (ขาไป ⇄ ขากลับ)"
+              title="สลับต้นทาง-ปลายทาง (ขาไป - ขากลับ)"
               className="px-3.5 py-1 rounded-full bg-slate-800 hover:bg-emerald-500 hover:text-slate-950 text-emerald-300 border border-slate-700 text-[11px] font-bold shadow-md flex items-center gap-1.5 transition-all active:scale-95"
             >
-              <span>⇅ สลับขาไป-ขากลับ</span>
+              <ArrowUpDown size={12} />
+              <span>สลับขาไป - ขากลับ</span>
             </button>
           </div>
 
@@ -574,11 +570,18 @@ export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 
         {/* Visual Highway Journey Progress Bar */}
         <div className="p-3.5 rounded-2xl bg-slate-950/90 border border-slate-800/90 space-y-2.5">
           <div className="flex items-center justify-between text-[11px]">
-            <span className="text-emerald-400 font-bold">🚗 ต้นทาง ({batteryPct}%)</span>
-            <span className="text-amber-300 font-bold">
-              ⚡ แวะชาร์จกม.ที่ {routeCalculation.primaryStop?.distFromOrigin || "-"}
+            <span className="text-emerald-400 font-bold flex items-center gap-1">
+              <Car size={12} />
+              <span>ต้นทาง ({batteryPct}%)</span>
             </span>
-            <span className="text-cyan-300 font-bold">🏁 ปลายทาง ({routeCalculation.drivingDistanceKm} กม.)</span>
+            <span className="text-amber-300 font-bold flex items-center gap-1">
+              <Zap size={12} />
+              <span>แวะชาร์จกม.ที่ {routeCalculation.primaryStop?.distFromOrigin || "-"}</span>
+            </span>
+            <span className="text-cyan-300 font-bold flex items-center gap-1">
+              <Flag size={12} />
+              <span>ปลายทาง ({routeCalculation.drivingDistanceKm} กม.)</span>
+            </span>
           </div>
           <div className="relative h-2.5 rounded-full bg-slate-800 overflow-hidden">
             <div className="absolute inset-y-0 left-0 bg-gradient-to-r from-emerald-500 via-amber-400 to-cyan-400 w-full rounded-full" />
@@ -612,7 +615,7 @@ export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 
             <Zap size={18} />
           </div>
           <div className="leading-relaxed">
-            <span className="font-bold text-white block mb-0.5">💡 แผนการชาร์จแนะนำสำหรับพี่นิค (JAECOO 5 EV Ultra):</span>
+            <span className="font-bold text-white block mb-0.5">แผนการชาร์จแนะนำสำหรับพี่นิค (JAECOO 5 EV Ultra):</span>
             <span className="text-slate-300 text-xs">{routeCalculation.adviceText}</span>
           </div>
         </div>
@@ -623,11 +626,11 @@ export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 
           className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-emerald-500 via-emerald-400 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 font-extrabold text-xs sm:text-sm shadow-[0_6px_25px_rgba(16,185,129,0.35)] flex items-center justify-center gap-2 transition-all active:scale-95"
         >
           <Navigation size={17} className="stroke-[2.5]" />
-          <span>🗺️ เริ่มนำทางทั้งทริป + แวะจุดชาร์จหลักใน Google Maps</span>
+          <span>เริ่มนำทางทั้งทริป + แวะจุดชาร์จหลักใน Google Maps</span>
         </button>
       </div>
 
-      {/* SMART CURATED STOPS (2-3 STOPS ONLY, NOT 22 STOPS!) */}
+      {/* SMART CURATED STOPS */}
       <div className="space-y-3">
         <div className="flex items-center justify-between px-1">
           <h3 className="text-xs sm:text-sm font-extrabold text-white flex items-center gap-1.5">
@@ -635,13 +638,13 @@ export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 
             <span>2. จุดแวะชาร์จตามเส้นทาง ({routeCalculation.smartStops.length} จุดหลัก)</span>
           </h3>
           <span className="text-[11px] text-emerald-400 font-semibold">
-            คัดเฉพาะตู้เร็วริมทางหลวง
+            แจ้งสถานะคิวจองทุกจุด
           </span>
         </div>
 
-        {/* List of Smart Curated Stops */}
         {routeCalculation.smartStops.map((st, idx) => {
-          const isFree = st.availablePlugs > 0;
+          const access = getStationAccessInfo(st);
+          const isFree = access.availPlugs > 0;
           return (
             <div
               key={st.id}
@@ -653,16 +656,18 @@ export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 
               }`}
             >
               <div className="flex items-center justify-between mb-2.5">
-                <span className={`px-3 py-0.5 rounded-full text-[11px] font-bold border ${st.roleBadge || "bg-slate-800 text-slate-300"}`}>
-                  {st.stopRole}
+                <span className={`px-3 py-0.5 rounded-full text-[11px] font-bold border flex items-center gap-1 ${st.roleBadge || "bg-slate-800 text-slate-300"}`}>
+                  {st.isRecommended && <Award size={12} />}
+                  <span>{st.stopRole}</span>
                 </span>
-                <span className="text-xs text-emerald-300 font-mono font-bold bg-slate-950/70 px-2.5 py-0.5 rounded-lg border border-slate-800">
-                  📍 กม.ที่ {st.distFromOrigin}
+                <span className="text-xs text-emerald-300 font-mono font-bold bg-slate-950/70 px-2.5 py-0.5 rounded-lg border border-slate-800 flex items-center gap-1">
+                  <MapPin size={11} />
+                  <span>กม.ที่ {st.distFromOrigin}</span>
                 </span>
               </div>
 
               <div className="flex items-start justify-between gap-3">
-                <div className="flex items-start gap-3">
+                <div className="flex items-start gap-3 min-w-0 flex-1">
                   <div className={`w-9 h-9 rounded-2xl flex items-center justify-center font-extrabold text-sm flex-shrink-0 mt-0.5 ${
                     st.isRecommended
                       ? "bg-emerald-500 text-slate-950 shadow-[0_0_12px_rgba(16,185,129,0.4)]"
@@ -671,7 +676,7 @@ export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 
                     {idx + 1}
                   </div>
 
-                  <div>
+                  <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-1.5 mb-1">
                       <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${st.providerTheme?.bg || "bg-teal-950"} ${st.providerTheme?.text || "text-emerald-300"} ${st.providerTheme?.border || "border-emerald-600/40"}`}>
                         {st.provider}
@@ -690,12 +695,22 @@ export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 
                     <div className="flex flex-wrap items-center gap-2 text-xs mt-2">
                       <span className={`inline-flex items-center gap-1 font-bold ${isFree ? "text-emerald-400" : "text-amber-400"}`}>
                         <span className={`w-2 h-2 rounded-full ${isFree ? "bg-emerald-400 animate-pulse" : "bg-amber-400"}`} />
-                        <span>{isFree ? `ว่าง ${st.availablePlugs} / ${st.totalPlugs} หัว` : "ตู้เต็ม (มีคิว)"}</span>
+                        <span>{access.occupancyBadgeText}</span>
                       </span>
-                      <span className="text-slate-600">•</span>
-                      <span className="text-amber-300 font-mono font-bold bg-amber-500/10 px-2 py-0.5 rounded text-[11px] border border-amber-500/30">
-                        ⚡ {st.power}
+                      <span className="text-amber-300 font-mono font-bold bg-amber-500/10 px-2 py-0.5 rounded text-[11px] border border-amber-500/30 flex items-center gap-1">
+                        <Zap size={11} className="fill-amber-300" />
+                        <span>{st.power}</span>
                       </span>
+                    </div>
+
+                    {/* Booking vs Walk-in Badge on Route Stop */}
+                    <div className="mt-2 px-2.5 py-1 rounded-xl bg-slate-950/70 border border-slate-800 text-[11px] font-semibold text-emerald-300 flex items-center gap-1.5">
+                      {access.isPureWalkIn ? (
+                        <CheckCircle2 size={12} className="text-emerald-400 flex-shrink-0" />
+                      ) : (
+                        <CalendarCheck size={12} className="text-cyan-400 flex-shrink-0" />
+                      )}
+                      <span className="truncate">{access.bookingShortBadge}</span>
                     </div>
                   </div>
                 </div>
@@ -722,40 +737,46 @@ export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 
             onClick={() => setShowAllCorridorStops(!showAllCorridorStops)}
             className="w-full py-3 px-4 rounded-2xl bg-slate-900/70 hover:bg-slate-900 border border-slate-800 text-xs font-semibold text-slate-300 hover:text-white flex items-center justify-between transition"
           >
-            <span>📋 ดูสถานีชาร์จสำรองทั้งหมดบนถนนสายนี้ ({routeCalculation.allCorridorStops.length} สถานี)</span>
+            <span className="flex items-center gap-1.5">
+              <List size={14} className="text-emerald-400" />
+              <span>ดูสถานีชาร์จสำรองทั้งหมดบนถนนสายนี้ ({routeCalculation.allCorridorStops.length} สถานี)</span>
+            </span>
             {showAllCorridorStops ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
           </button>
 
           {showAllCorridorStops && (
             <div className="mt-2 space-y-2 pt-1 border-t border-slate-800/60">
-              {routeCalculation.allCorridorStops.map((st, i) => (
-                <div
-                  key={st.id}
-                  onClick={() => onSelect(st)}
-                  className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800/80 flex items-center justify-between gap-2 text-xs cursor-pointer hover:border-slate-700"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <span className="w-6 h-6 rounded-lg bg-slate-800 text-slate-400 text-[10px] font-bold flex items-center justify-center">
-                      {i + 1}
-                    </span>
-                    <div>
-                      <h5 className="font-semibold text-white text-xs">{st.name}</h5>
-                      <span className="text-[10px] text-slate-400 font-mono">
-                        กม.ที่ {st.distFromOrigin} • ⚡ {st.power} • {st.availablePlugs > 0 ? `ว่าง ${st.availablePlugs} หัว` : "เต็ม"}
-                      </span>
-                    </div>
-                  </div>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onNavigate(st);
-                    }}
-                    className="px-3 py-1.5 rounded-xl bg-slate-800 text-emerald-400 hover:bg-slate-700 text-xs font-bold"
+              {routeCalculation.allCorridorStops.map((st, i) => {
+                const access = getStationAccessInfo(st);
+                return (
+                  <div
+                    key={st.id}
+                    onClick={() => onSelect(st)}
+                    className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800/80 flex items-center justify-between gap-2 text-xs cursor-pointer hover:border-slate-700"
                   >
-                    นำทาง
-                  </button>
-                </div>
-              ))}
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <span className="w-6 h-6 rounded-lg bg-slate-800 text-slate-400 text-[10px] font-bold flex items-center justify-center flex-shrink-0">
+                        {i + 1}
+                      </span>
+                      <div className="min-w-0">
+                        <h5 className="font-semibold text-white text-xs truncate">{st.name}</h5>
+                        <span className="text-[10px] text-slate-400 font-mono block truncate">
+                          กม.ที่ {st.distFromOrigin} • {st.power} • {access.occupancyBadgeText} ({access.isPureWalkIn ? 'ไม่ต้องจอง' : 'เข้าได้เลย/จองได้'})
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onNavigate(st);
+                      }}
+                      className="px-3 py-1.5 rounded-xl bg-slate-800 text-emerald-400 hover:bg-slate-700 text-xs font-bold flex-shrink-0"
+                    >
+                      นำทาง
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

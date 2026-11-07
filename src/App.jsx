@@ -5,19 +5,27 @@ import {
   Compass,
   Filter,
   Zap,
-  AlertCircle,
   Volume2,
   Navigation,
   Car,
   Search,
-  X
+  X,
+  BatteryCharging,
+  Calculator,
+  Radar,
+  List,
+  Building2,
+  Home,
+  Crosshair,
+  ExternalLink,
+  CheckCircle2,
+  CalendarCheck
 } from 'lucide-react';
 import { INITIAL_STATIONS, ROUTES, ALL_STATIONS, ALL_STATIONS_FLAT, MY_CAR_DATA } from './data/stations';
 import { speechService } from './services/speechService';
 import { soundEffects } from './services/soundEffects';
 import { wakeLockService } from './services/wakeLockService';
 import { Header } from './components/Header';
-import { VoiceAssistantCard } from './components/VoiceAssistantCard';
 import { StationCard } from './components/StationCard';
 import { StationDetailModal } from './components/StationDetailModal';
 import { VoiceModal } from './components/VoiceModal';
@@ -26,7 +34,9 @@ import { BottomNav } from './components/BottomNav';
 import { SavedStationsTab } from './components/SavedStationsTab';
 import { RoutePlannerTab } from './components/RoutePlannerTab';
 import { MyCarTab } from './components/MyCarTab';
+import { ChargingCalculatorTab } from './components/ChargingCalculatorTab';
 import { InteractiveRadarMap } from './components/InteractiveRadarMap';
+import { getStationAccessInfo } from './utils/stationStatus';
 
 // Haversine distance calculator
 function calculateDistance(lat1, lon1, lat2, lon2) {
@@ -71,16 +81,17 @@ export function App() {
   const [stations, setStations] = useState(INITIAL_STATIONS);
   const [selectedStation, setSelectedStation] = useState(null);
   const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
-  const [isSpeaking, setIsSpeaking] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [isSimulating, setIsSimulating] = useState(false);
   const [isRealGpsActive, setIsRealGpsActive] = useState(false);
   const [isWakeLocked, setIsWakeLocked] = useState(false);
   const [userLocation, setUserLocation] = useState(null);
-  const [activeTab, setActiveTab] = useState('route'); // route, saved, plan, car
-  const [providerFilter, setProviderFilter] = useState('ALL'); // ALL, PEA VOLTA, EA ANYWHERE, EV STATION PLUZ
+  const [activeTab, setActiveTab] = useState('route'); // route, plan, calc, car, saved
+  const [providerFilter, setProviderFilter] = useState('ALL');
   const [onlyAvailableFilter, setOnlyAvailableFilter] = useState(false);
+  const [emptyOnlyFilter, setEmptyOnlyFilter] = useState(false);
+  const [walkInOnlyFilter, setWalkInOnlyFilter] = useState(false);
   const [ccs2OnlyFilter, setCcs2OnlyFilter] = useState(false);
   const [fastOnlyFilter, setFastOnlyFilter] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -141,20 +152,19 @@ export function App() {
 
     const updated = targetList.map(s => {
       const dist = calculateRoadDistance(coords.lat, coords.lng, s.coordinates.lat, s.coordinates.lng);
-      const minutes = Math.max(1, Math.round(dist / 50 * 60)); // 50 km/h average
+      const minutes = Math.max(1, Math.round(dist / 50 * 60));
       const travelTime = minutes > 60 
         ? `ประมาณ ${Math.floor(minutes / 60)} ชม. ${minutes % 60} นาที`
         : `ประมาณ ${minutes} นาที`;
       return { ...s, distanceKm: dist, travelTime, isNextOnRoute: false };
     });
 
-    // Sort closest to furthest
     updated.sort((a, b) => (a.distanceKm ?? 9999) - (b.distanceKm ?? 9999));
     if (updated.length > 0) updated[0].isNextOnRoute = true;
     return updated;
   };
 
-  // Set calibrated location manually (e.g. Sai Noi, Bang Yai, Rama 2)
+  // Set calibrated location manually
   const handleSetCustomLocation = (lat, lng, name) => {
     const coords = { lat, lng, areaName: name, isManual: true };
     setUserLocation(coords);
@@ -180,7 +190,6 @@ export function App() {
     }
 
     setIsLocating(true);
-    // Request current position first
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const { latitude, longitude, accuracy } = pos.coords;
@@ -190,7 +199,6 @@ export function App() {
         setIsRealGpsActive(true);
         setIsLocating(false);
 
-        // Update stations according to current route
         const targetList = (selectedRouteId === 'all' || !selectedRouteId)
           ? ALL_STATIONS_FLAT
           : (ALL_STATIONS[selectedRouteId] || ALL_STATIONS_FLAT);
@@ -204,7 +212,6 @@ export function App() {
       { enableHighAccuracy: true, timeout: 20000, maximumAge: 10000 }
     );
 
-    // Then start continuous watch for driving updates
     if (geoWatchIdRef.current !== null) {
       navigator.geolocation.clearWatch(geoWatchIdRef.current);
     }
@@ -239,7 +246,6 @@ export function App() {
     );
   };
 
-  // Auto-start GPS on app load
   useEffect(() => {
     startGpsTracking();
   }, []);
@@ -261,7 +267,6 @@ export function App() {
     }
   };
 
-  // Toggle Screen Wake Lock for driving
   const handleToggleWakeLock = async () => {
     if (isWakeLocked) {
       wakeLockService.releaseWakeLock();
@@ -275,7 +280,6 @@ export function App() {
     }
   };
 
-  // Toggle Real GPS Location
   const handleToggleRealGps = () => {
     if (isRealGpsActive) {
       if (geoWatchIdRef.current !== null && navigator.geolocation) {
@@ -310,7 +314,6 @@ export function App() {
     };
   }, []);
 
-  // Manual or periodic refresh simulation of live charger states
   const handleRefresh = () => {
     setIsRefreshing(true);
     soundEffects.playListening();
@@ -331,23 +334,21 @@ export function App() {
     }, 600);
   };
 
-  // Turn-by-turn Navigation to Google Maps (100% Verified Official Google Place Name Pin)
   const handleNavigate = (station) => {
     if (!station) return;
-    // Use official Google Maps Place Query so Google Maps locks onto the real business/station Place ID
-    // and routes into the actual station entrance instead of raw lat/lng coordinate drift
     const placeQuery = station.googleMapsQuery || `${station.name} ${station.province || ''}`.trim();
     const url = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(placeQuery)}&travelmode=driving`;
 
     window.open(url, '_blank') || (window.location.href = url);
 
     if (voiceEnabled) {
+      const access = getStationAccessInfo(station);
       const distInfo = station.distanceKm != null ? ` ระยะทางประมาณ ${station.distanceKm} กิโลเมตร` : '';
-      speechService.speak(`เริ่มนำทาง Google Maps ไปยัง ${station.name}${distInfo} ขอให้เดินทางปลอดภัยครับ`);
+      const bookingInfo = access?.isPureWalkIn ? ' ค่ายนี้ไม่ต้องจอง ขับเข้าเสียบชาร์จได้เลยครับ' : ' ช่องว่างเข้าชาร์จได้เลยครับ';
+      speechService.speak(`เริ่มนำทาง Google Maps ไปยัง ${station.name}${distInfo}${bookingInfo}`);
     }
   };
 
-  // Open Google Maps Live EV Charging Station Radar around current location
   const handleOpenLiveGoogleMapsRadar = () => {
     const area = userLocation?.areaName || '';
     const q = area ? `สถานีชาร์จรถยนต์ไฟฟ้า EV Charging Station ${area}` : `สถานีชาร์จรถยนต์ไฟฟ้า EV Charging Station ใกล้ฉัน`;
@@ -355,8 +356,7 @@ export function App() {
     window.open(url, '_blank') || (window.location.href = url);
   };
 
-  // Trigger from Driving Simulator
-  const handleStationAlert = ({ station, message, remainingDistance }) => {
+  const handleStationAlert = ({ station, message }) => {
     soundEffects.playAlert();
     setDriveAlertToast({
       title: station.name,
@@ -366,7 +366,6 @@ export function App() {
     setTimeout(() => setDriveAlertToast(null), 6000);
   };
 
-  // Handle Crowdsource user status report
   const handleReportStatus = (stationId, reportType) => {
     setStations(prev => prev.map(s => {
       if (s.id !== stationId) return s;
@@ -379,10 +378,12 @@ export function App() {
     }));
   };
 
-  // Filter stations based on selection and search
   const filteredStations = stations.filter(s => {
+    const access = getStationAccessInfo(s);
     if (providerFilter !== 'ALL' && s.provider !== providerFilter) return false;
     if (onlyAvailableFilter && s.availablePlugs === 0) return false;
+    if (emptyOnlyFilter && access.occupancyState !== 'EMPTY_ALL_FREE') return false;
+    if (walkInOnlyFilter && !access.isPureWalkIn) return false;
     if (ccs2OnlyFilter && !s.plugs?.some(p => p.type.includes('CCS2') && p.status === 'available')) return false;
     if (fastOnlyFilter && (s.powerKw || 0) < 150) return false;
     if (searchQuery.trim()) {
@@ -433,7 +434,7 @@ export function App() {
               </div>
               <div>
                 <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider block">
-                  🔔 ระบบเสียงเตือนอัตโนมัติ
+                  ระบบเสียงเตือนอัตโนมัติ
                 </span>
                 <p className="text-xs font-semibold text-white">{driveAlertToast.message}</p>
               </div>
@@ -452,18 +453,21 @@ export function App() {
                 userLocation ? 'bg-emerald-400 shadow-[0_0_8px_#34d399] animate-pulse' : isLocating ? 'bg-amber-400 animate-ping' : 'bg-slate-500'
               }`} />
               <div className="min-w-0 flex-1">
-                <div className="font-bold text-white text-xs truncate">
-                  {userLocation 
-                    ? `📍 ${userLocation.areaName || getAreaNameFromCoords(userLocation.lat, userLocation.lng)}`
-                    : isLocating 
-                      ? "กำลังค้นหาสัญญาณดาวเทียม GPS..." 
-                      : "ยังไม่ได้เปิดสัญญาณ GPS จริง"}
+                <div className="font-bold text-white text-xs truncate flex items-center gap-1.5">
+                  <MapPin size={13} className="text-emerald-400 flex-shrink-0" />
+                  <span className="truncate">
+                    {userLocation 
+                      ? (userLocation.areaName || getAreaNameFromCoords(userLocation.lat, userLocation.lng))
+                      : isLocating 
+                        ? "กำลังค้นหาสัญญาณดาวเทียม GPS..." 
+                        : "ยังไม่ได้เปิดสัญญาณ GPS จริง"}
+                  </span>
                 </div>
                 <div className="text-[10px] text-slate-400 truncate mt-0.5">
                   {userLocation ? (
                     gpsAccuracy && gpsAccuracy > 500 ? (
                       <span className="text-amber-400 font-medium">
-                        ⚠️ Wi-Fi ในอาคาร (±{gpsAccuracy} ม.) แตะเลือกจุดด้านล่างได้ครับ
+                        สัญญาณ Wi-Fi ในอาคาร (±{gpsAccuracy} ม.) แตะเลือกจุดด้านล่างได้ครับ
                       </span>
                     ) : (
                       <span>พิกัด {userLocation.lat.toFixed(4)}, {userLocation.lng.toFixed(4)} • แม่นยำ ~{gpsAccuracy || 5} ม.</span>
@@ -485,69 +489,75 @@ export function App() {
             </button>
           </div>
 
-          {/* Quick Location Calibrator Pills for Nick */}
+          {/* Quick Location Calibrator Pills */}
           <div className="pt-2 border-t border-slate-800/80 flex items-center gap-1.5 overflow-x-auto no-scrollbar text-[11px]">
-            <span className="text-slate-500 text-[10px] font-semibold flex-shrink-0">📍 ตั้งจุดด่วน:</span>
+            <span className="text-slate-500 text-[10px] font-semibold flex-shrink-0">ตั้งจุดด่วน:</span>
             <button
               onClick={() => handleSetCustomLocation(13.9800, 100.3150, "ไทรน้อย (จ.นนทบุรี)")}
-              className={`px-2.5 py-1 rounded-lg border font-medium flex-shrink-0 whitespace-nowrap transition active:scale-95 ${
+              className={`px-2.5 py-1 rounded-lg border font-medium flex-shrink-0 whitespace-nowrap transition active:scale-95 flex items-center gap-1 ${
                 userLocation?.areaName?.includes("ไทรน้อย")
                   ? "bg-emerald-500 text-slate-950 font-bold border-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.3)]"
                   : "bg-slate-900 text-emerald-300 border-emerald-500/40 hover:bg-slate-800"
               }`}
             >
-              🏠 ไทรน้อย
+              <Home size={11} />
+              <span>ไทรน้อย</span>
             </button>
             <button
               onClick={() => handleSetCustomLocation(13.8760, 100.4115, "เซ็นทรัล เวสต์เกต บางใหญ่")}
-              className={`px-2.5 py-1 rounded-lg border font-medium flex-shrink-0 whitespace-nowrap transition active:scale-95 ${
+              className={`px-2.5 py-1 rounded-lg border font-medium flex-shrink-0 whitespace-nowrap transition active:scale-95 flex items-center gap-1 ${
                 userLocation?.areaName?.includes("บางใหญ่")
                   ? "bg-emerald-500 text-slate-950 font-bold border-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.3)]"
                   : "bg-slate-900 text-slate-300 border-slate-800 hover:bg-slate-800"
               }`}
             >
-              🏢 บางใหญ่
+              <Building2 size={11} />
+              <span>บางใหญ่</span>
             </button>
             <button
               onClick={() => handleSetCustomLocation(13.6280, 100.4120, "เซ็นทรัล พระราม 2")}
-              className={`px-2.5 py-1 rounded-lg border font-medium flex-shrink-0 whitespace-nowrap transition active:scale-95 ${
+              className={`px-2.5 py-1 rounded-lg border font-medium flex-shrink-0 whitespace-nowrap transition active:scale-95 flex items-center gap-1 ${
                 userLocation?.areaName?.includes("พระราม 2")
                   ? "bg-emerald-500 text-slate-950 font-bold border-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.3)]"
                   : "bg-slate-900 text-slate-300 border-slate-800 hover:bg-slate-800"
               }`}
             >
-              🚗 พระราม 2
+              <Car size={11} />
+              <span>พระราม 2</span>
             </button>
             <button
               onClick={() => handleSetCustomLocation(13.6465, 100.6800, "เมกาบางนา")}
-              className={`px-2.5 py-1 rounded-lg border font-medium flex-shrink-0 whitespace-nowrap transition active:scale-95 ${
+              className={`px-2.5 py-1 rounded-lg border font-medium flex-shrink-0 whitespace-nowrap transition active:scale-95 flex items-center gap-1 ${
                 userLocation?.areaName?.includes("บางนา")
                   ? "bg-emerald-500 text-slate-950 font-bold border-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.3)]"
                   : "bg-slate-900 text-slate-300 border-slate-800 hover:bg-slate-800"
               }`}
             >
-              🏬 บางนา
+              <Building2 size={11} />
+              <span>บางนา</span>
             </button>
             <button
               onClick={handleRefreshGps}
-              className="px-2.5 py-1 rounded-lg bg-cyan-950/60 border border-cyan-500/40 text-cyan-300 font-medium flex-shrink-0 whitespace-nowrap hover:bg-cyan-900/60 active:scale-95 transition"
+              className="px-2.5 py-1 rounded-lg bg-cyan-950/60 border border-cyan-500/40 text-cyan-300 font-medium flex-shrink-0 whitespace-nowrap hover:bg-cyan-900/60 active:scale-95 transition flex items-center gap-1"
             >
-              🛰️ ดาวเทียมจริง
+              <Crosshair size={11} />
+              <span>ดาวเทียมจริง</span>
             </button>
           </div>
         </div>
 
-        {/* Tab 1: Route Stations View (Modern 2026 Smart EV Cockpit) */}
+        {/* Tab 1: Route Stations View (Modern 2026 Smart EV Cockpit — Zero Emoji) */}
         {activeTab === 'route' && (
           <div className="space-y-3.5">
             {/* SMART COCKPIT HERO CARD: JAECOO 5 EV + 1-TAP NEAREST AVAILABLE CHARGER */}
             {(() => {
               const nearestFree = stations.find(s => s.availablePlugs > 0) || stations[0];
+              const nearestAccess = getStationAccessInfo(nearestFree);
               return (
                 <div className="p-3.5 sm:p-5 rounded-3xl bg-gradient-to-br from-[#122238] via-[#0e192b] to-[#0a121f] border border-emerald-500/50 shadow-[0_8px_30px_rgba(16,185,129,0.16)] relative overflow-hidden space-y-3">
                   <div className="absolute -right-10 -top-10 w-36 h-36 bg-emerald-500/15 rounded-full blur-3xl pointer-events-none" />
 
-                  {/* Row 1: Vehicle Info + CCS2 Badge (Clean 1-Line Alignment on All Phones) */}
+                  {/* Row 1: Vehicle Info + CCS2 Badge */}
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2.5 min-w-0">
                       <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 flex-shrink-0">
@@ -563,53 +573,71 @@ export function App() {
                       </div>
                     </div>
 
-                    <span className="text-[10px] px-2.5 py-1 rounded-xl bg-emerald-500/20 text-emerald-300 font-extrabold border border-emerald-500/30 whitespace-nowrap flex-shrink-0">
-                      ⚡ CCS2 • {carData.maxChargeSpeedKw} kW
+                    <span className="text-[10px] px-2.5 py-1 rounded-xl bg-emerald-500/20 text-emerald-300 font-extrabold border border-emerald-500/30 whitespace-nowrap flex-shrink-0 flex items-center gap-1">
+                      <Zap size={11} className="fill-emerald-300" />
+                      <span>CCS2 • {carData.maxChargeSpeedKw} kW</span>
                     </span>
                   </div>
 
                   {/* Row 2: Full-Width Symmetrical 4-Column Battery Selector Bar */}
                   <div className="grid grid-cols-4 gap-1.5">
                     {[
-                      { pct: 20, label: '🔋 20%' },
-                      { pct: 50, label: '🔋 50%' },
-                      { pct: 80, label: '🔋 80%' },
-                      { pct: 100, label: '🔋 100%' }
+                      { pct: 20, label: 'แบต 20%' },
+                      { pct: 50, label: 'แบต 50%' },
+                      { pct: 80, label: 'แบต 80%' },
+                      { pct: 100, label: 'แบต 100%' }
                     ].map(item => (
                       <button
                         key={item.pct}
                         onClick={() => handleSaveCarSettings(carData, item.pct)}
-                        className={`py-1.5 rounded-xl text-xs font-extrabold border transition active:scale-95 whitespace-nowrap ${
+                        className={`py-1.5 rounded-xl text-xs font-extrabold border transition active:scale-95 whitespace-nowrap flex items-center justify-center gap-1 ${
                           batteryPct === item.pct
                             ? "bg-emerald-500 text-slate-950 border-emerald-400 shadow-sm"
                             : "bg-slate-900/90 text-slate-300 border-slate-800 hover:text-white"
                         }`}
                       >
-                        {item.label}
+                        <BatteryCharging size={12} />
+                        <span>{item.pct}%</span>
                       </button>
                     ))}
                   </div>
 
                   {/* Row 3: 1-Tap Instant Nearest Available Charger Sub-Card */}
-                  {nearestFree && (
+                  {nearestFree && nearestAccess && (
                     <div className="p-3 rounded-2xl bg-slate-950/80 border border-emerald-500/30 space-y-2.5">
                       <div className="flex items-center justify-between gap-2 text-xs">
                         <span className="text-emerald-400 font-extrabold flex items-center gap-1 whitespace-nowrap">
                           <Zap size={13} className="fill-emerald-400 flex-shrink-0" />
                           <span>ตู้ว่างใกล้รถที่สุด:</span>
                         </span>
-                        <span className="text-white font-mono font-extrabold bg-emerald-500/20 border border-emerald-500/40 px-2 py-0.5 rounded-lg text-[11px] whitespace-nowrap">
-                          {nearestFree.distanceKm != null ? `${nearestFree.distanceKm} กม.` : "ใกล้คุณ"} • ⚡ {nearestFree.power}
+                        <span className="text-white font-mono font-extrabold bg-emerald-500/20 border border-emerald-500/40 px-2 py-0.5 rounded-lg text-[11px] whitespace-nowrap flex items-center gap-1">
+                          <span>{nearestFree.distanceKm != null ? `${nearestFree.distanceKm} กม.` : "ใกล้คุณ"}</span>
+                          <span>•</span>
+                          <span>{nearestFree.power}</span>
                         </span>
                       </div>
 
-                      <div className="min-w-0">
+                      <div className="min-w-0 space-y-1">
                         <h3 className="text-white font-extrabold text-sm sm:text-base truncate">
                           {nearestFree.name}
                         </h3>
-                        <p className="text-xs text-emerald-300 font-semibold truncate mt-0.5">
-                          🟢 ว่างพร้อมชาร์จ {nearestFree.availablePlugs}/{nearestFree.totalPlugs} หัวจ่าย • {nearestFree.travelTime}
+                        <p className="text-xs text-emerald-300 font-bold truncate flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse flex-shrink-0" />
+                          <span>{nearestAccess.occupancyBadgeText} • {nearestFree.travelTime}</span>
                         </p>
+                        <div className="px-2.5 py-1.5 rounded-xl bg-emerald-950/60 border border-emerald-500/35 text-[11px] font-bold text-emerald-200 flex items-center justify-between gap-2">
+                          <span className="flex items-center gap-1.5 truncate">
+                            {nearestAccess.isPureWalkIn ? (
+                              <CheckCircle2 size={12} className="text-emerald-400 flex-shrink-0" />
+                            ) : (
+                              <CalendarCheck size={12} className="text-cyan-400 flex-shrink-0" />
+                            )}
+                            <span className="truncate">{nearestAccess.bookingShortBadge}</span>
+                          </span>
+                          <span className="px-1.5 py-0.5 rounded bg-emerald-500 text-slate-950 text-[10px] font-extrabold whitespace-nowrap flex-shrink-0">
+                            {nearestAccess.isPureWalkIn ? 'Walk-in 100%' : 'เข้าได้เลย'}
+                          </span>
+                        </div>
                       </div>
 
                       {/* Primary Action Buttons (Equal 2-Column Touch Targets) */}
@@ -631,7 +659,7 @@ export function App() {
                         </button>
                       </div>
 
-                      {/* Secondary Quick Tools Bar (3 Equal Columns — Fits Every Phone Screen) */}
+                      {/* Secondary Quick Tools Bar (3 Equal Columns) */}
                       <div className="grid grid-cols-3 gap-1.5">
                         <button
                           onClick={() => setViewMode(viewMode === 'map' ? 'list' : 'map')}
@@ -641,21 +669,24 @@ export function App() {
                               : 'bg-slate-900/90 border-emerald-500/35 text-emerald-300'
                           }`}
                         >
-                          <span>{viewMode === 'map' ? '📋 ดูการ์ด' : '🗺️ เรดาร์'}</span>
+                          {viewMode === 'map' ? <List size={12} /> : <Radar size={12} />}
+                          <span>{viewMode === 'map' ? 'ดูการ์ด' : 'เรดาร์'}</span>
                         </button>
 
                         <button
-                          onClick={() => setActiveTab('car')}
+                          onClick={() => setActiveTab('calc')}
                           className="py-2 px-1.5 rounded-xl bg-amber-500/15 border border-amber-500/40 text-[11px] font-bold text-amber-300 flex items-center justify-center gap-1 whitespace-nowrap transition active:scale-95"
                         >
-                          <span>⏱️ จับเวลา/ไฟ</span>
+                          <Calculator size={12} />
+                          <span>คำนวณไฟ</span>
                         </button>
 
                         <button
                           onClick={handleOpenLiveGoogleMapsRadar}
                           className="py-2 px-1.5 rounded-xl bg-slate-900/90 border border-slate-800 text-[11px] font-semibold text-cyan-300 flex items-center justify-center gap-1 whitespace-nowrap transition active:scale-95"
                         >
-                          <span>🔎 Maps สด</span>
+                          <ExternalLink size={12} />
+                          <span>Maps สด</span>
                         </button>
                       </div>
                     </div>
@@ -681,7 +712,7 @@ export function App() {
                         : "bg-slate-900/80 text-slate-300 hover:text-white border border-slate-800"
                     }`}
                   >
-                    <span>🛣️</span>
+                    <Compass size={13} />
                     <span>{route.name.split(' (')[0]}</span>
                   </button>
                 ))}
@@ -722,11 +753,14 @@ export function App() {
               </button>
             </div>
 
-            {/* ALL BRANDS FILTER BAR (รวมครบทุกยี่ห้อตู้ชาร์จในไทย) */}
+            {/* QUICK STATUS FILTERS: ว่างเข้าได้เลย / โล่งไร้คน / ไม่ต้องจอง Walk-in / ยี่ห้อตู้ชาร์จ */}
             <div className="space-y-2">
               <div className="flex items-center justify-between px-1 text-[11px] text-slate-400 font-semibold">
-                <span>🏢 เลือกยี่ห้อ / ค่ายตู้ชาร์จ (รวมครบทุกค่ายในไทย):</span>
-                <span className="text-emerald-400">{providerFilter === 'ALL' ? `รวมทุกค่าย (${stations.length} แห่ง)` : providerFilter}</span>
+                <span className="flex items-center gap-1">
+                  <Filter size={12} className="text-emerald-400" />
+                  <span>กรองสถานะคิวจอง / คนใช้งาน / ยี่ห้อตู้ชาร์จ:</span>
+                </span>
+                <span className="text-emerald-400">{providerFilter === 'ALL' ? `แสดง ${filteredStations.length} แห่ง` : providerFilter}</span>
               </div>
 
               <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs">
@@ -734,60 +768,91 @@ export function App() {
                   onClick={() => {
                     setProviderFilter('ALL');
                     setOnlyAvailableFilter(false);
+                    setEmptyOnlyFilter(false);
+                    setWalkInOnlyFilter(false);
                     setFastOnlyFilter(false);
                   }}
                   className={`px-3 py-1.5 rounded-xl font-bold transition-all whitespace-nowrap ${
-                    providerFilter === 'ALL' && !onlyAvailableFilter && !fastOnlyFilter
+                    providerFilter === 'ALL' && !onlyAvailableFilter && !emptyOnlyFilter && !walkInOnlyFilter && !fastOnlyFilter
                       ? "bg-white text-slate-950 shadow-sm"
                       : "bg-slate-800/90 text-slate-300 hover:text-white"
                   }`}
                 >
-                  🇹🇭 รวมทุกยี่ห้อ ({stations.length})
+                  รวมทั้งหมด ({stations.length})
                 </button>
+
                 <button
                   onClick={() => setOnlyAvailableFilter(!onlyAvailableFilter)}
-                  className={`px-3 py-1.5 rounded-xl font-bold transition-all whitespace-nowrap ${
+                  className={`px-3 py-1.5 rounded-xl font-bold transition-all whitespace-nowrap flex items-center gap-1.5 ${
                     onlyAvailableFilter
                       ? "bg-emerald-500 text-slate-950 shadow-[0_0_10px_rgba(16,185,129,0.3)]"
                       : "bg-slate-800/90 text-emerald-300 border border-emerald-500/30"
                   }`}
                 >
-                  🟢 เฉพาะตู้ว่าง
+                  <span className={`w-2 h-2 rounded-full ${onlyAvailableFilter ? 'bg-slate-950' : 'bg-emerald-400'}`} />
+                  <span>มีช่องว่างเข้าได้เลย</span>
                 </button>
+
+                <button
+                  onClick={() => setEmptyOnlyFilter(!emptyOnlyFilter)}
+                  className={`px-3 py-1.5 rounded-xl font-bold transition-all whitespace-nowrap flex items-center gap-1.5 ${
+                    emptyOnlyFilter
+                      ? "bg-cyan-400 text-slate-950 shadow-[0_0_10px_rgba(34,211,238,0.3)]"
+                      : "bg-slate-800/90 text-cyan-300 border border-cyan-500/30"
+                  }`}
+                >
+                  <CheckCircle2 size={12} />
+                  <span>โล่งไร้คน (ว่างครบทุกหัว)</span>
+                </button>
+
+                <button
+                  onClick={() => setWalkInOnlyFilter(!walkInOnlyFilter)}
+                  className={`px-3 py-1.5 rounded-xl font-bold transition-all whitespace-nowrap flex items-center gap-1.5 ${
+                    walkInOnlyFilter
+                      ? "bg-teal-400 text-slate-950 shadow-[0_0_10px_rgba(45,212,191,0.3)]"
+                      : "bg-slate-800/90 text-teal-300 border border-teal-500/30"
+                  }`}
+                >
+                  <CheckCircle2 size={12} />
+                  <span>ไม่ต้องจอง (Walk-in 100%)</span>
+                </button>
+
                 <button
                   onClick={() => setFastOnlyFilter(!fastOnlyFilter)}
-                  className={`px-3 py-1.5 rounded-xl font-bold transition-all whitespace-nowrap ${
+                  className={`px-3 py-1.5 rounded-xl font-bold transition-all whitespace-nowrap flex items-center gap-1 ${
                     fastOnlyFilter
                       ? "bg-amber-400 text-slate-950 shadow-[0_0_10px_rgba(251,191,36,0.3)]"
                       : "bg-slate-800/90 text-amber-300 border border-amber-500/30"
                   }`}
                 >
-                  ⚡ Ultra Fast (≥150kW)
+                  <Zap size={12} className="fill-current" />
+                  <span>Ultra Fast (≥150kW)</span>
                 </button>
 
                 {[
-                  { id: 'EV STATION PLUZ', label: '⛽ ปตท. PluZ / On-ion', activeClass: 'bg-emerald-600 text-white font-bold' },
-                  { id: 'PEA VOLTA', label: '🟣 PEA VOLTA (กฟภ.)', activeClass: 'bg-purple-600 text-white font-bold' },
-                  { id: 'ALTERVIM', label: '🟢 Altervim (โลตัส/แม็คโคร)', activeClass: 'bg-lime-500 text-slate-950 font-bold' },
-                  { id: 'ELEXA (EGAT)', label: '⚡ EleXA (กฟผ./ปั๊ม PT)', activeClass: 'bg-orange-500 text-slate-950 font-bold' },
-                  { id: 'MEA EV', label: '🟠 MEA EV (กฟน.)', activeClass: 'bg-amber-500 text-slate-950 font-bold' },
-                  { id: 'EA ANYWHERE', label: '🔵 EA Anywhere', activeClass: 'bg-blue-600 text-white font-bold' },
-                  { id: 'SHELL RECHARGE', label: '🟡 Shell Recharge', activeClass: 'bg-yellow-400 text-slate-950 font-bold' },
-                  { id: 'EVOLT', label: '🔶 Evolt (เซ็นทรัล)', activeClass: 'bg-amber-600 text-white font-bold' },
-                  { id: 'SHARGE', label: '🔷 SHARGE', activeClass: 'bg-indigo-600 text-white font-bold' },
-                  { id: 'REVERSHARGER', label: '💠 RêverSharger', activeClass: 'bg-sky-500 text-slate-950 font-bold' },
-                  { id: 'GWM HYPERCHARGE', label: '🔴 GWM HyperCharge', activeClass: 'bg-rose-600 text-white font-bold' },
+                  { id: 'EV STATION PLUZ', label: 'ปตท. PluZ / On-ion', dot: 'bg-emerald-400', activeClass: 'bg-emerald-600 text-white font-bold' },
+                  { id: 'PEA VOLTA', label: 'PEA VOLTA (กฟภ.)', dot: 'bg-purple-400', activeClass: 'bg-purple-600 text-white font-bold' },
+                  { id: 'ALTERVIM', label: 'Altervim (โลตัส/แม็คโคร)', dot: 'bg-lime-400', activeClass: 'bg-lime-500 text-slate-950 font-bold' },
+                  { id: 'ELEXA (EGAT)', label: 'EleXA (กฟผ./ปั๊ม PT)', dot: 'bg-orange-400', activeClass: 'bg-orange-500 text-slate-950 font-bold' },
+                  { id: 'MEA EV', label: 'MEA EV (กฟน.)', dot: 'bg-amber-400', activeClass: 'bg-amber-500 text-slate-950 font-bold' },
+                  { id: 'EA ANYWHERE', label: 'EA Anywhere', dot: 'bg-blue-400', activeClass: 'bg-blue-600 text-white font-bold' },
+                  { id: 'SHELL RECHARGE', label: 'Shell Recharge', dot: 'bg-yellow-400', activeClass: 'bg-yellow-400 text-slate-950 font-bold' },
+                  { id: 'EVOLT', label: 'Evolt (เซ็นทรัล)', dot: 'bg-amber-500', activeClass: 'bg-amber-600 text-white font-bold' },
+                  { id: 'SHARGE', label: 'SHARGE', dot: 'bg-indigo-400', activeClass: 'bg-indigo-600 text-white font-bold' },
+                  { id: 'REVERSHARGER', label: 'RêverSharger', dot: 'bg-sky-400', activeClass: 'bg-sky-500 text-slate-950 font-bold' },
+                  { id: 'GWM HYPERCHARGE', label: 'GWM HyperCharge', dot: 'bg-rose-400', activeClass: 'bg-rose-600 text-white font-bold' },
                 ].map(brand => (
                   <button
                     key={brand.id}
                     onClick={() => setProviderFilter(providerFilter === brand.id ? 'ALL' : brand.id)}
-                    className={`px-3 py-1.5 rounded-xl font-semibold transition-all whitespace-nowrap ${
+                    className={`px-3 py-1.5 rounded-xl font-semibold transition-all whitespace-nowrap flex items-center gap-1.5 ${
                       providerFilter === brand.id
                         ? brand.activeClass
                         : "bg-slate-800/80 text-slate-300 hover:text-white border border-slate-700/60"
                     }`}
                   >
-                    {brand.label}
+                    <span className={`w-2 h-2 rounded-full ${brand.dot}`} />
+                    <span>{brand.label}</span>
                   </button>
                 ))}
               </div>
@@ -804,15 +869,15 @@ export function App() {
                   className="w-full py-2 px-3 rounded-xl bg-emerald-950/70 hover:bg-emerald-900/70 border border-emerald-500/40 text-xs font-bold text-emerald-300 flex items-center justify-center gap-1.5 transition active:scale-95"
                 >
                   <MapPin size={13} className="text-emerald-400" />
-                  <span>🔎 ค้นหาหมุดค่าย "{providerFilter}" ทุกสาขารอบตัวฉันบน Google Maps สด ↗</span>
+                  <span>ค้นหาหมุดค่าย "{providerFilter}" ทุกสาขารอบตัวฉันบน Google Maps สด</span>
                 </button>
               )}
             </div>
 
             {/* Section Header: สถานีชาร์จใกล้ฉัน + สลับมุมมอง การ์ด / แผนที่เรดาร์ */}
             <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-              <div className="flex items-center gap-2 text-white font-extrabold text-sm">
-                <span className="text-emerald-400">📍</span>
+              <div className="flex items-center gap-1.5 text-white font-extrabold text-sm">
+                <MapPin size={16} className="text-emerald-400" />
                 <span>ตู้ชาร์จใกล้รถที่สุด ({filteredStations.length} แห่ง)</span>
               </div>
 
@@ -820,23 +885,25 @@ export function App() {
                 <div className="flex items-center bg-slate-900 p-1 rounded-xl border border-slate-800 text-xs">
                   <button
                     onClick={() => setViewMode('list')}
-                    className={`px-2.5 py-1 rounded-lg font-extrabold transition ${
+                    className={`px-2.5 py-1 rounded-lg font-extrabold transition flex items-center gap-1 ${
                       viewMode === 'list'
                         ? 'bg-emerald-500 text-slate-950 shadow'
                         : 'text-slate-400 hover:text-white'
                     }`}
                   >
-                    📋 การ์ด
+                    <List size={12} />
+                    <span>การ์ด</span>
                   </button>
                   <button
                     onClick={() => setViewMode('map')}
-                    className={`px-2.5 py-1 rounded-lg font-extrabold transition ${
+                    className={`px-2.5 py-1 rounded-lg font-extrabold transition flex items-center gap-1 ${
                       viewMode === 'map'
                         ? 'bg-emerald-500 text-slate-950 shadow'
                         : 'text-slate-400 hover:text-white'
                     }`}
                   >
-                    🗺️ แผนที่เรดาร์
+                    <Radar size={12} />
+                    <span>แผนที่เรดาร์</span>
                   </button>
                 </div>
 
@@ -877,6 +944,8 @@ export function App() {
                       onClick={() => {
                         setProviderFilter('ALL');
                         setOnlyAvailableFilter(false);
+                        setEmptyOnlyFilter(false);
+                        setWalkInOnlyFilter(false);
                         setFastOnlyFilter(false);
                         setSearchQuery('');
                       }}
@@ -891,16 +960,7 @@ export function App() {
           </div>
         )}
 
-        {/* Tab 2: Saved Favorites */}
-        {activeTab === 'saved' && (
-          <SavedStationsTab
-            stations={stations}
-            onSelect={(s) => setSelectedStation(s)}
-            onNavigate={(s) => handleNavigate(s)}
-          />
-        )}
-
-        {/* Tab 3: Route Planner */}
+        {/* Tab 2: Route Planner */}
         {activeTab === 'plan' && (
           <RoutePlannerTab
             stations={stations}
@@ -912,12 +972,30 @@ export function App() {
           />
         )}
 
-        {/* Tab 4: My EV Car (With Persistent Save) */}
+        {/* Tab 3: Dedicated Charging Calculator, Timer & Expense Tracker */}
+        {activeTab === 'calc' && (
+          <ChargingCalculatorTab
+            car={carData}
+            batteryPct={batteryPct}
+            onSaveCarSettings={handleSaveCarSettings}
+          />
+        )}
+
+        {/* Tab 4: My EV Car (Battery, Speed Simulator, Parking Memo, V2L & Pre-Trip Checklist) */}
         {activeTab === 'car' && (
           <MyCarTab 
             car={carData}
             batteryPct={batteryPct}
             onSaveCarSettings={handleSaveCarSettings}
+          />
+        )}
+
+        {/* Tab 5: Emergency Hotlines, Favorites & Cloud OTA */}
+        {activeTab === 'saved' && (
+          <SavedStationsTab
+            stations={stations}
+            onSelect={(s) => setSelectedStation(s)}
+            onNavigate={(s) => handleNavigate(s)}
           />
         )}
       </main>
@@ -938,7 +1016,7 @@ export function App() {
         onSelectStation={(s) => setSelectedStation(s)}
       />
 
-      {/* Bottom Fixed Navigation Bar */}
+      {/* Bottom Fixed Navigation Bar (5 Clearly Separated Tabs) */}
       <BottomNav
         activeTab={activeTab}
         setActiveTab={setActiveTab}

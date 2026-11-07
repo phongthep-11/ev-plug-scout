@@ -1,4 +1,5 @@
 // Speech Synthesis (Text-to-Speech) & Speech Recognition Service
+import { getStationAccessInfo } from '../utils/stationStatus';
 
 class SpeechService {
   constructor() {
@@ -23,16 +24,13 @@ class SpeechService {
     }
   }
 
-  // Get best available Thai voice
   getThaiVoice() {
     if (!this.synth) return null;
     const voices = this.synth.getVoices();
-    // Prioritize Thai voices
     const thaiVoice = voices.find(v => v.lang.includes('th') || v.lang.includes('TH') || v.name.toLowerCase().includes('thai'));
     return thaiVoice || voices[0] || null;
   }
 
-  // Speak Thai text out loud
   speak(text, onStart, onEnd) {
     if (!this.synth) {
       console.warn('SpeechSynthesis not supported');
@@ -41,12 +39,11 @@ class SpeechService {
       return;
     }
 
-    // Cancel any previous speaking
     this.synth.cancel();
 
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'th-TH';
-    utterance.rate = 1.05; // Slightly faster for automotive driving responsiveness
+    utterance.rate = 1.05;
     utterance.pitch = 1.0;
 
     const voice = this.getThaiVoice();
@@ -87,7 +84,6 @@ class SpeechService {
     }
   }
 
-  // Start listening via microphone
   listen({ onResult, onError, onStart, onEnd }) {
     if (!this.recognition) {
       if (onError) onError('เบราว์เซอร์ไม่รองรับ Speech Recognition หรือยังไม่อนุญาตไมโครโฟน');
@@ -119,20 +115,32 @@ class SpeechService {
     }
   }
 
-  // Resolve user query and generate smart voice answer based on current stations
   generateAnswer(query, stations) {
     const q = (query || '').toLowerCase().trim();
     const nextStation = stations.find(s => s.isNextOnRoute) || stations[0];
+    const nextAccess = getStationAccessInfo(nextStation);
+
+    // Case 0: Ask about Booking / Walk-in / Nobody there
+    if (q.includes('จอง') || q.includes('เข้าได้เลย') || q.includes('มีคนไหม') || q.includes('โล่ง')) {
+      const walkInStations = stations.filter(s => s.availablePlugs > 0 && getStationAccessInfo(s).isPureWalkIn);
+      const emptyStations = stations.filter(s => getStationAccessInfo(s).occupancyState === 'EMPTY_ALL_FREE');
+      const target = walkInStations[0] || emptyStations[0] || nextStation;
+      const tAccess = getStationAccessInfo(target);
+      return {
+        text: `สถานี ${target.name} ห่างไป ${target.distanceKm || 'ไม่กี่'} กิโลเมตร ตอนนี้${tAccess.occupancyBadgeText} และ${tAccess.bookingShortBadge} พี่นิคสามารถขับเข้าไปเสียบสายชาร์จได้เลยครับ`,
+        targetStation: target
+      };
+    }
 
     // Case: Inquire about user's car (Jaecoo 5 EV Ultra)
     if (q.includes('รถฉัน') || q.includes('jaecoo') || q.includes('แจกู') || q.includes('สเปก') || q.includes('เหมาะกับ')) {
       return {
-        text: `รถ JAECOO 5 EV Ultra ของพี่นิค แบตเตอรี่ 67 กิโลวัตต์ชั่วโมง รองรับหัวจ่าย CCS2 ความเร็ว DC สูงสุด 130 kW ครับ สามารถแวะชาร์จที่สถานีข้างหน้า ${nextStation.name} ซึ่งมีตู้ ${nextStation.power} ได้เต็มกำลังสปีด ชาร์จ 30 ถึง 80% ใช้เวลาเพียง 28 นาทีครับ`,
+        text: `รถ JAECOO 5 EV Ultra ของพี่นิค แบตเตอรี่ 67 กิโลวัตต์ชั่วโมง รองรับหัวจ่าย CCS2 ความเร็ว DC สูงสุด 130 kW ครับ สามารถแวะชาร์จที่สถานีข้างหน้า ${nextStation.name} ซึ่ง${nextAccess.occupancyBadgeText} และ${nextAccess.bookingShortBadge} ได้ทันทีครับ`,
         targetStation: nextStation
       };
     }
 
-    // Case: Search by City or Province (ทั่วประเทศไทย)
+    // Case: Search by City or Province
     const majorLocations = [
       { key: 'เชียงใหม่', label: 'เชียงใหม่' },
       { key: 'พัทยา', label: 'พัทยา' },
@@ -150,8 +158,9 @@ class SpeechService {
       if (q.includes(loc.key)) {
         const found = stations.find(s => (s.name || '').includes(loc.label) || (s.address || '').includes(loc.label) || (s.province || '').includes(loc.label));
         if (found) {
+          const fAccess = getStationAccessInfo(found);
           return {
-            text: `พบสถานีชาร์จในพื้นที่ ${loc.label} คือ ${found.name} มีตู้ว่าง ${found.availablePlugs} จาก ${found.totalPlugs} หัวจ่าย กำลังไฟ ${found.power} ครับ`,
+            text: `พบสถานีชาร์จในพื้นที่ ${loc.label} คือ ${found.name} ตอนนี้${fAccess.occupancyBadgeText} ${fAccess.bookingShortBadge} กำลังไฟ ${found.power} ครับ`,
             targetStation: found
           };
         }
@@ -162,8 +171,9 @@ class SpeechService {
     if (q.includes('ultra') || q.includes('เร็วสุด') || q.includes('360')) {
       const ultra = stations.find(s => s.powerKw >= 300);
       if (ultra) {
+        const uAccess = getStationAccessInfo(ultra);
         return {
-          text: `สถานีที่ชาร์จเร็วที่สุดคือ ${ultra.name} ระยะทางอีก ${ultra.distanceKm} กิโลเมตร มีหัวชาร์จ 360 kW กำลังว่าง ${ultra.availablePlugs} จาก ${ultra.totalPlugs} หัวจ่ายครับ`,
+          text: `สถานีที่ชาร์จเร็วที่สุดคือ ${ultra.name} ระยะทางอีก ${ultra.distanceKm} กิโลเมตร มีหัวชาร์จ 360 kW ตอนนี้${uAccess.occupancyBadgeText} ${uAccess.bookingShortBadge} ครับ`,
           targetStation: ultra
         };
       }
@@ -173,18 +183,18 @@ class SpeechService {
     if (q.includes('ข้างหน้า') || q.includes('ถัดไป') || q.includes('ว่างไหม') || q.includes('ปั๊มหน้า') || !q) {
       if (nextStation.availablePlugs > 0) {
         return {
-          text: `สถานีถัดไปคือ ${nextStation.name} อีก ${nextStation.distanceKm} กิโลเมตร ตอนนี้มีตู้ว่าง ${nextStation.availablePlugs} จาก ${nextStation.totalPlugs} หัวจ่าย กำลังไฟ ${nextStation.power} ครับ ไม่ต้องรอคิว สามารถแวะชาร์จได้เลยครับ`,
+          text: `สถานีถัดไปคือ ${nextStation.name} อีก ${nextStation.distanceKm} กิโลเมตร ตอนนี้${nextAccess.occupancyBadgeText} กำลังไฟ ${nextStation.power} ${nextAccess.bookingShortBadge} สามารถเลี้ยวเข้าชาร์จได้เลยครับ`,
           targetStation: nextStation
         };
       } else {
-        // Next station is full! Find alternative
         const altStation = stations.find(s => s.id !== nextStation.id && s.availablePlugs > 0);
+        const altAccess = getStationAccessInfo(altStation);
         const altText = altStation 
-          ? `แนะนำขับเลยไปอีก ${Math.round((altStation.distanceKm - nextStation.distanceKm) * 10) / 10} กิโลเมตร ที่ ${altStation.name} มีตู้ว่าง ${altStation.availablePlugs} หัวครับ`
+          ? `แนะนำขับเลยไปที่ ${altStation.name} ตอนนี้${altAccess.occupancyBadgeText} และ${altAccess.bookingShortBadge} ครับ`
           : 'ขณะนี้สถานีข้างเคียงมีคิวหนาแน่นเช่นกันครับ';
 
         return {
-          text: `แจ้งเตือนครับ สถานีข้างหน้า ${nextStation.name} อีก ${nextStation.distanceKm} กิโลเมตร ตู้ชาร์จเต็มทั้งหมดและมีคิวรอ ${nextStation.waitingQueue || 1} คันครับ ${altText}`,
+          text: `แจ้งเตือนครับ สถานีข้างหน้า ${nextStation.name} อีก ${nextStation.distanceKm} กิโลเมตร มีคนชาร์จเต็มทุกหัวและมีคิวรอ ${nextStation.waitingQueue || 1} คันครับ ${altText}`,
           targetStation: nextStation
         };
       }
@@ -194,29 +204,20 @@ class SpeechService {
     if (q.includes('ใกล้สุด') || q.includes('หาตู้ว่าง')) {
       const available = stations.filter(s => s.availablePlugs > 0).sort((a, b) => a.distanceKm - b.distanceKm)[0];
       if (available) {
+        const aAccess = getStationAccessInfo(available);
         return {
-          text: `สถานีที่มีตู้ว่างที่ใกล้ที่สุดคือ ${available.name} ระยะทาง ${available.distanceKm} กิโลเมตร ใช้เวลาเดินทาง ${available.travelTime} มีตู้ว่าง ${available.availablePlugs} หัวจ่ายครับ`,
+          text: `สถานีที่มีตู้ว่างที่ใกล้ที่สุดคือ ${available.name} ระยะทาง ${available.distanceKm} กิโลเมตร ตอนนี้${aAccess.occupancyBadgeText} ${aAccess.bookingShortBadge} ครับ`,
           targetStation: available
         };
       }
     }
 
-    // Case 4: Brand specific
-    if (q.includes('pea') || q.includes('วอลต้า')) {
-      const pea = stations.find(s => s.provider === 'PEA VOLTA');
-      return {
-        text: `สถานี PEA VOLTA ที่ใกล้ที่สุดคือ ${pea.name} อีก ${pea.distanceKm} กิโลเมตร ว่าง ${pea.availablePlugs} จาก ${pea.totalPlugs} หัวจ่ายครับ`,
-        targetStation: pea
-      };
-    }
-
     // Default response
     return {
-      text: `ขณะนี้สถานีข้างหน้า ${nextStation.name} ห่างไป ${nextStation.distanceKm} กิโลเมตร มีตู้ชาร์จว่าง ${nextStation.availablePlugs} จาก ${nextStation.totalPlugs} หัวจ่ายครับ`,
+      text: `ขณะนี้สถานีข้างหน้า ${nextStation.name} ห่างไป ${nextStation.distanceKm} กิโลเมตร ${nextAccess.occupancyBadgeText} ${nextAccess.bookingShortBadge} ครับ`,
       targetStation: nextStation
     };
   }
 }
 
 export const speechService = new SpeechService();
-

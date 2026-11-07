@@ -5,8 +5,6 @@ import {
   Zap, 
   Volume2, 
   MapPin, 
-  Coffee, 
-  ShoppingBag, 
   Clock, 
   ExternalLink, 
   BatteryCharging,
@@ -14,10 +12,14 @@ import {
   CheckCircle2,
   AlertTriangle,
   PhoneCall,
-  ShieldAlert
+  ShieldAlert,
+  Info,
+  Search,
+  CalendarCheck
 } from 'lucide-react';
 import { speechService } from '../services/speechService';
 import { soundEffects } from '../services/soundEffects';
+import { getStationAccessInfo } from '../utils/stationStatus';
 
 const PROVIDER_HOTLINES = {
   'EV STATION PLUZ': { phone: '021143350', display: '02-114-3350 (หรือ 1365)', name: 'EV Station PluZ Call Center' },
@@ -47,9 +49,16 @@ export function StationDetailModal({ station, onClose, onNavigate, onReportStatu
 
   if (!station) return null;
 
+  const access = getStationAccessInfo(station);
+
   const handleSpeakStation = () => {
     soundEffects.playListening();
-    const text = `${station.name} ระยะทาง ${station.distanceKm} กิโลเมตร ขณะนี้มีตู้ว่าง ${station.availablePlugs} จากทั้งหมด ${station.totalPlugs} หัวจ่าย กำลังไฟ ${station.power} อัตราค่าบริการช่วงออฟพีค ${station.pricing.offPeak} ครับ`;
+    const bookingSpeech = access.availPlugs > 0
+      ? (access.isPureWalkIn
+          ? 'ค่ายนี้ไม่ต้องจองล่วงหน้า สามารถขับเข้าไปสแกนคิวอาร์โค้ดหน้าตู้ได้เลยครับ'
+          : 'ขณะนี้ช่องที่ว่างไม่มีคิวจอง สามารถขับเข้าชาร์จได้เลย หรือกดจองในแอปก่อนถึงก็ได้ครับ')
+      : 'ขณะนี้มีคนชาร์จเต็มทุกหัว ต้องรอคิวครับ';
+    const text = `${station.name} ระยะทาง ${station.distanceKm} กิโลเมตร ${access.occupancyBadgeText} ${bookingSpeech} กำลังไฟ ${station.power} อัตราค่าบริการช่วงออฟพีค ${station.pricing.offPeak} ครับ`;
     speechService.speak(text);
   };
 
@@ -101,15 +110,59 @@ export function StationDetailModal({ station, onClose, onNavigate, onReportStatu
           </div>
         </div>
 
+        {/* Walk-in vs Booking Policy & Live Occupancy Banner */}
+        <div
+          className={`mt-4 p-3.5 rounded-2xl border space-y-2 ${
+            access.availPlugs === 0
+              ? 'bg-amber-950/35 border-amber-500/40'
+              : access.isPureWalkIn
+              ? 'bg-emerald-950/40 border-emerald-500/45'
+              : 'bg-cyan-950/35 border-cyan-500/40'
+          }`}
+        >
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-extrabold text-white flex items-center gap-1.5">
+              {access.isPureWalkIn ? (
+                <CheckCircle2 size={15} className="text-emerald-400 flex-shrink-0" />
+              ) : (
+                <CalendarCheck size={15} className="text-cyan-400 flex-shrink-0" />
+              )}
+              <span>{access.bookingPolicyTitle}</span>
+            </span>
+
+            <span
+              className={`px-2.5 py-0.5 rounded-lg text-[10px] font-extrabold whitespace-nowrap ${
+                access.availPlugs === 0
+                  ? 'bg-amber-500/20 text-amber-300'
+                  : access.isPureWalkIn
+                  ? 'bg-emerald-500 text-slate-950'
+                  : 'bg-cyan-500 text-slate-950'
+              }`}
+            >
+              {access.availPlugs === 0 ? 'มีคนใช้เต็ม' : access.isPureWalkIn ? 'ไม่ต้องจอง (Walk-in)' : 'เข้าได้เลย / จองได้'}
+            </span>
+          </div>
+
+          <div className="p-2.5 rounded-xl bg-slate-950/75 border border-slate-800/90 space-y-1">
+            <div className="text-xs font-extrabold text-emerald-300 flex items-center gap-1.5">
+              <span className={`w-2 h-2 rounded-full ${access.availPlugs > 0 ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
+              <span>สถานะคนใช้งานตอนนี้: {access.occupancyBadgeText}</span>
+            </div>
+            <p className="text-[11px] text-slate-300 leading-relaxed">
+              {access.bookingPolicyDetail}
+            </p>
+          </div>
+        </div>
+
         {/* Real-time Plugs Status */}
         <div className="my-4">
           <div className="flex items-center justify-between mb-2.5">
             <h3 className="text-sm font-semibold text-white flex items-center gap-1.5">
               <Zap size={16} className="text-emerald-400" />
-              <span>สถานะหัวชาร์จแต่ละช่อง (Real-time)</span>
+              <span>สถานะหัวชาร์จแต่ละช่อง (เช็กคิวจองรายหัว)</span>
             </h3>
-            <span className="text-xs text-emerald-400 font-medium">
-              ว่าง {station.availablePlugs}/{station.totalPlugs}
+            <span className="text-xs text-emerald-400 font-bold">
+              ว่างเข้าได้เลย {station.availablePlugs}/{station.totalPlugs} ช่อง
             </span>
           </div>
 
@@ -129,29 +182,40 @@ export function StationDetailModal({ station, onClose, onNavigate, onReportStatu
                     <span className="text-xs font-bold text-white">
                       หัวจ่ายที่ {plug.id} ({plug.type})
                     </span>
-                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                       isFree 
                         ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40" 
                         : "bg-amber-500/20 text-amber-300 border border-amber-500/40"
                     }`}>
-                      {isFree ? "พร้อมใช้งาน" : "กำลังชาร์จ"}
+                      {isFree ? "ว่าง • ไม่มีคนใช้" : "มีรถกำลังชาร์จ"}
                     </span>
                   </div>
 
-                  <div className="text-xs text-slate-300 mt-1 font-mono">
+                  <div className="text-xs text-slate-300 mt-1 font-mono font-bold">
                     {plug.power}
                   </div>
 
-                  {!isFree && plug.car && (
-                    <div className="mt-2 pt-2 border-t border-slate-700/60 flex items-center justify-between text-[11px] text-slate-400">
-                      <span className="flex items-center gap-1 text-slate-300">
-                        <BatteryCharging size={13} className="text-amber-400" />
-                        {plug.car}
-                      </span>
-                      <span className="text-amber-300 font-medium">
-                        เหลือ ~{plug.remainingMinutes} นาที
+                  {isFree ? (
+                    <div className="mt-2 pt-2 border-t border-emerald-500/20 flex items-center gap-1 text-[11px] text-emerald-300 font-semibold">
+                      <CheckCircle2 size={12} className="text-emerald-400 flex-shrink-0" />
+                      <span>
+                        {access.isPureWalkIn
+                          ? 'ไม่ต้องจอง • ขับเข้าเสียบชาร์จได้เลย'
+                          : 'ไม่มีคิวจอง • เข้าสแกนได้เลย'}
                       </span>
                     </div>
+                  ) : (
+                    plug.car && (
+                      <div className="mt-2 pt-2 border-t border-slate-700/60 flex items-center justify-between text-[11px] text-slate-400">
+                        <span className="flex items-center gap-1 text-slate-300">
+                          <BatteryCharging size={13} className="text-amber-400" />
+                          {plug.car}
+                        </span>
+                        <span className="text-amber-300 font-medium">
+                          เหลือ ~{plug.remainingMinutes} นาที
+                        </span>
+                      </div>
+                    )
                   )}
                 </div>
               );
@@ -174,7 +238,10 @@ export function StationDetailModal({ station, onClose, onNavigate, onReportStatu
               <span className="font-bold text-emerald-300 text-sm">{station.pricing.offPeak}</span>
             </div>
           </div>
-          <p className="text-[10px] text-slate-400 mt-2">💡 {station.pricing.note}</p>
+          <p className="text-[10px] text-slate-400 mt-2 flex items-center gap-1">
+            <Info size={12} className="text-emerald-400 flex-shrink-0" />
+            <span>{station.pricing.note}</span>
+          </p>
         </div>
 
         {/* Location & Amenities */}
@@ -189,14 +256,15 @@ export function StationDetailModal({ station, onClose, onNavigate, onReportStatu
                     href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(station.googleMapsQuery || station.name)}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-[11px] font-bold text-emerald-400 hover:underline"
+                    className="text-[11px] font-bold text-emerald-400 hover:underline flex items-center gap-1"
                   >
-                    🔍 ดูหมุดสถานที่จริงบน Google Maps ↗
+                    <Search size={11} />
+                    <span>ดูหมุดบน Google Maps</span>
                   </a>
                 </div>
                 <p className="text-slate-400 text-[11px] mt-0.5">{station.address}</p>
                 <p className="text-[10px] text-emerald-400/90 font-mono mt-1">
-                  📍 ชื่อหมุดนำทาง Google Maps: {station.googleMapsQuery || station.name}
+                  หมุดนำทาง Google Maps: {station.googleMapsQuery || station.name}
                 </p>
               </div>
             </div>
@@ -223,7 +291,7 @@ export function StationDetailModal({ station, onClose, onNavigate, onReportStatu
                 <div>
                   <span className="text-xs font-extrabold text-rose-300 flex items-center gap-1.5">
                     <ShieldAlert size={15} className="text-rose-400" />
-                    <span>🆘 ดึงสายไม่ออก / ตู้ค้าง? โทรแจ้งค่ายนี้ทันที</span>
+                    <span>ดึงสายไม่ออก / ตู้ค้าง? โทรแจ้งค่ายนี้ทันที</span>
                   </span>
                   <span className="text-[11px] text-slate-300 block mt-0.5">
                     {hotline.name}: <b className="text-white font-mono">{hotline.display}</b>
@@ -239,7 +307,7 @@ export function StationDetailModal({ station, onClose, onNavigate, onReportStatu
                 </a>
               </div>
               <p className="text-[10px] text-slate-300 bg-slate-950/70 p-2 rounded-xl border border-slate-800">
-                💡 <b>วิธีปลดล็อกสายชาร์จ JAECOO 5 EV เบื้องต้น:</b> กดปุ่ม <b>"ปลดล็อกรถ"</b> บนกุญแจรีโมทซ้ำ 2 ครั้ง หรือกดหยุดชาร์จในจอกลางรถก่อนดึงหัวจ่าย CCS2
+                <b>วิธีปลดล็อกสายชาร์จ JAECOO 5 EV เบื้องต้น:</b> กดปุ่ม <b>"ปลดล็อกรถ"</b> บนกุญแจรีโมทซ้ำ 2 ครั้ง หรือกดหยุดชาร์จในจอกลางรถก่อนดึงหัวจ่าย CCS2
               </p>
             </div>
           );
@@ -262,22 +330,25 @@ export function StationDetailModal({ station, onClose, onNavigate, onReportStatu
           ) : (
             <div className="grid grid-cols-3 gap-1.5">
               <button
-                onClick={() => handleQuickReport('available', 'บันทึกรายงาน: ยืนยันตู้ว่าง ขอบคุณครับ!')}
-                className="py-1.5 px-2 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[11px] font-medium transition-all"
+                onClick={() => handleQuickReport('available', 'บันทึกรายงาน: ยืนยันตู้ว่าง ไม่มีคนใช้ ขอบคุณครับ!')}
+                className="py-1.5 px-2 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[11px] font-medium transition-all flex items-center justify-center gap-1"
               >
-                ✓ แจ้งตู้ว่างจริง
+                <CheckCircle2 size={12} />
+                <span>แจ้งตู้ว่างจริง</span>
               </button>
               <button
                 onClick={() => handleQuickReport('full', 'บันทึกรายงาน: ตู้เต็ม มีคิว ขอบคุณครับ!')}
-                className="py-1.5 px-2 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[11px] font-medium transition-all"
+                className="py-1.5 px-2 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[11px] font-medium transition-all flex items-center justify-center gap-1"
               >
-                ⏳ แจ้งตู้เต็ม
+                <Clock size={12} />
+                <span>แจ้งตู้เต็ม</span>
               </button>
               <button
                 onClick={() => handleQuickReport('broken', 'บันทึกรายงาน: แจ้งหัวชาร์จชำรุด')}
-                className="py-1.5 px-2 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-[11px] font-medium transition-all"
+                className="py-1.5 px-2 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-[11px] font-medium transition-all flex items-center justify-center gap-1"
               >
-                ⚠️ แจ้งหัวจ่ายเสีย
+                <AlertTriangle size={12} />
+                <span>แจ้งหัวจ่ายเสีย</span>
               </button>
             </div>
           )}

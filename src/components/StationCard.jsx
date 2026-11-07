@@ -1,10 +1,23 @@
 import React from 'react';
-import { ChevronRight, Navigation, Zap, Clock, MapPin, Award, BatteryCharging } from 'lucide-react';
+import {
+  ChevronRight,
+  Navigation,
+  Zap,
+  Clock,
+  MapPin,
+  Award,
+  BatteryCharging,
+  CheckCircle2,
+  CalendarCheck,
+  Users,
+  AlertCircle
+} from 'lucide-react';
+import { getStationAccessInfo } from '../utils/stationStatus';
 
 export function StationCard({ station, onSelect, onNavigate }) {
-  const isAvailable = station.availablePlugs > 0;
-  const totalPlugs = Math.max(1, station.totalPlugs || 4);
-  const availPlugs = Math.min(totalPlugs, station.availablePlugs || 0);
+  const access = getStationAccessInfo(station);
+  const isAvailable = access.availPlugs > 0;
+  const isAllEmpty = access.occupancyState === 'EMPTY_ALL_FREE';
 
   // Estimate realistic 30% -> 80% (+33.5 kWh) charge time on JAECOO 5 EV Ultra
   const effectiveKw = Math.min(130, station.powerKw || 120) * 0.62;
@@ -20,7 +33,7 @@ export function StationCard({ station, onSelect, onNavigate }) {
             : 'bg-gradient-to-br from-[#131b2c] to-[#0d1320] border border-slate-800/90 hover:border-slate-700 hover:bg-[#151e31] shadow-lg'
         }`}
       >
-        {/* Closest Station Banner (No Emojis) */}
+        {/* Closest Station Banner */}
         {station.isNextOnRoute && (
           <div className="mb-3 -mt-1 flex items-center justify-between gap-2 px-3 py-1.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-400 text-slate-950 font-extrabold text-[11px] shadow-[0_4px_12px_rgba(16,185,129,0.3)]">
             <div className="flex items-center gap-1.5 truncate">
@@ -80,21 +93,29 @@ export function StationCard({ station, onSelect, onNavigate }) {
           </p>
         )}
 
-        {/* Visual Plug Status & Speed Box */}
-        <div className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800/90 mb-3">
-          <div className="flex items-center justify-between gap-2 mb-2">
-            {isAvailable ? (
+        {/* Visual Occupancy & Booking Status Box */}
+        <div className="p-3 rounded-2xl bg-slate-950/85 border border-slate-800/90 mb-3 space-y-2.5">
+          {/* Row 1: Occupancy Status (ยังไม่มีคน / มีรถชาร์จบางช่อง / เต็ม) + Power Speed */}
+          <div className="flex items-center justify-between gap-2">
+            {isAllEmpty ? (
               <div className="flex items-center gap-2 min-w-0">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399] animate-pulse flex-shrink-0" />
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_10px_#34d399] animate-pulse flex-shrink-0" />
                 <span className="text-emerald-300 font-extrabold text-xs sm:text-sm truncate">
-                  ว่างพร้อมชาร์จ {station.availablePlugs}/{station.totalPlugs} หัวจ่าย
+                  {access.occupancyBadgeText}
+                </span>
+              </div>
+            ) : isAvailable ? (
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 shadow-[0_0_8px_#22d3ee] animate-pulse flex-shrink-0" />
+                <span className="text-cyan-300 font-extrabold text-xs sm:text-sm truncate">
+                  {access.occupancyBadgeText}
                 </span>
               </div>
             ) : (
               <div className="flex items-center gap-2 min-w-0">
                 <span className="w-2.5 h-2.5 rounded-full bg-amber-400 flex-shrink-0" />
                 <span className="text-amber-300 font-extrabold text-xs sm:text-sm truncate">
-                  เต็มชั่วคราว (คิว {station.waitingQueue} คัน)
+                  {access.occupancyBadgeText}
                 </span>
               </div>
             )}
@@ -105,21 +126,57 @@ export function StationCard({ station, onSelect, onNavigate }) {
             </div>
           </div>
 
-          <div className="grid grid-cols-6 sm:grid-cols-8 gap-1.5 mb-2">
-            {Array.from({ length: Math.min(8, totalPlugs) }).map((_, i) => {
-              const isSlotFree = i < availPlugs;
+          {/* Row 2: Visual Slot Bars with Label */}
+          <div className="grid grid-cols-6 sm:grid-cols-8 gap-1.5">
+            {Array.from({ length: Math.min(8, access.totalPlugs) }).map((_, i) => {
+              const isSlotFree = i < access.availPlugs;
               return (
                 <div
                   key={i}
                   className={`h-2 rounded-full transition-all ${
-                    isSlotFree ? 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]' : 'bg-slate-700'
+                    isSlotFree ? 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]' : 'bg-amber-500/60'
                   }`}
                 />
               );
             })}
           </div>
 
-          <div className="flex items-center justify-between gap-2 text-[11px] text-slate-400 pt-1.5 border-t border-slate-800/70">
+          {/* Row 3: Walk-in vs Booking Required Banner (ชัดเจนว่าต้องจองไหม หรือเข้าได้เลย) */}
+          <div
+            className={`px-2.5 py-2 rounded-xl border text-[11px] font-bold flex items-center justify-between gap-2 ${
+              !isAvailable
+                ? 'bg-amber-950/40 border-amber-500/35 text-amber-300'
+                : access.isPureWalkIn
+                ? 'bg-emerald-950/50 border-emerald-500/40 text-emerald-300'
+                : 'bg-cyan-950/45 border-cyan-500/35 text-cyan-200'
+            }`}
+          >
+            <div className="flex items-center gap-1.5 min-w-0">
+              {!isAvailable ? (
+                <AlertCircle size={13} className="text-amber-400 flex-shrink-0" />
+              ) : access.isPureWalkIn ? (
+                <CheckCircle2 size={13} className="text-emerald-400 flex-shrink-0" />
+              ) : (
+                <CalendarCheck size={13} className="text-cyan-400 flex-shrink-0" />
+              )}
+              <span className="truncate">{access.bookingShortBadge}</span>
+            </div>
+
+            <span
+              className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold whitespace-nowrap flex-shrink-0 ${
+                !isAvailable
+                  ? 'bg-amber-500/20 text-amber-300'
+                  : access.isPureWalkIn
+                  ? 'bg-emerald-500 text-slate-950'
+                  : 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
+              }`}
+            >
+              {!isAvailable ? 'มีคิวรอ' : access.isPureWalkIn ? 'Walk-in 100%' : 'เข้าได้เลย / จองได้'}
+            </span>
+          </div>
+
+          {/* Row 4: CCS2 & Charge Time */}
+          <div className="flex items-center justify-between gap-2 text-[11px] text-slate-400 pt-1 border-t border-slate-800/70">
             <span className="truncate flex items-center gap-1">
               <BatteryCharging size={12} className="text-emerald-400 flex-shrink-0" />
               <span>รองรับหัว <b className="text-slate-200">CCS2 ตรงรุ่น</b></span>

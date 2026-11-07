@@ -12,10 +12,10 @@ export function VoiceModal({ isOpen, onClose, stations, onSelectStation }) {
 
   // Quick preset questions for driver safety
   const PRESET_QUESTIONS = [
-    "ปั๊มข้างหน้าว่างไหม?",
-    "รถ JAECOO 5 ชาร์จตู้ข้างหน้าได้ไหม?",
-    "หาตู้ว่างที่ใกล้ที่สุด",
-    "มีหัวชาร์จ Ultra Fast 360 kW ไหม?"
+    "ปั๊มข้างหน้าว่างไหม มีคนชาร์จไหม?",
+    "ตู้ข้างหน้าต้องจองไหม หรือเข้าได้เลย?",
+    "หาตู้ว่างที่ไม่มีคน ใช้ได้เลยทันที",
+    "รถ JAECOO 5 ชาร์จตู้ข้างหน้าได้ไหม?"
   ];
 
   useEffect(() => {

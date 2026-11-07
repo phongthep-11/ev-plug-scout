@@ -629,3 +629,4 @@ export function ChargingCalculatorTab({ car, batteryPct, onSaveCarSettings }) {
     </div>
   );
 }
+
