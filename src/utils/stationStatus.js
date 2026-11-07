@@ -1,4 +1,4 @@
-// Smart Occupancy & Booking Policy Analyzer for Thai EV Charging Networks
+// Smart Occupancy, Booking Policy & Real-Time Tariff Analyzer for Thai EV Charging Networks
 
 const WALK_IN_PURE_PROVIDERS = [
   'PEA VOLTA',
@@ -17,6 +17,20 @@ const BOOKING_SUPPORTED_PROVIDERS = [
   'REVERSHARGER',
   'GWM HYPERCHARGE'
 ];
+
+export function isThailandOffPeakNow() {
+  const now = new Date();
+  const day = now.getDay();
+  const hour = now.getHours();
+  const isWeekend = day === 0 || day === 6;
+  return isWeekend || hour >= 22 || hour < 9;
+}
+
+export function parseRateBaht(rateStr, fallback = 6.5) {
+  if (!rateStr) return fallback;
+  const match = String(rateStr).match(/(\d+(\.\d+)?)/);
+  return match ? parseFloat(match[1]) : fallback;
+}
 
 export function getStationAccessInfo(station) {
   if (!station) return null;
@@ -49,7 +63,7 @@ export function getStationAccessInfo(station) {
   }
 
   // 2. Booking vs Walk-in policy (ต้องจองไหม หรือเข้าไปได้เลย)
-  let bookingType = 'WALK_IN_PURE'; // 'WALK_IN_PURE' | 'WALK_IN_OR_BOOK'
+  let bookingType = 'WALK_IN_PURE';
   let bookingShortBadge = '';
   let bookingPolicyTitle = '';
   let bookingPolicyDetail = '';
@@ -86,6 +100,13 @@ export function getStationAccessInfo(station) {
     bookingPolicyDetail = 'ขับเข้าช่องว่าง เสียบสายชาร์จ และสแกน QR หน้าตู้ได้เลย';
   }
 
+  // 3. Real-time Tariff & Session Cost (30% -> 80% = +33.5 kWh on JAECOO 5 EV Ultra)
+  const offPeakNow = isThailandOffPeakNow();
+  const onPeakBaht = parseRateBaht(station.pricing?.onPeak, 7.5);
+  const offPeakBaht = parseRateBaht(station.pricing?.offPeak, 4.7);
+  const currentRateBaht = offPeakNow ? offPeakBaht : onPeakBaht;
+  const estCost30To80Baht = Math.round(33.5 * currentRateBaht);
+
   return {
     totalPlugs,
     availPlugs,
@@ -99,7 +120,11 @@ export function getStationAccessInfo(station) {
     bookingShortBadge,
     bookingPolicyTitle,
     bookingPolicyDetail,
-    canEnterImmediately
+    canEnterImmediately,
+    offPeakNow,
+    onPeakBaht,
+    offPeakBaht,
+    currentRateBaht,
+    estCost30To80Baht
   };
 }
-

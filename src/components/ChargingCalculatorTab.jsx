@@ -206,7 +206,7 @@ export function ChargingCalculatorTab({ car, batteryPct, onSaveCarSettings }) {
         {[
           { id: 'tou', label: 'คำนวณไฟ / จับเวลา', icon: Calculator },
           { id: 'log', label: 'สมุดบันทึกค่าไฟ', icon: BookOpen },
-          { id: 'promo', label: 'โปรส่วนลดทุกค่าย', icon: CreditCard }
+          { id: 'promo', label: 'เทียบราคา 11 ค่าย', icon: CreditCard }
         ].map((tab) => {
           const Icon = tab.icon;
           const active = activeSubMenu === tab.id;
@@ -578,50 +578,133 @@ export function ChargingCalculatorTab({ car, batteryPct, onSaveCarSettings }) {
         </div>
       )}
 
-      {/* SUB-MENU 3: EV Charging Privilege & Promo Guide */}
+      {/* SUB-MENU 3: Live 11-Network Electricity Price Comparison + EV Privilege Guide */}
       {activeSubMenu === 'promo' && (
-        <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-br from-[#191d2b] to-[#0c101a] border border-slate-800 space-y-3.5 shadow-xl animate-fade-in">
-          <div className="flex items-start justify-between gap-2">
-            <div>
-              <h3 className="text-sm sm:text-base font-extrabold text-white flex items-center gap-2">
-                <Award size={18} className="text-emerald-400" />
-                <span>สิทธิพิเศษและส่วนลดค่าชาร์จทุกเครือข่าย</span>
-              </h3>
-              <p className="text-[11px] text-slate-400 mt-0.5">
-                วิธีใช้คะแนนสะสมและช่วงเวลาลดค่าไฟสำหรับผู้ใช้รถยนต์ไฟฟ้า
-              </p>
+        <div className="space-y-4 animate-fade-in">
+          {/* Card 1: Live 11-Brand Charging Price Comparison Table */}
+          <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-br from-[#121f30] via-[#0e1726] to-[#0a101b] border border-slate-800 space-y-3.5 shadow-xl">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <h3 className="text-sm sm:text-base font-extrabold text-white flex items-center gap-2">
+                  <Zap size={18} className="text-emerald-400" />
+                  <span>ตารางเทียบค่าไฟ 11 ค่ายตามเวลาจริงตอนนี้</span>
+                </h3>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  คำนวณค่าชาร์จรถ JAECOO 5 EV สำหรับปริมาณไฟ{' '}
+                  <b className="text-emerald-400">+{kwhToAdd > 0 ? kwhToAdd : 33.5} kWh</b> (เรียงจากถูกที่สุด)
+                </p>
+              </div>
+              <span
+                className={`px-2.5 py-1 rounded-xl text-[10px] font-extrabold border whitespace-nowrap ${
+                  isOffPeakNow
+                    ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40'
+                    : 'bg-amber-500/15 text-amber-300 border-amber-500/40'
+                }`}
+              >
+                {isOffPeakNow ? 'เรทตอนนี้: Off-Peak' : 'เรทตอนนี้: On-Peak'}
+              </span>
+            </div>
+
+            <div className="space-y-2">
+              {[
+                { name: 'ไฟบ้านมิเตอร์ TOU (กฟน./กฟภ.)', offPeak: 2.63, onPeak: 5.79, note: 'ประหยัดที่สุดเมื่อชาร์จหลัง 22:00 น.' },
+                { name: 'MEA EV (การไฟฟ้านครหลวง)', offPeak: 4.5, onPeak: 7.5, note: 'ไม่ต้องจอง Walk-in ตลอด 24 ชม.' },
+                { name: 'PEA VOLTA (การไฟฟ้าส่วนภูมิภาค)', offPeak: 4.5, onPeak: 7.6, note: 'Walk-in 100% ครอบคลุมทั่วประเทศ' },
+                { name: 'Altervim (Lotus’s / Makro)', offPeak: 4.5, onPeak: 7.7, note: 'แวะซื้อของโลตัส/แม็คโครคุ้มมาก' },
+                { name: 'EV Station PluZ (ปตท. OR)', offPeak: 4.7, onPeak: 7.7, note: 'สะสมแต้ม blueplus+ แลกส่วนลดได้' },
+                { name: 'MG Super Charge (รับทุกค่าย)', offPeak: 6.5, onPeak: 7.5, note: 'เรทเดียวคงที่หรือตามศูนย์บริการ' },
+                { name: 'GWM / ReverSharger', offPeak: 6.7, onPeak: 7.7, note: 'หัวชาร์จ DC 120-160 kW จ่ายไฟนิ่ง' },
+                { name: 'EA Anywhere', offPeak: 6.9, onPeak: 7.9, note: 'จุดชาร์จในห้างและอาคารสำนักงาน' },
+                { name: 'EleXA (กฟผ. / ปั๊ม PT)', offPeak: 7.5, onPeak: 7.9, note: 'Walk-in เสียบชาร์จได้ทันที สะสมแต้ม PT' },
+                { name: 'Evolt (เซ็นทรัล / คอมมูนิตี้มอลล์)', offPeak: 7.5, onPeak: 8.5, note: 'เน้นจุดจอดรถใกล้ทางเข้าห้าง' },
+                { name: 'Shell Recharge (HPC 180-360 kW)', offPeak: 8.5, onPeak: 9.5, note: 'กำลังไฟแรงพิเศษ ชาร์จไวสุดบนสายหลัก' }
+              ]
+                .map((brand) => {
+                  const activeRate = isOffPeakNow ? brand.offPeak : brand.onPeak;
+                  const refKwh = kwhToAdd > 0 ? kwhToAdd : 33.5;
+                  const totalCost = Math.round(refKwh * activeRate);
+                  return { ...brand, activeRate, totalCost };
+                })
+                .sort((a, b) => a.totalCost - b.totalCost)
+                .map((item, idx) => (
+                  <div
+                    key={item.name}
+                    className={`p-3 rounded-2xl border flex items-center justify-between gap-2 text-xs ${
+                      idx === 0
+                        ? 'bg-emerald-950/45 border-emerald-500/45'
+                        : idx === 1
+                        ? 'bg-cyan-950/35 border-cyan-500/35'
+                        : 'bg-slate-950/85 border-slate-800/90'
+                    }`}
+                  >
+                    <div className="min-w-0">
+                      <div className="font-extrabold text-white flex items-center gap-1.5">
+                        <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-mono text-[10px]">
+                          #{idx + 1}
+                        </span>
+                        <span className="truncate">{item.name}</span>
+                      </div>
+                      <div className="text-[11px] text-slate-400 mt-0.5 truncate">
+                        เรทตอนนี้ <b className="text-emerald-300">{item.activeRate.toFixed(2)} บ./kWh</b> • {item.note}
+                      </div>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <span className="font-mono font-extrabold text-sm text-emerald-400 block">
+                        ~{item.totalCost} บาท
+                      </span>
+                      <span className="text-[10px] text-slate-500 block">
+                        Off {item.offPeak} / On {item.onPeak}
+                      </span>
+                    </div>
+                  </div>
+                ))}
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-2.5 text-xs">
-            <div className="p-3.5 rounded-2xl bg-slate-950/90 border border-slate-800 space-y-1">
-              <div className="font-extrabold text-emerald-400 text-sm">EV Station PluZ (เครือปตท. OR)</div>
-              <p className="text-xs text-slate-300 leading-relaxed">
-                ผูกบัตรสมาชิก <b>blueplus+ (Blue Card)</b> ในแอปพลิเคชัน ชาร์จครบทุก 20 บาท รับ 1 คะแนน และใช้{' '}
-                <b>100 คะแนน แลกส่วนลดค่าชาร์จ 20 บาท</b> ได้ทันที
-              </p>
+          {/* Card 2: Privileges & Promo Guide */}
+          <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-br from-[#191d2b] to-[#0c101a] border border-slate-800 space-y-3.5 shadow-xl">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <h3 className="text-sm sm:text-base font-extrabold text-white flex items-center gap-2">
+                  <Award size={18} className="text-emerald-400" />
+                  <span>สิทธิพิเศษและส่วนลดค่าชาร์จทุกเครือข่าย</span>
+                </h3>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  วิธีใช้คะแนนสะสมและช่วงเวลาลดค่าไฟสำหรับผู้ใช้รถยนต์ไฟฟ้า
+                </p>
+              </div>
             </div>
 
-            <div className="p-3.5 rounded-2xl bg-slate-950/90 border border-slate-800 space-y-1">
-              <div className="font-extrabold text-amber-400 text-sm">EleXA (กฟผ. และสถานีบริการ PT)</div>
-              <p className="text-xs text-slate-300 leading-relaxed">
-                ผูกบัตร <b>PT Max Card</b> สะสมแต้มทุกหน่วย kWh เพื่อแลกคูปองส่วนลดค่าชาร์จไฟ และรับสิทธิ์ส่วนลดเครื่องดื่มร้านกาแฟพันธุ์ไทย
-              </p>
-            </div>
+            <div className="grid grid-cols-1 gap-2.5 text-xs">
+              <div className="p-3.5 rounded-2xl bg-slate-950/90 border border-slate-800 space-y-1">
+                <div className="font-extrabold text-emerald-400 text-sm">EV Station PluZ (เครือปตท. OR)</div>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  ผูกบัตรสมาชิก <b>blueplus+ (Blue Card)</b> ในแอปพลิเคชัน ชาร์จครบทุก 20 บาท รับ 1 คะแนน และใช้{' '}
+                  <b>100 คะแนน แลกส่วนลดค่าชาร์จ 20 บาท</b> ได้ทันที
+                </p>
+              </div>
 
-            <div className="p-3.5 rounded-2xl bg-slate-950/90 border border-slate-800 space-y-1">
-              <div className="font-extrabold text-cyan-400 text-sm">PEA VOLTA / Altervim / MEA EV (เรท Off-Peak)</div>
-              <p className="text-xs text-slate-300 leading-relaxed">
-                เข้าชาร์จในช่วงเวลา <b>Off-Peak (หลัง 22:00 - 09:00 น. หรือวันเสาร์-อาทิตย์ และวันหยุดนักขัตฤกษ์ทั้งวัน)</b>{' '}
-                อัตราค่าไฟลดลงจาก ~7.70 บาท เหลือเพียง <b>4.50 - 4.70 บาท/หน่วย (ประหยัดเกือบ 40%)</b>
-              </p>
-            </div>
+              <div className="p-3.5 rounded-2xl bg-slate-950/90 border border-slate-800 space-y-1">
+                <div className="font-extrabold text-amber-400 text-sm">EleXA (กฟผ. และสถานีบริการ PT)</div>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  ผูกบัตร <b>PT Max Card</b> สะสมแต้มทุกหน่วย kWh เพื่อแลกคูปองส่วนลดค่าชาร์จไฟ และรับสิทธิ์ส่วนลดเครื่องดื่มร้านกาแฟพันธุ์ไทย
+                </p>
+              </div>
 
-            <div className="p-3.5 rounded-2xl bg-slate-950/90 border border-slate-800 space-y-1">
-              <div className="font-extrabold text-purple-400 text-sm">สิทธิพิเศษบัตรเครดิตหมวด EV Charging</div>
-              <p className="text-xs text-slate-300 leading-relaxed">
-                ชำระค่าชาร์จผ่านบัตรเครดิตที่ร่วมรายการหมวดสถานีชาร์จรถยนต์ไฟฟ้า รับเครดิตเงินคืน (Cashback) ตั้งแต่ <b>5% - 10%</b>
-              </p>
+              <div className="p-3.5 rounded-2xl bg-slate-950/90 border border-slate-800 space-y-1">
+                <div className="font-extrabold text-cyan-400 text-sm">PEA VOLTA / Altervim / MEA EV (เรท Off-Peak)</div>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  เข้าชาร์จในช่วงเวลา <b>Off-Peak (หลัง 22:00 - 09:00 น. หรือวันเสาร์-อาทิตย์ และวันหยุดนักขัตฤกษ์ทั้งวัน)</b>{' '}
+                  อัตราค่าไฟลดลงจาก ~7.70 บาท เหลือเพียง <b>4.50 - 4.70 บาท/หน่วย (ประหยัดเกือบ 40%)</b>
+                </p>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-slate-950/90 border border-slate-800 space-y-1">
+                <div className="font-extrabold text-purple-400 text-sm">สิทธิพิเศษบัตรเครดิตหมวด EV Charging</div>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  ชำระค่าชาร์จผ่านบัตรเครดิตที่ร่วมรายการหมวดสถานีชาร์จรถยนต์ไฟฟ้า รับเครดิตเงินคืน (Cashback) ตั้งแต่ <b>5% - 10%</b>
+                </p>
+              </div>
             </div>
           </div>
         </div>

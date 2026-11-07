@@ -175,14 +175,16 @@ export function StationCard({ station, onSelect, onNavigate }) {
             </span>
           </div>
 
-          {/* Row 4: CCS2 & Charge Time */}
-          <div className="flex items-center justify-between gap-2 text-[11px] text-slate-400 pt-1 border-t border-slate-800/70">
+          {/* Row 4: CCS2 & Live Tariff + Charge Time */}
+          <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-400 pt-1.5 border-t border-slate-800/70">
             <span className="truncate flex items-center gap-1">
               <BatteryCharging size={12} className="text-emerald-400 flex-shrink-0" />
-              <span>รองรับหัว <b className="text-slate-200">CCS2 ตรงรุ่น</b></span>
+              <span>
+                CCS2 • เรทตอนนี้ <b className="text-white font-mono">{access.currentRateBaht.toFixed(2)} บ.</b>
+              </span>
             </span>
             <span className="text-emerald-400 font-bold whitespace-nowrap flex-shrink-0">
-              ชาร์จ 30-80% ~{estChargeMin} นาที
+              30-80% ~{estChargeMin} นาที (~{access.estCost30To80Baht} บ.)
             </span>
           </div>
         </div>

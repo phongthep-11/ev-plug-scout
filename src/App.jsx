@@ -107,6 +107,7 @@ export function App() {
   const [gpsAccuracy, setGpsAccuracy] = useState(null);
   const [isLocating, setIsLocating] = useState(false);
   const [viewMode, setViewMode] = useState('list'); // 'list' | 'map'
+  const [sortBy, setSortBy] = useState('distance'); // 'distance' | 'available' | 'power' | 'price'
   const [isCustomLocSearchOpen, setIsCustomLocSearchOpen] = useState(false);
   const [customLocQuery, setCustomLocQuery] = useState('');
   const [customLocOnlineResults, setCustomLocOnlineResults] = useState([]);
@@ -393,24 +394,39 @@ export function App() {
     }));
   };
 
-  const filteredStations = stations.filter(s => {
-    const access = getStationAccessInfo(s);
-    if (providerFilter !== 'ALL' && s.provider !== providerFilter) return false;
-    if (onlyAvailableFilter && s.availablePlugs === 0) return false;
-    if (emptyOnlyFilter && access.occupancyState !== 'EMPTY_ALL_FREE') return false;
-    if (walkInOnlyFilter && !access.isPureWalkIn) return false;
-    if (ccs2OnlyFilter && !s.plugs?.some(p => p.type.includes('CCS2') && p.status === 'available')) return false;
-    if (fastOnlyFilter && (s.powerKw || 0) < 150) return false;
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase().trim();
-      const matchName = (s.name || '').toLowerCase().includes(q);
-      const matchProv = (s.province || '').toLowerCase().includes(q);
-      const matchAddr = (s.address || '').toLowerCase().includes(q);
-      const matchProvider = (s.provider || '').toLowerCase().includes(q);
-      if (!matchName && !matchProv && !matchAddr && !matchProvider) return false;
-    }
-    return true;
-  });
+  const filteredStations = stations
+    .filter(s => {
+      const access = getStationAccessInfo(s);
+      if (providerFilter !== 'ALL' && s.provider !== providerFilter) return false;
+      if (onlyAvailableFilter && s.availablePlugs === 0) return false;
+      if (emptyOnlyFilter && access.occupancyState !== 'EMPTY_ALL_FREE') return false;
+      if (walkInOnlyFilter && !access.isPureWalkIn) return false;
+      if (ccs2OnlyFilter && !s.plugs?.some(p => p.type.includes('CCS2') && p.status === 'available')) return false;
+      if (fastOnlyFilter && (s.powerKw || 0) < 150) return false;
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim();
+        const matchName = (s.name || '').toLowerCase().includes(q);
+        const matchProv = (s.province || '').toLowerCase().includes(q);
+        const matchAddr = (s.address || '').toLowerCase().includes(q);
+        const matchProvider = (s.provider || '').toLowerCase().includes(q);
+        if (!matchName && !matchProv && !matchAddr && !matchProvider) return false;
+      }
+      return true;
+    })
+    .sort((a, b) => {
+      if (sortBy === 'available') {
+        return (b.availablePlugs || 0) - (a.availablePlugs || 0) || ((a.distanceKm ?? 9999) - (b.distanceKm ?? 9999));
+      }
+      if (sortBy === 'power') {
+        return (b.powerKw || 0) - (a.powerKw || 0) || ((a.distanceKm ?? 9999) - (b.distanceKm ?? 9999));
+      }
+      if (sortBy === 'price') {
+        const rateA = getStationAccessInfo(a).currentRateBaht;
+        const rateB = getStationAccessInfo(b).currentRateBaht;
+        return rateA - rateB || ((a.distanceKm ?? 9999) - (b.distanceKm ?? 9999));
+      }
+      return (a.distanceKm ?? 9999) - (b.distanceKm ?? 9999);
+    });
 
   return (
     <div className="min-h-screen bg-[#0b0f17] text-slate-100 flex flex-col font-sans">
@@ -967,46 +983,70 @@ export function App() {
             </div>
 
             {/* Section Header: สถานีชาร์จใกล้ฉัน + สลับมุมมอง การ์ด / แผนที่เรดาร์ */}
-            <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-              <div className="flex items-center gap-1.5 text-white font-extrabold text-sm">
-                <MapPin size={16} className="text-emerald-400" />
-                <span>ตู้ชาร์จใกล้รถที่สุด ({filteredStations.length} แห่ง)</span>
-              </div>
-
-              <div className="flex items-center gap-1.5">
-                <div className="flex items-center bg-slate-900 p-1 rounded-xl border border-slate-800 text-xs">
-                  <button
-                    onClick={() => setViewMode('list')}
-                    className={`px-2.5 py-1 rounded-lg font-extrabold transition flex items-center gap-1 ${
-                      viewMode === 'list'
-                        ? 'bg-emerald-500 text-slate-950 shadow'
-                        : 'text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    <List size={12} />
-                    <span>การ์ด</span>
-                  </button>
-                  <button
-                    onClick={() => setViewMode('map')}
-                    className={`px-2.5 py-1 rounded-lg font-extrabold transition flex items-center gap-1 ${
-                      viewMode === 'map'
-                        ? 'bg-emerald-500 text-slate-950 shadow'
-                        : 'text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    <Radar size={12} />
-                    <span>แผนที่เรดาร์</span>
-                  </button>
+            <div className="space-y-2 pt-1">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 text-white font-extrabold text-sm">
+                  <MapPin size={16} className="text-emerald-400" />
+                  <span>รายการสถานีชาร์จ ({filteredStations.length} แห่ง)</span>
                 </div>
 
-                <button
-                  onClick={handleRefresh}
-                  disabled={isRefreshing}
-                  className="px-2.5 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center gap-1 text-xs text-emerald-400 hover:text-emerald-300 active:scale-95 transition-all font-semibold"
-                >
-                  <RotateCw size={12} className={isRefreshing ? "animate-spin" : ""} />
-                  <span className="hidden sm:inline">{isRefreshing ? "กำลังอัปเดต..." : "อัปเดต"}</span>
-                </button>
+                <div className="flex items-center gap-1.5">
+                  <div className="flex items-center bg-slate-900 p-1 rounded-xl border border-slate-800 text-xs">
+                    <button
+                      onClick={() => setViewMode('list')}
+                      className={`px-2.5 py-1 rounded-lg font-extrabold transition flex items-center gap-1 ${
+                        viewMode === 'list'
+                          ? 'bg-emerald-500 text-slate-950 shadow'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <List size={12} />
+                      <span>การ์ด</span>
+                    </button>
+                    <button
+                      onClick={() => setViewMode('map')}
+                      className={`px-2.5 py-1 rounded-lg font-extrabold transition flex items-center gap-1 ${
+                        viewMode === 'map'
+                          ? 'bg-emerald-500 text-slate-950 shadow'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <Radar size={12} />
+                      <span>แผนที่เรดาร์</span>
+                    </button>
+                  </div>
+
+                  <button
+                    onClick={handleRefresh}
+                    disabled={isRefreshing}
+                    className="px-2.5 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center gap-1 text-xs text-emerald-400 hover:text-emerald-300 active:scale-95 transition-all font-semibold"
+                  >
+                    <RotateCw size={12} className={isRefreshing ? "animate-spin" : ""} />
+                    <span className="hidden sm:inline">{isRefreshing ? "กำลังอัปเดต..." : "อัปเดต"}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* 4-Mode Smart Station Sorter Bar */}
+              <div className="grid grid-cols-4 gap-1.5 p-1 rounded-2xl bg-slate-900/90 border border-slate-800 text-[11px]">
+                {[
+                  { id: 'distance', label: 'ใกล้รถสุด' },
+                  { id: 'available', label: 'ว่างมากสุด' },
+                  { id: 'power', label: 'ชาร์จเร็วสุด' },
+                  { id: 'price', label: 'ค่าไฟถูกสุด' }
+                ].map((s) => (
+                  <button
+                    key={s.id}
+                    onClick={() => setSortBy(s.id)}
+                    className={`py-1.5 px-1 rounded-xl font-extrabold whitespace-nowrap transition active:scale-95 ${
+                      sortBy === s.id
+                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    {s.label}
+                  </button>
+                ))}
               </div>
             </div>
 

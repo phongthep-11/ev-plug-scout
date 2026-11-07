@@ -84,6 +84,7 @@ export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 
 
   // Google Maps-style Autocomplete Dropdown state
   const [activeField, setActiveField] = useState(null); // 'origin' | 'dest' | null
+  const [isRoundTrip, setIsRoundTrip] = useState(false); // One-way vs Round-trip
   const [onlineSuggestions, setOnlineSuggestions] = useState([]);
   const [isSearchingOnline, setIsSearchingOnline] = useState(false);
   const [realRoadRoute, setRealRoadRoute] = useState(null);
@@ -243,16 +244,21 @@ export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 
     const destLoc = resolvedDest;
 
     const straightDist = calculateHaversineKm(originLoc.lat, originLoc.lng, destLoc.lat, destLoc.lng) || 120;
-    const drivingDistanceKm = realRoadRoute?.distanceKm || Math.max(10, Math.round(straightDist * 1.26));
+    const oneWayDistanceKm = realRoadRoute?.distanceKm || Math.max(10, Math.round(straightDist * 1.26));
+    const drivingDistanceKm = isRoundTrip ? oneWayDistanceKm * 2 : oneWayDistanceKm;
 
-    const minutes = realRoadRoute?.durationMin || Math.round((drivingDistanceKm / 75) * 60);
+    const oneWayMinutes = realRoadRoute?.durationMin || Math.round((oneWayDistanceKm / 75) * 60);
+    const minutes = isRoundTrip ? oneWayMinutes * 2 : oneWayMinutes;
     const hoursPart = Math.floor(minutes / 60);
     const minsPart = minutes % 60;
     const driveTimeText = hoursPart > 0 ? `~${hoursPart} ชม. ${minsPart} นาที` : `~${minsPart} นาที`;
 
     const batteryCapacityKwh = carData?.batterySizeKwh || 67.0;
     const batteryUsedKwh = Math.round((drivingDistanceKm / 6.0) * 10) / 10;
-    const batteryUsedPct = Math.min(100, Math.round((batteryUsedKwh / batteryCapacityKwh) * 100));
+    const batteryUsedPct = Math.round((batteryUsedKwh / batteryCapacityKwh) * 100);
+    const estTripEvCostBaht = Math.round(batteryUsedKwh * 5.2);
+    const estTripGasCostBaht = Math.round(drivingDistanceKm * 3.1);
+    const estTripSavingsBaht = Math.max(0, estTripGasCostBaht - estTripEvCostBaht);
 
     const destCorridor = destLoc.corridor || inferCorridorFromCoords(destLoc.lat, destLoc.lng);
     let highwayName = "เส้นทางหลวงหลักตามพิกัด Google Maps";
@@ -412,18 +418,22 @@ export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 
     return {
       originLoc,
       destLoc,
+      oneWayDistanceKm,
       drivingDistanceKm,
       driveTimeText,
       highwayName,
       batteryUsedKwh,
       batteryUsedPct,
+      estTripEvCostBaht,
+      estTripGasCostBaht,
+      estTripSavingsBaht,
       arrivalBatteryAtPrimary,
       primaryStop,
       smartStops: curatedStops.length > 0 ? curatedStops : allCorridorStops.slice(0, 3),
       allCorridorStops,
       adviceText
     };
-  }, [resolvedOrigin, resolvedDest, realRoadRoute, carData, batteryPct]);
+  }, [resolvedOrigin, resolvedDest, realRoadRoute, carData, batteryPct, isRoundTrip]);
 
   const handleSwapRoute = () => {
     const tempPlace = resolvedOrigin;
@@ -801,21 +811,53 @@ export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 
           </div>
         </div>
 
-        {/* Dynamic Calculation Stats Box */}
-        <div className="grid grid-cols-3 gap-2 text-xs">
-          <div className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800/80 text-center">
-            <span className="text-slate-400 block text-[10px]">ระยะทางถนนจริง</span>
-            <span className="text-white font-extrabold text-base sm:text-lg font-mono">{routeCalculation.drivingDistanceKm} กม.</span>
+        {/* One-Way vs Round-Trip Switcher + Dynamic Calculation Stats Box */}
+        <div className="space-y-2.5">
+          <div className="grid grid-cols-2 gap-1.5 p-1 rounded-2xl bg-slate-950/90 border border-slate-800 text-xs">
+            <button
+              type="button"
+              onClick={() => setIsRoundTrip(false)}
+              className={`py-2 rounded-xl font-extrabold transition ${
+                !isRoundTrip
+                  ? 'bg-emerald-500 text-slate-950 shadow'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              ขาไปเที่ยวเดียว ({routeCalculation.oneWayDistanceKm} กม.)
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsRoundTrip(true)}
+              className={`py-2 rounded-xl font-extrabold transition ${
+                isRoundTrip
+                  ? 'bg-emerald-500 text-slate-950 shadow'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              คำนวณรวมไป - กลับ ({routeCalculation.oneWayDistanceKm * 2} กม.)
+            </button>
           </div>
 
-          <div className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800/80 text-center">
-            <span className="text-slate-400 block text-[10px]">เวลาขับขี่จริง</span>
-            <span className="text-white font-extrabold text-base sm:text-lg font-mono">{routeCalculation.driveTimeText}</span>
-          </div>
+          <div className="grid grid-cols-3 gap-2 text-xs">
+            <div className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800/80 text-center">
+              <span className="text-slate-400 block text-[10px]">ระยะทางถนนจริง</span>
+              <span className="text-white font-extrabold text-base sm:text-lg font-mono">{routeCalculation.drivingDistanceKm} กม.</span>
+              <span className="text-[10px] text-emerald-400 font-bold block mt-0.5">{routeCalculation.driveTimeText}</span>
+            </div>
 
-          <div className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800/80 text-center">
-            <span className="text-slate-400 block text-[10px]">ใช้ไฟ JAECOO 5</span>
-            <span className="text-amber-300 font-extrabold text-base sm:text-lg font-mono">~{routeCalculation.batteryUsedPct}%</span>
+            <div className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800/80 text-center">
+              <span className="text-slate-400 block text-[10px]">พลังงานที่ใช้รวม</span>
+              <span className="text-amber-300 font-extrabold text-base sm:text-lg font-mono">~{routeCalculation.batteryUsedKwh} kWh</span>
+              <span className="text-[10px] text-slate-400 block mt-0.5">คิดเป็น ~{routeCalculation.batteryUsedPct}% แบต</span>
+            </div>
+
+            <div className="p-3 rounded-2xl bg-emerald-950/50 border border-emerald-500/35 text-center">
+              <span className="text-emerald-300 font-bold block text-[10px]">งบค่าไฟทั้งทริป</span>
+              <span className="text-emerald-300 font-extrabold text-base sm:text-lg font-mono">~{routeCalculation.estTripEvCostBaht} บ.</span>
+              <span className="text-[10px] text-emerald-400 font-extrabold block mt-0.5">
+                ประหยัดน้ำมัน {routeCalculation.estTripSavingsBaht} บ.
+              </span>
+            </div>
           </div>
         </div>
 

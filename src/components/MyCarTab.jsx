@@ -675,6 +675,61 @@ export function MyCarTab({ car: initialCar, batteryPct: initialBattery, onSaveCa
               })}
             </div>
           </div>
+
+          {/* JAECOO 5 EV Field Troubleshooting & Quick Reset Guide */}
+          <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-br from-[#1b192e] to-[#0c0e1b] border border-slate-800 space-y-3 shadow-xl">
+            <div>
+              <h3 className="text-sm font-extrabold text-white flex items-center gap-2">
+                <Shield size={17} className="text-amber-400" />
+                <span>คู่มือแก้ปัญหาหน้างานเบื้องต้น (JAECOO 5 EV)</span>
+              </h3>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                วิธีแก้ไขด้วยตัวเองเมื่อเจอปัญหาที่ตู้ชาร์จสาธารณะหรือระบบหน้าจอกลาง
+              </p>
+            </div>
+
+            <div className="space-y-2 text-xs">
+              <div className="p-3 rounded-2xl bg-slate-950/90 border border-slate-800 space-y-1">
+                <div className="font-extrabold text-amber-300">
+                  1. หัวชาร์จ CCS2 ล็อกแน่น ดึงสายออกจากตัวรถไม่ได้
+                </div>
+                <p className="text-slate-300 leading-relaxed">
+                  กดสั่งหยุดชาร์จในแอปพลิเคชันหรือที่หน้าจอกลางรถ จากนั้นกดปุ่ม <b>ปลดล็อกรถที่รีโมทกุญแจซ้ำ 2 ครั้งติดกัน</b>{' '}
+                  กลอนล็อกไฟฟ้าที่เบ้าชาร์จจะคลายตัวทันที
+                </p>
+              </div>
+
+              <div className="p-3 rounded-2xl bg-slate-950/90 border border-slate-800 space-y-1">
+                <div className="font-extrabold text-cyan-300">
+                  2. ตู้ชาร์จ DC ฟ้อง Communication Error ตอนเริ่มชาร์จ
+                </div>
+                <p className="text-slate-300 leading-relaxed">
+                  สายชาร์จ DC ตู้ใหญ่มีน้ำหนักมาก อาจทำให้เขี้ยวสัญญาณด้านบนแตะไม่สนิท แนะนำให้{' '}
+                  <b>ใช้มือช่วยยกประคองด้ามหัวชาร์จขึ้นเบาๆ ค้างไว้ประมาณ 3-5 วินาที</b> จนได้ยินเสียงกลอนล็อกทำงาน
+                </p>
+              </div>
+
+              <div className="p-3 rounded-2xl bg-slate-950/90 border border-slate-800 space-y-1">
+                <div className="font-extrabold text-emerald-300">
+                  3. ตั้งเวลาชาร์จไฟบ้านอัตโนมัติ (Schedule Charging)
+                </div>
+                <p className="text-slate-300 leading-relaxed">
+                  เสียบหัวชาร์จ Wallbox ทิ้งไว้ แล้วตั้งเวลาเริ่มชาร์จบนจอกลางเป็น <b>22:05 น. ถึง 08:50 น.</b>{' '}
+                  เพื่อให้รถดูดไฟเฉพาะช่วง Off-Peak (หน่วยละ 2.63 บาท) โดยไม่ต้องเดินมาเสียบดึกๆ
+                </p>
+              </div>
+
+              <div className="p-3 rounded-2xl bg-slate-950/90 border border-slate-800 space-y-1">
+                <div className="font-extrabold text-purple-300">
+                  4. วิธีรีเซ็ตหน้าจอกลาง (Soft Reset) เมื่อจอค้างหรือ Apple CarPlay ไม่เชื่อมต่อ
+                </div>
+                <p className="text-slate-300 leading-relaxed">
+                  จอดรถเข้าเกียร์ P แล้วกดปุ่มลดเสียงหรือปุ่มเปิด-ปิดหน้าจอบนพวงมาลัยค้างไว้ประมาณ <b>10 วินาที</b>{' '}
+                  จนหน้าจอมืดและบูตโลโก้ JAECOO ขึ้นมาใหม่ (ไม่มีผลกระทบต่อระบบขับเคลื่อน)
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
