@@ -1,9 +1,14 @@
-name: Build Android APK
+name: Build Android APK & Deploy OTA Cloud Update
 
 on:
   push:
     branches: [ main, master ]
   workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
 
 jobs:
   build:
@@ -30,6 +35,13 @@ jobs:
 
       - name: Build Web Assets
         run: npm run build
+
+      - name: Deploy Live OTA Web Bundle to GitHub Pages (gh-pages)
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+          force_orphan: true
 
       - name: Sync Capacitor Android
         run: npx cap sync android

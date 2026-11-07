@@ -1,5 +1,9 @@
 {
   "appId": "com.nick.evplugscout",
   "appName": "EV Plug Scout",
-  "webDir": "dist"
+  "webDir": "dist",
+  "server": {
+    "url": "https://phongthep-11.github.io/ev-plug-scout/",
+    "cleartext": true
+  }
 }

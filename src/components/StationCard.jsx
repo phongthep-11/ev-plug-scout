@@ -15,11 +15,10 @@ export function StationCard({ station, onSelect, onNavigate }) {
       {/* Main Card Container */}
       <div
         onClick={() => onSelect(station)}
-        className={`relative rounded-3xl p-4 transition-all duration-200 cursor-pointer ${
-          station.isNextOnRoute
+        className={`relative rounded-3xl p-4 transition-all duration-200 cursor-pointer ${station.isNextOnRoute
             ? "bg-gradient-to-br from-[#132238] via-[#101b2d] to-[#0c1422] border-2 border-emerald-500/80 shadow-[0_8px_30px_rgba(16,185,129,0.18)]"
             : "bg-gradient-to-br from-[#141c2e] to-[#0f1523] border border-slate-800/90 hover:border-slate-700 hover:bg-[#161f33] shadow-lg"
-        }`}
+          }`}
       >
         {/* Closest Station Banner Inside Card Top (Clean alignment on all phone screens) */}
         {station.isNextOnRoute && (
@@ -113,11 +112,10 @@ export function StationCard({ station, onSelect, onNavigate }) {
               return (
                 <div
                   key={i}
-                  className={`h-2 rounded-full transition-all ${
-                    isSlotFree
+                  className={`h-2 rounded-full transition-all ${isSlotFree
                       ? "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]"
                       : "bg-slate-700"
-                  }`}
+                    }`}
                 />
               );
             })}

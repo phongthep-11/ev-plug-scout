@@ -422,6 +422,60 @@ export function MyCarTab({ car: initialCar, batteryPct: initialBattery, onSaveCa
         </div>
       </div>
 
+      {/* NEW FEATURE: ☁️ Cloud OTA Auto-Update Card (ไม่ต้องลง APK ใหม่ทุกครั้ง) */}
+      <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-br from-[#0f2438] via-[#0c1a2c] to-[#091220] border-2 border-cyan-500/50 space-y-3 shadow-[0_6px_25px_rgba(6,182,212,0.16)]">
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <h3 className="text-sm sm:text-base font-extrabold text-white flex items-center gap-2">
+              <RefreshCw size={17} className="text-cyan-400" />
+              <span>☁️ ระบบอัปเดตแอปอัตโนมัติ (OTA Live Update)</span>
+            </h3>
+            <p className="text-[11px] text-slate-300 mt-0.5">
+              ติดตั้ง APK เพียงครั้งเดียว! ครั้งต่อไปเมื่ออัปเดตโค้ดใหม่ แอปจะดึงเวอร์ชันล่าสุดจาก Cloud เองอัตโนมัติโดยไม่ต้องลง APK ใหม่
+            </p>
+          </div>
+          <span className="px-2.5 py-1 rounded-full bg-cyan-500/20 border border-cyan-500/40 text-cyan-300 text-[10px] font-extrabold whitespace-nowrap">
+            🟢 OTA ACTIVE
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <button
+            onClick={async () => {
+              soundEffects.playListening();
+              speechService.speak('กำลังซิงค์อัปเดตเวอร์ชันใหม่ล่าสุดผ่านระบบคลาวด์ครับพี่นิค');
+              try {
+                if ('serviceWorker' in navigator) {
+                  const regs = await navigator.serviceWorker.getRegistrations();
+                  for (const r of regs) await r.update();
+                }
+                if ('caches' in window) {
+                  const keys = await caches.keys();
+                  await Promise.all(keys.map(k => caches.delete(k)));
+                }
+              } catch {}
+              setTimeout(() => {
+                const baseUrl = window.location.origin + window.location.pathname;
+                window.location.href = `${baseUrl}?ota=${Date.now()}`;
+              }, 600);
+            }}
+            className="min-h-[44px] py-2.5 px-3 rounded-2xl bg-gradient-to-r from-cyan-400 to-emerald-400 hover:from-cyan-300 hover:to-emerald-300 text-slate-950 font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-md active:scale-95 transition"
+          >
+            <RefreshCw size={15} className="stroke-[2.5]" />
+            <span>🔄 ซิงค์อัปเดตเวอร์ชันล่าสุดเดี๋ยวนี้</span>
+          </button>
+
+          <a
+            href="https://phongthep-11.github.io/ev-plug-scout/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="min-h-[44px] py-2.5 px-3 rounded-2xl bg-slate-900 hover:bg-slate-800 border border-cyan-500/40 text-cyan-300 font-bold text-xs flex items-center justify-center gap-1.5 active:scale-95 transition text-center"
+          >
+            <span>🌐 เปิดลิงก์เว็บแอปสด (PWA) ↗</span>
+          </a>
+        </div>
+      </div>
+
       {/* NEW FEATURE 1: Smart Charging Cost & Time Calculator (On-Peak vs Off-Peak) */}
       <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-br from-[#132238] via-[#101b2e] to-[#0b1322] border-2 border-emerald-500/60 space-y-3.5 shadow-[0_6px_25px_rgba(16,185,129,0.18)]">
         <div className="flex flex-wrap items-center justify-between gap-2">
