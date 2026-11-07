@@ -159,19 +159,19 @@ export function StationDetailModal({ station, onClose, onNavigate, onReportStatu
               <MapPin size={16} className="text-emerald-400 flex-shrink-0 mt-0.5" />
               <div className="flex-1">
                 <div className="flex items-center justify-between">
-                  <p className="font-medium text-white">ตำแหน่งและจุดสังเกต</p>
+                  <p className="font-medium text-white">ตำแหน่งและหมุดทางการใน Google Maps</p>
                   <a 
-                    href={`https://www.google.com/maps/search/?api=1&query=${station.coordinates?.lat},${station.coordinates?.lng}`}
+                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(station.googleMapsQuery || station.name)}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-[10px] text-emerald-400 hover:underline"
+                    className="text-[11px] font-bold text-emerald-400 hover:underline"
                   >
-                    ดูพิกัดปักหมุด ↗
+                    🔍 ดูหมุดสถานที่จริงบน Google Maps ↗
                   </a>
                 </div>
                 <p className="text-slate-400 text-[11px] mt-0.5">{station.address}</p>
                 <p className="text-[10px] text-emerald-400/90 font-mono mt-1">
-                  📍 พิกัด GPS ตรง 100%: {station.coordinates?.lat?.toFixed(6)}, {station.coordinates?.lng?.toFixed(6)}
+                  📍 ชื่อหมุดนำทาง Google Maps: {station.googleMapsQuery || station.name}
                 </p>
               </div>
             </div>

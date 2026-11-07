@@ -329,16 +329,13 @@ export function App() {
     }, 600);
   };
 
-  // Turn-by-turn Navigation to Google Maps (100% accurate GPS pin)
+  // Turn-by-turn Navigation to Google Maps (100% Verified Official Google Place Name Pin)
   const handleNavigate = (station) => {
-    const lat = station.coordinates?.lat;
-    const lng = station.coordinates?.lng;
-    if (!lat || !lng) return;
-    
-    // Direct Google Maps navigation link with exact coordinates
-    // We intentionally omit hardcoded &origin= so Google Maps reliably uses the vehicle's
-    // high-precision native hardware GPS / current location without Wi-Fi IP errors
-    const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
+    if (!station) return;
+    // Use official Google Maps Place Query so Google Maps locks onto the real business/station Place ID
+    // and routes into the actual station entrance instead of raw lat/lng coordinate drift
+    const placeQuery = station.googleMapsQuery || `${station.name} ${station.province || ''}`.trim();
+    const url = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(placeQuery)}&travelmode=driving`;
 
     window.open(url, '_blank') || (window.location.href = url);
 
@@ -346,6 +343,14 @@ export function App() {
       const distInfo = station.distanceKm != null ? ` ระยะทางประมาณ ${station.distanceKm} กิโลเมตร` : '';
       speechService.speak(`เริ่มนำทาง Google Maps ไปยัง ${station.name}${distInfo} ขอให้เดินทางปลอดภัยครับ`);
     }
+  };
+
+  // Open Google Maps Live EV Charging Station Radar around current location
+  const handleOpenLiveGoogleMapsRadar = () => {
+    const area = userLocation?.areaName || '';
+    const q = area ? `สถานีชาร์จรถยนต์ไฟฟ้า EV Charging Station ${area}` : `สถานีชาร์จรถยนต์ไฟฟ้า EV Charging Station ใกล้ฉัน`;
+    const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
+    window.open(url, '_blank') || (window.location.href = url);
   };
 
   // Trigger from Driving Simulator
@@ -627,6 +632,14 @@ export function App() {
                           <span>วางแผนทริปไกล</span>
                         </button>
                       </div>
+
+                      <button
+                        onClick={handleOpenLiveGoogleMapsRadar}
+                        className="w-full py-2 px-3 rounded-xl bg-slate-950/80 hover:bg-slate-900 border border-slate-800 text-[11px] font-semibold text-emerald-300 flex items-center justify-center gap-1.5 transition active:scale-95"
+                      >
+                        <MapPin size={13} className="text-emerald-400" />
+                        <span>🔎 เปิดดูหมุดตู้ชาร์จ EV รอบตัวฉันจาก Google Maps สด (Live Radar)</span>
+                      </button>
                     </div>
                   )}
                 </div>

@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Route, MapPin, ArrowRight, Zap, CheckCircle2, AlertCircle, Compass, Navigation, Car, Clock, Search, Sparkles, RefreshCw, ChevronDown, ChevronUp, ShieldCheck } from 'lucide-react';
-import { NATIONWIDE_STATIONS } from '../data/thailandStations';
+import { NATIONWIDE_STATIONS } from '../data/stations';
 
 // Comprehensive Geographic Hubs in Thailand with Typo Tolerance
 const KNOWN_LOCATIONS = [
@@ -420,9 +420,11 @@ export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 
   const handleOpenFullTripGoogleMaps = () => {
     const { destLoc, primaryStop } = routeCalculation;
     if (!destLoc) return;
-    let url = `https://www.google.com/maps/dir/?api=1&destination=${destLoc.lat},${destLoc.lng}&travelmode=driving`;
-    if (primaryStop?.coordinates?.lat && primaryStop?.coordinates?.lng) {
-      url += `&waypoints=${primaryStop.coordinates.lat},${primaryStop.coordinates.lng}`;
+    const destPlace = destLoc.name || `${destLoc.lat},${destLoc.lng}`;
+    let url = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destPlace)}&travelmode=driving`;
+    if (primaryStop) {
+      const stopPlace = primaryStop.googleMapsQuery || `${primaryStop.name} ${primaryStop.province || ''}`.trim();
+      url += `&waypoints=${encodeURIComponent(stopPlace)}`;
     }
     window.open(url, '_blank') || (window.location.href = url);
   };
