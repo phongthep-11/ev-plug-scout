@@ -12,10 +12,35 @@ import {
   BatteryCharging,
   Flag,
   CheckCircle2,
-  AlertTriangle
+  AlertTriangle,
+  PhoneCall,
+  ShieldAlert
 } from 'lucide-react';
 import { speechService } from '../services/speechService';
 import { soundEffects } from '../services/soundEffects';
+
+const PROVIDER_HOTLINES = {
+  'EV STATION PLUZ': { phone: '021143350', display: '02-114-3350 (หรือ 1365)', name: 'EV Station PluZ Call Center' },
+  'ON-ION': { phone: '1365', display: '1365 (OR Call Center)', name: 'PTT On-ion Support' },
+  'PEA VOLTA': { phone: '1129', display: '1129 (กฟภ. ตลอด 24 ชม.)', name: 'PEA VOLTA Call Center' },
+  'ALTERVIM': { phone: '020986999', display: '02-098-6999', name: 'Altervim Super Charge Support' },
+  'ELEXA (EGAT)': { phone: '024368955', display: '02-436-8955', name: 'EleXA EGAT Call Center' },
+  'MEA EV': { phone: '1130', display: '1130 (กฟน. ตลอด 24 ชม.)', name: 'MEA EV Call Center' },
+  'EA ANYWHERE': { phone: '020266133', display: '02-026-6133', name: 'EA Anywhere Call Center' },
+  'SHELL RECHARGE': { phone: '026579888', display: '02-657-9888', name: 'Shell Recharge Support' },
+  'EVOLT': { phone: '021147343', display: '02-114-7343 (ตลอด 24 ชม.)', name: 'Evolt Customer Care' },
+  'SHARGE': { phone: '020263599', display: '02-026-3599', name: 'SHARGE Call Center' },
+  'REVERSHARGER': { phone: '021174666', display: '02-117-4666', name: 'RêverSharger Support' },
+  'GWM HYPERCHARGE': { phone: '026688888', display: '02-668-8888', name: 'GWM Call Center' },
+};
+
+function getStationHotline(provider = '') {
+  const upper = provider.toUpperCase();
+  for (const [key, val] of Object.entries(PROVIDER_HOTLINES)) {
+    if (upper.includes(key)) return val;
+  }
+  return { phone: '021143350', display: '02-114-3350', name: 'ศูนย์ช่วยเหลือตู้ชาร์จ' };
+}
 
 export function StationDetailModal({ station, onClose, onNavigate, onReportStatus }) {
   const [reportFeedback, setReportFeedback] = useState('');
@@ -188,6 +213,37 @@ export function StationDetailModal({ station, onClose, onNavigate, onReportStatu
             </div>
           </div>
         </div>
+
+        {/* Emergency Charger Support & Stuck Plug Helpdesk */}
+        {(() => {
+          const hotline = getStationHotline(station.provider);
+          return (
+            <div className="p-3.5 rounded-2xl bg-rose-950/35 border border-rose-500/40 mb-4 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <span className="text-xs font-extrabold text-rose-300 flex items-center gap-1.5">
+                    <ShieldAlert size={15} className="text-rose-400" />
+                    <span>🆘 ดึงสายไม่ออก / ตู้ค้าง? โทรแจ้งค่ายนี้ทันที</span>
+                  </span>
+                  <span className="text-[11px] text-slate-300 block mt-0.5">
+                    {hotline.name}: <b className="text-white font-mono">{hotline.display}</b>
+                  </span>
+                </div>
+
+                <a
+                  href={`tel:${hotline.phone}`}
+                  className="px-3 py-2 rounded-xl bg-rose-500 hover:bg-rose-400 text-white font-extrabold text-xs flex items-center gap-1.5 shadow-[0_0_15px_rgba(244,63,94,0.4)] active:scale-95 transition flex-shrink-0"
+                >
+                  <PhoneCall size={14} />
+                  <span>โทร {hotline.phone}</span>
+                </a>
+              </div>
+              <p className="text-[10px] text-slate-300 bg-slate-950/70 p-2 rounded-xl border border-slate-800">
+                💡 <b>วิธีปลดล็อกสายชาร์จ JAECOO 5 EV เบื้องต้น:</b> กดปุ่ม <b>"ปลดล็อกรถ"</b> บนกุญแจรีโมทซ้ำ 2 ครั้ง หรือกดหยุดชาร์จในจอกลางรถก่อนดึงหัวจ่าย CCS2
+              </p>
+            </div>
+          );
+        })()}
 
         {/* Crowdsource Report Bar */}
         <div className="p-3 rounded-2xl bg-slate-900/90 border border-slate-800 mb-5">

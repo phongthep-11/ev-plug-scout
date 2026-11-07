@@ -26,6 +26,7 @@ import { BottomNav } from './components/BottomNav';
 import { SavedStationsTab } from './components/SavedStationsTab';
 import { RoutePlannerTab } from './components/RoutePlannerTab';
 import { MyCarTab } from './components/MyCarTab';
+import { InteractiveRadarMap } from './components/InteractiveRadarMap';
 
 // Haversine distance calculator
 function calculateDistance(lat1, lon1, lat2, lon2) {
@@ -89,6 +90,7 @@ export function App() {
   const [selectedRouteId, setSelectedRouteId] = useState('all');
   const [gpsAccuracy, setGpsAccuracy] = useState(null);
   const [isLocating, setIsLocating] = useState(false);
+  const [viewMode, setViewMode] = useState('list'); // 'list' | 'map'
 
   // Persistent Car & Battery state
   const [carData, setCarData] = useState(() => {
@@ -633,20 +635,30 @@ export function App() {
                         </button>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-3 gap-1.5">
                         <button
-                          onClick={handleOpenLiveGoogleMapsRadar}
-                          className="py-2 px-2.5 rounded-xl bg-slate-950/80 hover:bg-slate-900 border border-slate-800 text-[11px] font-semibold text-emerald-300 flex items-center justify-center gap-1 transition active:scale-95"
+                          onClick={() => setViewMode(viewMode === 'map' ? 'list' : 'map')}
+                          className={`py-2 px-2 rounded-xl border text-[11px] font-bold flex items-center justify-center gap-1 transition active:scale-95 ${
+                            viewMode === 'map'
+                              ? 'bg-emerald-500 text-slate-950 border-emerald-400'
+                              : 'bg-slate-950/80 hover:bg-slate-900 border-emerald-500/40 text-emerald-300'
+                          }`}
                         >
-                          <MapPin size={12} className="text-emerald-400 flex-shrink-0" />
-                          <span className="truncate">🔎 หมุดตู้ชาร์จ Google Maps สด</span>
+                          <span>{viewMode === 'map' ? '📋 ดูการ์ดสถานี' : '🗺️ แผนที่เรดาร์'}</span>
                         </button>
 
                         <button
                           onClick={() => setActiveTab('car')}
-                          className="py-2 px-2.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-[11px] font-bold text-amber-300 flex items-center justify-center gap-1 transition active:scale-95"
+                          className="py-2 px-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-[11px] font-bold text-amber-300 flex items-center justify-center gap-1 transition active:scale-95"
                         >
-                          <span>💰 คำนวณค่าไฟ TOU / เวลาชาร์จ</span>
+                          <span className="truncate">⏱️ จับเวลา/สมุดค่าไฟ</span>
+                        </button>
+
+                        <button
+                          onClick={handleOpenLiveGoogleMapsRadar}
+                          className="py-2 px-2 rounded-xl bg-slate-950/80 hover:bg-slate-900 border border-slate-800 text-[11px] font-semibold text-cyan-300 flex items-center justify-center gap-1 transition active:scale-95"
+                        >
+                          <span className="truncate">🔎 Google Maps สด</span>
                         </button>
                       </div>
                     </div>
@@ -800,51 +812,85 @@ export function App() {
               )}
             </div>
 
-            {/* Section Header: สถานีชาร์จใกล้ฉัน (เรียงตามระยะทางจริง) */}
-            <div className="flex items-center justify-between pt-1">
+            {/* Section Header: สถานีชาร์จใกล้ฉัน + สลับมุมมอง การ์ด / แผนที่เรดาร์ */}
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
               <div className="flex items-center gap-2 text-white font-extrabold text-sm">
                 <span className="text-emerald-400">📍</span>
-                <span>ตู้ชาร์จเรียงจากใกล้รถที่สุด ({filteredStations.length} แห่ง)</span>
+                <span>ตู้ชาร์จใกล้รถที่สุด ({filteredStations.length} แห่ง)</span>
               </div>
 
-              <button
-                onClick={handleRefresh}
-                disabled={isRefreshing}
-                className="px-2.5 py-1 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center gap-1.5 text-xs text-emerald-400 hover:text-emerald-300 active:scale-95 transition-all font-semibold"
-              >
-                <RotateCw size={12} className={isRefreshing ? "animate-spin" : ""} />
-                <span>{isRefreshing ? "กำลังอัปเดต..." : "อัปเดตสถานะตู้"}</span>
-              </button>
-            </div>
-
-            {/* Station Cards List */}
-            <div className="space-y-4 pt-1">
-              {filteredStations.map((station) => (
-                <StationCard
-                  key={station.id}
-                  station={station}
-                  onSelect={(s) => setSelectedStation(s)}
-                  onNavigate={(s) => handleNavigate(s)}
-                />
-              ))}
-
-              {filteredStations.length === 0 && (
-                <div className="text-center py-12 rounded-3xl bg-slate-900/50 border border-slate-800 p-6 space-y-3">
-                  <p className="text-slate-300 font-semibold text-sm">ไม่พบสถานีตามตัวกรองที่เลือก</p>
+              <div className="flex items-center gap-1.5">
+                <div className="flex items-center bg-slate-900 p-1 rounded-xl border border-slate-800 text-xs">
                   <button
-                    onClick={() => {
-                      setProviderFilter('ALL');
-                      setOnlyAvailableFilter(false);
-                      setFastOnlyFilter(false);
-                      setSearchQuery('');
-                    }}
-                    className="px-4 py-2 rounded-xl bg-emerald-500 text-slate-950 font-bold text-xs"
+                    onClick={() => setViewMode('list')}
+                    className={`px-2.5 py-1 rounded-lg font-extrabold transition ${
+                      viewMode === 'list'
+                        ? 'bg-emerald-500 text-slate-950 shadow'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
                   >
-                    ล้างตัวกรองทั้งหมด
+                    📋 การ์ด
+                  </button>
+                  <button
+                    onClick={() => setViewMode('map')}
+                    className={`px-2.5 py-1 rounded-lg font-extrabold transition ${
+                      viewMode === 'map'
+                        ? 'bg-emerald-500 text-slate-950 shadow'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    🗺️ แผนที่เรดาร์
                   </button>
                 </div>
-              )}
+
+                <button
+                  onClick={handleRefresh}
+                  disabled={isRefreshing}
+                  className="px-2.5 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center gap-1 text-xs text-emerald-400 hover:text-emerald-300 active:scale-95 transition-all font-semibold"
+                >
+                  <RotateCw size={12} className={isRefreshing ? "animate-spin" : ""} />
+                  <span className="hidden sm:inline">{isRefreshing ? "กำลังอัปเดต..." : "อัปเดต"}</span>
+                </button>
+              </div>
             </div>
+
+            {/* Interactive Radar Map View OR Station Cards List */}
+            {viewMode === 'map' ? (
+              <InteractiveRadarMap
+                stations={filteredStations}
+                userLocation={userLocation}
+                onSelectStation={(s) => setSelectedStation(s)}
+                onNavigate={(s) => handleNavigate(s)}
+              />
+            ) : (
+              <div className="space-y-4 pt-1">
+                {filteredStations.map((station) => (
+                  <StationCard
+                    key={station.id}
+                    station={station}
+                    onSelect={(s) => setSelectedStation(s)}
+                    onNavigate={(s) => handleNavigate(s)}
+                  />
+                ))}
+
+                {filteredStations.length === 0 && (
+                  <div className="text-center py-12 rounded-3xl bg-slate-900/50 border border-slate-800 p-6 space-y-3">
+                    <p className="text-slate-300 font-semibold text-sm">ไม่พบสถานีตามตัวกรองที่เลือก</p>
+                    <button
+                      onClick={() => {
+                        setProviderFilter('ALL');
+                        setOnlyAvailableFilter(false);
+                        setFastOnlyFilter(false);
+                        setSearchQuery('');
+                      }}
+                      className="px-4 py-2 rounded-xl bg-emerald-500 text-slate-950 font-bold text-xs"
+                    >
+                      ล้างตัวกรองทั้งหมด
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 

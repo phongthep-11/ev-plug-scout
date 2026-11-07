@@ -1,6 +1,62 @@
-import React, { useState } from 'react';
-import { Car, BatteryCharging, Zap, Gauge, Sliders, CheckCircle2, Shield, Award, Save, RefreshCw } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import {
+  Car,
+  BatteryCharging,
+  Zap,
+  Gauge,
+  Sliders,
+  CheckCircle2,
+  Shield,
+  Award,
+  Save,
+  RefreshCw,
+  Timer,
+  BellRing,
+  Play,
+  Square,
+  PlusCircle,
+  Trash2,
+  PhoneCall,
+  BookOpen,
+  TrendingDown
+} from 'lucide-react';
 import { MY_CAR_DATA } from '../data/stations';
+import { speechService } from '../services/speechService';
+import { soundEffects } from '../services/soundEffects';
+
+const INITIAL_CHARGE_LOGS = [
+  {
+    id: 'log-1',
+    date: '05 พ.ย. 2569',
+    station: 'EV Station PluZ - ปตท. วงแหวนกาญจนาภิเษก บางใหญ่',
+    kwh: 33.5,
+    costBaht: 157,
+    rateType: 'Off-Peak (4.7฿)'
+  },
+  {
+    id: 'log-2',
+    date: '02 พ.ย. 2569',
+    station: 'ไฟบ้านมิเตอร์ TOU (บางใหญ่)',
+    kwh: 40.2,
+    costBaht: 106,
+    rateType: 'Home TOU (2.63฿)'
+  }
+];
+
+const EMERGENCY_HOTLINES = [
+  { name: '🚗 JAECOO / OMODA Roadside 24 ชม.', phone: '020208888', display: '02-020-8888', badge: 'ศูนย์บริการรถพี่นิค', highlight: true },
+  { name: '⛽ EV Station PluZ (ปตท. OR)', phone: '021143350', display: '02-114-3350', badge: 'ตู้ชาร์จ ปตท.' },
+  { name: '🟣 PEA VOLTA (การไฟฟ้าส่วนภูมิภาค)', phone: '1129', display: '1129', badge: 'สายด่วน 24 ชม.' },
+  { name: '🟢 Altervim (โลตัส / แม็คโคร)', phone: '020986999', display: '02-098-6999', badge: 'ตู้โลตัส' },
+  { name: '⚡ EleXA (กฟผ. / ปั๊ม PT)', phone: '024368955', display: '02-436-8955', badge: 'ตู้ กฟผ./PT' },
+  { name: '🟠 MEA EV (การไฟฟ้านครหลวง)', phone: '1130', display: '1130', badge: 'สายด่วน 24 ชม.' },
+  { name: '🔵 EA Anywhere', phone: '020266133', display: '02-026-6133', badge: 'ตู้ EA' },
+  { name: '🟡 Shell Recharge', phone: '026579888', display: '02-657-9888', badge: 'ตู้เชลล์' },
+  { name: '🔶 Evolt (เซ็นทรัล / ห้าง)', phone: '021147343', display: '02-114-7343', badge: 'ตลอด 24 ชม.' },
+  { name: '🔷 SHARGE', phone: '020263599', display: '02-026-3599', badge: 'ตู้ SHARGE' },
+  { name: '💠 RêverSharger', phone: '021174666', display: '02-117-4666', badge: 'ตู้ Rêver' },
+  { name: '🚓 ตำรวจทางหลวง / มอเตอร์เวย์', phone: '1193', display: '1193', badge: 'เหตุด่วนทางหลวง' },
+];
 
 export function MyCarTab({ car: initialCar, batteryPct: initialBattery, onSaveCarSettings }) {
   // Use passed props or fallback to localStorage
@@ -38,6 +94,113 @@ export function MyCarTab({ car: initialCar, batteryPct: initialBattery, onSaveCa
   const [selectedChargerKw, setSelectedChargerKw] = useState(130);
   const [selectedTariff, setSelectedTariff] = useState('station'); // 'station' (7.7/4.7) or 'home' (5.8/2.63)
   const [v2lSelected, setV2lSelected] = useState(['ac', 'light']);
+
+  // Feature: Smart Charging Countdown Timer & Idle Fee Alert
+  const [timerRunning, setTimerRunning] = useState(false);
+  const [timerTotalSec, setTimerTotalSec] = useState(25 * 60);
+  const [timerRemainingSec, setTimerRemainingSec] = useState(25 * 60);
+  const [timerStatusBanner, setTimerStatusBanner] = useState('');
+
+  // Feature: EV Charging Expense Log & Fuel Savings Tracker
+  const [chargeLogs, setChargeLogs] = useState(() => {
+    try {
+      const saved = localStorage.getItem('ev_plug_scout_charge_logs');
+      return saved ? JSON.parse(saved) : INITIAL_CHARGE_LOGS;
+    } catch {
+      return INITIAL_CHARGE_LOGS;
+    }
+  });
+  const [logBrandInput, setLogBrandInput] = useState('EV Station PluZ (ปตท.)');
+
+  useEffect(() => {
+    if (!timerRunning) return;
+    const interval = setInterval(() => {
+      setTimerRemainingSec((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          setTimerRunning(false);
+          soundEffects.playAlert();
+          speechService.speak(
+            `แจ้งเตือนครับพี่นิค รถ ${car.model} ชาร์จแบตเตอรี่ครบ ${targetChargePct} เปอร์เซ็นต์แล้ว กรุณาถอดสายชาร์จเพื่อป้องกันค่าปรับจอดแช่ครับ`
+          );
+          setTimerStatusBanner(`🎉 ชาร์จครบ ${targetChargePct}% แล้ว! รีบถอดหัวชาร์จเพื่อป้องกันค่าปรับจอดแช่ (Idle Fee)`);
+          setBatteryPct(targetChargePct);
+          if (onSaveCarSettings) onSaveCarSettings(car, targetChargePct);
+          return 0;
+        }
+        if (prev === 300) {
+          soundEffects.playAlert();
+          speechService.speak(
+            `อีก 5 นาทีจะชาร์จครบ ${targetChargePct} เปอร์เซ็นต์แล้วครับพี่นิค เตรียมตัวเดินไปที่รถได้เลยครับ`
+          );
+          setTimerStatusBanner('🔔 เหลือเวลาอีก 5 นาที! เตรียมตัวเดินไปถอดสายชาร์จ');
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [timerRunning, car, targetChargePct, onSaveCarSettings]);
+
+  const handleStartTimer = (minutes) => {
+    const mins = Math.max(1, minutes || 25);
+    const secs = mins * 60;
+    setTimerTotalSec(secs);
+    setTimerRemainingSec(secs);
+    setTimerRunning(true);
+    setTimerStatusBanner(`⚡ กำลังจับเวลาชาร์จ ${mins} นาที (จะส่งเสียงเตือนเมื่อเหลือ 5 นาที และเมื่อชาร์จเต็ม)`);
+    soundEffects.playListening();
+    speechService.speak(`เริ่มจับเวลาชาร์จ ${mins} นาที ระบบจะส่งเสียงเตือนพี่นิคเมื่อใกล้ครบเวลาครับ`);
+  };
+
+  const handleStopTimer = () => {
+    setTimerRunning(false);
+    setTimerStatusBanner('⏹️ หยุดจับเวลาชาร์จแล้ว');
+  };
+
+  const handleTestVoiceIdleAlert = () => {
+    soundEffects.playAlert();
+    speechService.speak(
+      `ทดสอบเสียงแจ้งเตือนครับพี่นิค ขณะนี้รถ JAECOO 5 ชาร์จครบ ${targetChargePct} เปอร์เซ็นต์แล้ว กรุณาถอดสายชาร์จเพื่อป้องกันค่าปรับจอดแช่ นาทีละ 2 บาทครับ`
+    );
+    setTimerStatusBanner('🔊 ทดสอบเสียงพูดเตือนถอดสายชาร์จเรียบร้อยแล้ว!');
+  };
+
+  const handleAddChargeLog = (kwh, costBaht, stationLabel, rateLabel) => {
+    const validKwh = Math.max(5, kwh || 30);
+    const validCost = Math.max(15, costBaht || Math.round(validKwh * 4.7));
+    const todayStr = new Date().toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: 'numeric' });
+    const newEntry = {
+      id: `log-${Date.now()}`,
+      date: todayStr,
+      station: stationLabel || logBrandInput,
+      kwh: validKwh,
+      costBaht: validCost,
+      rateType: rateLabel || (isOffPeakNow ? `Off-Peak (${offPeakRate}฿)` : `On-Peak (${onPeakRate}฿)`)
+    };
+    const updated = [newEntry, ...chargeLogs];
+    setChargeLogs(updated);
+    try {
+      localStorage.setItem('ev_plug_scout_charge_logs', JSON.stringify(updated));
+    } catch {}
+    setSaveSuccessMsg(`📒 บันทึกประวัติชาร์จ +${validKwh} kWh (${validCost} บาท) ลงสมุดเรียบร้อย!`);
+    setTimeout(() => setSaveSuccessMsg(''), 3500);
+  };
+
+  const handleDeleteChargeLog = (id) => {
+    const updated = chargeLogs.filter(item => item.id !== id);
+    setChargeLogs(updated);
+    try {
+      localStorage.setItem('ev_plug_scout_charge_logs', JSON.stringify(updated));
+    } catch {}
+  };
+
+  // Monthly EV Cost vs Gasoline SUV Savings Calculation
+  const totalLoggedKwh = Math.round(chargeLogs.reduce((s, x) => s + (Number(x.kwh) || 0), 0) * 10) / 10;
+  const totalLoggedBaht = Math.round(chargeLogs.reduce((s, x) => s + (Number(x.costBaht) || 0), 0));
+  const totalDrivenKmFromLogs = Math.round(totalLoggedKwh * 6.3); // JAECOO 5 EV: ~6.3 km per kWh
+  // Equivalent SUV gasoline cost (12 km/L @ 36 Baht/L = 3.0 Baht/km)
+  const equivalentGasolineBaht = Math.round(totalDrivenKmFromLogs * 3.0);
+  const totalSavedVsGasBaht = Math.max(0, equivalentGasolineBaht - totalLoggedBaht);
 
   const V2L_APPLIANCES = [
     { id: 'ac', name: '❄️ แอร์เคลื่อนที่แคมป์ปิ้ง', watts: 900 },
@@ -393,6 +556,271 @@ export function MyCarTab({ car: initialCar, batteryPct: initialBattery, onSaveCa
             ✓ แบตเตอรี่ปัจจุบัน ({batteryPct}%) สูงกว่าหรือเท่ากับเป้าหมาย ({targetChargePct}%) แล้ว พร้อมเดินทางได้ทันทีครับ!
           </div>
         )}
+
+        {/* Quick 1-Tap Actions from Calculator: Start Timer or Log Expense */}
+        {pctToAdd > 0 && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+            <button
+              onClick={() => handleStartTimer(chargeMinutes)}
+              className="py-2.5 px-3 rounded-2xl bg-gradient-to-r from-amber-400 to-orange-400 hover:from-amber-300 hover:to-orange-300 text-slate-950 font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-md active:scale-95 transition"
+            >
+              <Timer size={15} className="stroke-[2.5]" />
+              <span>▶️ เริ่มจับเวลาชาร์จ ({chargeMinutes} นาที)</span>
+            </button>
+
+            <button
+              onClick={() =>
+                handleAddChargeLog(
+                  kwhToAdd,
+                  isOffPeakNow ? offPeakCostBaht : onPeakCostBaht,
+                  selectedTariff === 'home' ? 'ไฟบ้านมิเตอร์ TOU' : logBrandInput,
+                  isOffPeakNow ? `Off-Peak (${offPeakRate}฿)` : `On-Peak (${onPeakRate}฿)`
+                )
+              }
+              className="py-2.5 px-3 rounded-2xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/50 text-emerald-300 font-extrabold text-xs flex items-center justify-center gap-1.5 active:scale-95 transition"
+            >
+              <PlusCircle size={15} />
+              <span>
+                📒 บันทึกยอดชาร์จนี้ (+{kwhToAdd} kWh • {isOffPeakNow ? offPeakCostBaht : onPeakCostBaht}฿)
+              </span>
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* NEW FEATURE: ⏱️ นาฬิกาจับเวลาชาร์จ & เตือนถอดสายกันโดนปรับ (Smart Charging Timer & Idle Fee Alert) */}
+      <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-br from-[#1d192b] via-[#131829] to-[#0c111d] border-2 border-amber-500/50 space-y-3.5 shadow-[0_6px_25px_rgba(245,158,11,0.15)]">
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <h3 className="text-sm sm:text-base font-extrabold text-white flex items-center gap-2">
+              <Timer size={18} className="text-amber-400" />
+              <span>⏱️ นาฬิกาจับเวลาชาร์จ & กันค่าปรับจอดแช่ (Idle Fee)</span>
+            </h3>
+            <p className="text-[11px] text-slate-300 mt-0.5">
+              ส่งเสียงพูดภาษาไทยเตือนล่วงหน้า 5 นาที และเมื่อชาร์จครบ {targetChargePct}% เพื่อเดินไปถอดสายทันเวลา
+            </p>
+          </div>
+          <span className="px-2.5 py-1 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 text-[10px] font-extrabold whitespace-nowrap">
+            🛡️ กันปรับ 1-2฿/นาที
+          </span>
+        </div>
+
+        {/* Live Countdown Display */}
+        <div className="p-4 rounded-2xl bg-slate-950/90 border border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="text-center sm:text-left">
+            <span className="text-[11px] text-slate-400 block">
+              {timerRunning ? '⚡ กำลังชาร์จไฟเข้าแบตเตอรี่...' : 'เวลาตั้งเตือนถอดสายชาร์จ:'}
+            </span>
+            <div className="text-3xl sm:text-4xl font-extrabold font-mono text-amber-400 tracking-wider mt-0.5">
+              {String(Math.floor(timerRemainingSec / 60)).padStart(2, '0')}:
+              {String(timerRemainingSec % 60).padStart(2, '0')}
+              <span className="text-xs text-slate-400 font-sans ml-2">นาที</span>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-center gap-1.5">
+            {[15, 25, 30, 45].map((mins) => (
+              <button
+                key={mins}
+                onClick={() => handleStartTimer(mins)}
+                className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-bold text-slate-200 active:scale-95 transition"
+              >
+                {mins} นาที
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {timerStatusBanner && (
+          <div className="p-2.5 rounded-xl bg-amber-500/15 border border-amber-500/40 text-amber-200 text-xs font-semibold flex items-center gap-2">
+            <BellRing size={15} className="text-amber-400 flex-shrink-0 animate-bounce" />
+            <span>{timerStatusBanner}</span>
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 gap-2">
+          {!timerRunning ? (
+            <button
+              onClick={() => handleStartTimer(chargeMinutes || 25)}
+              className="py-2.5 px-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-extrabold text-xs flex items-center justify-center gap-1.5 shadow active:scale-95 transition"
+            >
+              <Play size={14} className="fill-slate-950" />
+              <span>เริ่มนับถอยหลัง ({chargeMinutes || 25} นาที)</span>
+            </button>
+          ) : (
+            <button
+              onClick={handleStopTimer}
+              className="py-2.5 px-3 rounded-xl bg-rose-500 hover:bg-rose-400 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 shadow active:scale-95 transition"
+            >
+              <Square size={14} className="fill-white" />
+              <span>หยุดจับเวลา</span>
+            </button>
+          )}
+
+          <button
+            onClick={handleTestVoiceIdleAlert}
+            className="py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-300 font-bold text-xs flex items-center justify-center gap-1.5 active:scale-95 transition"
+          >
+            <BellRing size={14} />
+            <span>🔊 ทดสอบเสียงเตือนถอดสาย</span>
+          </button>
+        </div>
+      </div>
+
+      {/* NEW FEATURE: 📒 สมุดบันทึกค่าไฟรายเดือน & เทียบความคุ้มค่าน้ำมัน (EV Expense & Fuel Savings Log) */}
+      <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-br from-[#102428] via-[#0e1b24] to-[#0a121a] border-2 border-teal-500/50 space-y-3.5 shadow-lg">
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <h3 className="text-sm sm:text-base font-extrabold text-white flex items-center gap-2">
+              <BookOpen size={18} className="text-teal-400" />
+              <span>📒 สมุดบันทึกค่าไฟ & เทียบประหยัดค่าน้ำมัน</span>
+            </h3>
+            <p className="text-[11px] text-slate-300 mt-0.5">
+              บันทึกประวัติชาร์จจริงของพี่นิค เทียบกับรถน้ำมัน SUV (12 กม./ลิตร • 3.00 บาท/กม.)
+            </p>
+          </div>
+          <span className="px-2.5 py-1 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-[10px] font-extrabold flex items-center gap-1 whitespace-nowrap">
+            <TrendingDown size={12} />
+            <span>~0.75 ฿/กม.</span>
+          </span>
+        </div>
+
+        {/* Savings Summary Dashboard */}
+        <div className="grid grid-cols-3 gap-2 text-center">
+          <div className="p-3 rounded-2xl bg-slate-950/90 border border-slate-800">
+            <span className="text-[10px] text-slate-400 block">ค่าไฟรวม ({chargeLogs.length} ครั้ง)</span>
+            <span className="text-base sm:text-lg font-extrabold text-white font-mono">
+              {totalLoggedBaht.toLocaleString()} ฿
+            </span>
+            <span className="text-[10px] text-teal-400 font-bold block mt-0.5">
+              ⚡ รวม {totalLoggedKwh} kWh
+            </span>
+          </div>
+
+          <div className="p-3 rounded-2xl bg-slate-950/90 border border-slate-800">
+            <span className="text-[10px] text-slate-400 block">ถ้าเติมน้ำมัน SUV</span>
+            <span className="text-base sm:text-lg font-extrabold text-rose-300 font-mono line-through">
+              {equivalentGasolineBaht.toLocaleString()} ฿
+            </span>
+            <span className="text-[10px] text-slate-400 block mt-0.5">
+              วิ่งได้ ~{totalDrivenKmFromLogs} กม.
+            </span>
+          </div>
+
+          <div className="p-3 rounded-2xl bg-emerald-950/70 border border-emerald-500/50">
+            <span className="text-[10px] text-emerald-300 font-bold block">🎉 ประหยัดเงินได้</span>
+            <span className="text-base sm:text-lg font-extrabold text-emerald-300 font-mono">
+              +{totalSavedVsGasBaht.toLocaleString()} ฿
+            </span>
+            <span className="text-[10px] text-emerald-400 font-extrabold block mt-0.5">
+              คุ้มกว่าน้ำมัน 4 เท่า!
+            </span>
+          </div>
+        </div>
+
+        {/* Quick Brand Selector for Logging */}
+        <div className="flex items-center gap-2 bg-slate-950/80 p-2.5 rounded-2xl border border-slate-800 text-xs">
+          <span className="text-[11px] text-slate-400 whitespace-nowrap">ค่ายที่ชาร์จ:</span>
+          <select
+            value={logBrandInput}
+            onChange={(e) => setLogBrandInput(e.target.value)}
+            className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white font-semibold focus:outline-none focus:border-emerald-400"
+          >
+            <option value="EV Station PluZ (ปตท.)">⛽ EV Station PluZ (ปตท.)</option>
+            <option value="ไฟบ้านมิเตอร์ TOU (บางใหญ่)">🏠 ไฟบ้านมิเตอร์ TOU (บางใหญ่)</option>
+            <option value="PEA VOLTA (กฟภ.)">🟣 PEA VOLTA (กฟภ.)</option>
+            <option value="Altervim (โลตัส/แม็คโคร)">🟢 Altervim (โลตัส/แม็คโคร)</option>
+            <option value="EleXA (กฟผ./PT)">⚡ EleXA (กฟผ./PT)</option>
+            <option value="EA Anywhere">🔵 EA Anywhere</option>
+            <option value="Shell Recharge">🟡 Shell Recharge</option>
+            <option value="Evolt (เซ็นทรัล เวสต์เกต)">🔶 Evolt (เซ็นทรัล เวสต์เกต)</option>
+          </select>
+          <button
+            onClick={() =>
+              handleAddChargeLog(
+                kwhToAdd > 0 ? kwhToAdd : 33.5,
+                kwhToAdd > 0 ? (isOffPeakNow ? offPeakCostBaht : onPeakCostBaht) : 157,
+                logBrandInput
+              )
+            }
+            className="px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs whitespace-nowrap active:scale-95 transition"
+          >
+            + บันทึกด่วน
+          </button>
+        </div>
+
+        {/* Charge Log History List */}
+        <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+          {chargeLogs.map((item) => (
+            <div
+              key={item.id}
+              className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800/90 flex items-center justify-between gap-2 text-xs"
+            >
+              <div className="min-w-0">
+                <div className="font-bold text-white truncate">{item.station}</div>
+                <div className="text-[10px] text-slate-400">
+                  📅 {item.date} • {item.rateType} • เติมไฟ <b className="text-emerald-300">+{item.kwh} kWh</b>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <span className="font-mono font-extrabold text-emerald-400 text-sm">
+                  {item.costBaht} ฿
+                </span>
+                <button
+                  onClick={() => handleDeleteChargeLog(item.id)}
+                  className="p-1.5 rounded-lg bg-slate-900 hover:bg-rose-950/60 text-slate-400 hover:text-rose-400 transition"
+                  title="ลบรายการนี้"
+                >
+                  <Trash2 size={13} />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* NEW FEATURE: 🆘 ศูนย์รวมเบอร์ฉุกเฉิน EV & สายด่วนตู้ชาร์จครบ 12 ค่าย 1-Click Call */}
+      <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-br from-[#26131c] via-[#181220] to-[#0d101b] border-2 border-rose-500/40 space-y-3.5 shadow-lg">
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <h3 className="text-sm sm:text-base font-extrabold text-white flex items-center gap-2">
+              <PhoneCall size={18} className="text-rose-400" />
+              <span>🆘 เบอร์ฉุกเฉิน EV & สายด่วนตู้ชาร์จ 12 ค่าย (กดโทรทันที)</span>
+            </h3>
+            <p className="text-[11px] text-slate-300 mt-0.5">
+              ใช้เมื่อดึงสายชาร์จไม่ออก ตู้ชาร์จค้าง ไฟไม่เข้า หรือต้องการรถสไลด์ฉุกเฉิน JAECOO 24 ชม.
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {EMERGENCY_HOTLINES.map((item, idx) => (
+            <a
+              key={idx}
+              href={`tel:${item.phone}`}
+              className={`p-3 rounded-2xl border flex items-center justify-between gap-2 transition active:scale-95 ${
+                item.highlight
+                  ? 'bg-emerald-950/60 border-emerald-400/60 text-white shadow-[0_0_15px_rgba(16,185,129,0.2)]'
+                  : 'bg-slate-950/80 border-slate-800 hover:border-rose-500/40 text-slate-200'
+              }`}
+            >
+              <div className="min-w-0">
+                <div className="text-xs font-extrabold truncate">{item.name}</div>
+                <span className="text-[10px] text-slate-400 block">{item.badge}</span>
+              </div>
+              <span
+                className={`px-2.5 py-1 rounded-xl font-mono text-xs font-extrabold flex items-center gap-1 flex-shrink-0 ${
+                  item.highlight
+                    ? 'bg-emerald-400 text-slate-950'
+                    : 'bg-rose-500/20 border border-rose-500/40 text-rose-300'
+                }`}
+              >
+                <PhoneCall size={12} />
+                <span>{item.display}</span>
+              </span>
+            </a>
+          ))}
+        </div>
       </div>
 
       {/* NEW FEATURE 2: V2L 3.3 kW Camping & Emergency Power Calculator */}
