@@ -6,9 +6,9 @@ export function StationCard({ station, onSelect, onNavigate }) {
   const totalPlugs = Math.max(1, station.totalPlugs || 4);
   const availPlugs = Math.min(totalPlugs, station.availablePlugs || 0);
 
-  // Estimate 30% -> 80% charge time on JAECOO 5 EV Ultra (max 130 kW DC)
-  const effectiveKw = Math.min(130, station.powerKw || 120);
-  const estChargeMin = Math.max(18, Math.round((33.5 / effectiveKw) * 60));
+  // Estimate realistic 30% -> 80% (+33.5 kWh) charge time on JAECOO 5 EV Ultra (peak 130 kW, avg curve ~75-80 kW)
+  const effectiveKw = Math.min(130, station.powerKw || 120) * 0.62;
+  const estChargeMin = Math.max(25, Math.round((33.5 / effectiveKw) * 60));
 
   return (
     <div className="relative group animate-fade-in">

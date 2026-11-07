@@ -149,10 +149,17 @@ export function SavedStationsTab({ stations, onSelect, onNavigate }) {
               onChange={(e) => setNewStationProvider(e.target.value)}
               className="bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-2 text-xs text-slate-200"
             >
-              <option value="EV STATION PLUZ">EV Station PluZ</option>
-              <option value="PEA VOLTA">PEA VOLTA</option>
+              <option value="EV STATION PLUZ">EV Station PluZ (ปตท.)</option>
+              <option value="PEA VOLTA">PEA VOLTA (กฟภ.)</option>
+              <option value="ALTERVIM">Altervim (โลตัส/แม็คโคร)</option>
+              <option value="ELEXA (EGAT)">EleXA (กฟผ. / ปั๊ม PT)</option>
+              <option value="MEA EV">MEA EV (กฟน.)</option>
               <option value="EA ANYWHERE">EA Anywhere</option>
-              <option value="EVOLT / ON-ION">Evolt / On-ion</option>
+              <option value="SHELL RECHARGE">Shell Recharge</option>
+              <option value="EVOLT">Evolt / On-ion (ห้างเซ็นทรัล)</option>
+              <option value="SHARGE">SHARGE</option>
+              <option value="REVERSHARGER">RêverSharger</option>
+              <option value="GWM HYPERCHARGE">GWM HyperCharge</option>
               <option value="HOME CHARGER">ตู้ชาร์จบ้าน / ออฟฟิศ</option>
             </select>
 

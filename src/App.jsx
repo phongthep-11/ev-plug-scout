@@ -713,72 +713,91 @@ export function App() {
               </button>
             </div>
 
-            {/* Quick Smart Filter Pills */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs">
-              <button
-                onClick={() => {
-                  setProviderFilter('ALL');
-                  setOnlyAvailableFilter(false);
-                  setFastOnlyFilter(false);
-                }}
-                className={`px-3 py-1.5 rounded-xl font-bold transition-all whitespace-nowrap ${
-                  providerFilter === 'ALL' && !onlyAvailableFilter && !fastOnlyFilter
-                    ? "bg-white text-slate-950 shadow-sm"
-                    : "bg-slate-800/90 text-slate-300 hover:text-white"
-                }`}
-              >
-                ทั้งหมด ({stations.length})
-              </button>
-              <button
-                onClick={() => setOnlyAvailableFilter(!onlyAvailableFilter)}
-                className={`px-3 py-1.5 rounded-xl font-bold transition-all whitespace-nowrap ${
-                  onlyAvailableFilter
-                    ? "bg-emerald-500 text-slate-950 shadow-[0_0_10px_rgba(16,185,129,0.3)]"
-                    : "bg-slate-800/90 text-emerald-300 border border-emerald-500/30"
-                }`}
-              >
-                🟢 เฉพาะตู้ว่างพร้อมชาร์จ
-              </button>
-              <button
-                onClick={() => setFastOnlyFilter(!fastOnlyFilter)}
-                className={`px-3 py-1.5 rounded-xl font-bold transition-all whitespace-nowrap ${
-                  fastOnlyFilter
-                    ? "bg-amber-400 text-slate-950 shadow-[0_0_10px_rgba(251,191,36,0.3)]"
-                    : "bg-slate-800/90 text-amber-300 border border-amber-500/30"
-                }`}
-              >
-                ⚡ Ultra Fast (≥150 kW)
-              </button>
-              <button
-                onClick={() => setProviderFilter(providerFilter === 'EV STATION PLUZ' ? 'ALL' : 'EV STATION PLUZ')}
-                className={`px-3 py-1.5 rounded-xl font-semibold transition-all whitespace-nowrap ${
-                  providerFilter === 'EV STATION PLUZ'
-                    ? "bg-emerald-600 text-white font-bold"
-                    : "bg-slate-800/80 text-slate-300 hover:text-white"
-                }`}
-              >
-                ปตท. PluZ
-              </button>
-              <button
-                onClick={() => setProviderFilter(providerFilter === 'PEA VOLTA' ? 'ALL' : 'PEA VOLTA')}
-                className={`px-3 py-1.5 rounded-xl font-semibold transition-all whitespace-nowrap ${
-                  providerFilter === 'PEA VOLTA'
-                    ? "bg-purple-600 text-white font-bold"
-                    : "bg-slate-800/80 text-slate-300 hover:text-white"
-                }`}
-              >
-                PEA VOLTA
-              </button>
-              <button
-                onClick={() => setProviderFilter(providerFilter === 'EA ANYWHERE' ? 'ALL' : 'EA ANYWHERE')}
-                className={`px-3 py-1.5 rounded-xl font-semibold transition-all whitespace-nowrap ${
-                  providerFilter === 'EA ANYWHERE'
-                    ? "bg-blue-600 text-white font-bold"
-                    : "bg-slate-800/80 text-slate-300 hover:text-white"
-                }`}
-              >
-                EA Anywhere
-              </button>
+            {/* ALL BRANDS FILTER BAR (รวมครบทุกยี่ห้อตู้ชาร์จในไทย) */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between px-1 text-[11px] text-slate-400 font-semibold">
+                <span>🏢 เลือกยี่ห้อ / ค่ายตู้ชาร์จ (รวมครบทุกค่ายในไทย):</span>
+                <span className="text-emerald-400">{providerFilter === 'ALL' ? `รวมทุกค่าย (${stations.length} แห่ง)` : providerFilter}</span>
+              </div>
+
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs">
+                <button
+                  onClick={() => {
+                    setProviderFilter('ALL');
+                    setOnlyAvailableFilter(false);
+                    setFastOnlyFilter(false);
+                  }}
+                  className={`px-3 py-1.5 rounded-xl font-bold transition-all whitespace-nowrap ${
+                    providerFilter === 'ALL' && !onlyAvailableFilter && !fastOnlyFilter
+                      ? "bg-white text-slate-950 shadow-sm"
+                      : "bg-slate-800/90 text-slate-300 hover:text-white"
+                  }`}
+                >
+                  🇹🇭 รวมทุกยี่ห้อ ({stations.length})
+                </button>
+                <button
+                  onClick={() => setOnlyAvailableFilter(!onlyAvailableFilter)}
+                  className={`px-3 py-1.5 rounded-xl font-bold transition-all whitespace-nowrap ${
+                    onlyAvailableFilter
+                      ? "bg-emerald-500 text-slate-950 shadow-[0_0_10px_rgba(16,185,129,0.3)]"
+                      : "bg-slate-800/90 text-emerald-300 border border-emerald-500/30"
+                  }`}
+                >
+                  🟢 เฉพาะตู้ว่าง
+                </button>
+                <button
+                  onClick={() => setFastOnlyFilter(!fastOnlyFilter)}
+                  className={`px-3 py-1.5 rounded-xl font-bold transition-all whitespace-nowrap ${
+                    fastOnlyFilter
+                      ? "bg-amber-400 text-slate-950 shadow-[0_0_10px_rgba(251,191,36,0.3)]"
+                      : "bg-slate-800/90 text-amber-300 border border-amber-500/30"
+                  }`}
+                >
+                  ⚡ Ultra Fast (≥150kW)
+                </button>
+
+                {[
+                  { id: 'EV STATION PLUZ', label: '⛽ ปตท. PluZ / On-ion', activeClass: 'bg-emerald-600 text-white font-bold' },
+                  { id: 'PEA VOLTA', label: '🟣 PEA VOLTA (กฟภ.)', activeClass: 'bg-purple-600 text-white font-bold' },
+                  { id: 'ALTERVIM', label: '🟢 Altervim (โลตัส/แม็คโคร)', activeClass: 'bg-lime-500 text-slate-950 font-bold' },
+                  { id: 'ELEXA (EGAT)', label: '⚡ EleXA (กฟผ./ปั๊ม PT)', activeClass: 'bg-orange-500 text-slate-950 font-bold' },
+                  { id: 'MEA EV', label: '🟠 MEA EV (กฟน.)', activeClass: 'bg-amber-500 text-slate-950 font-bold' },
+                  { id: 'EA ANYWHERE', label: '🔵 EA Anywhere', activeClass: 'bg-blue-600 text-white font-bold' },
+                  { id: 'SHELL RECHARGE', label: '🟡 Shell Recharge', activeClass: 'bg-yellow-400 text-slate-950 font-bold' },
+                  { id: 'EVOLT', label: '🔶 Evolt (เซ็นทรัล)', activeClass: 'bg-amber-600 text-white font-bold' },
+                  { id: 'SHARGE', label: '🔷 SHARGE', activeClass: 'bg-indigo-600 text-white font-bold' },
+                  { id: 'REVERSHARGER', label: '💠 RêverSharger', activeClass: 'bg-sky-500 text-slate-950 font-bold' },
+                  { id: 'GWM HYPERCHARGE', label: '🔴 GWM HyperCharge', activeClass: 'bg-rose-600 text-white font-bold' },
+                ].map(brand => (
+                  <button
+                    key={brand.id}
+                    onClick={() => setProviderFilter(providerFilter === brand.id ? 'ALL' : brand.id)}
+                    className={`px-3 py-1.5 rounded-xl font-semibold transition-all whitespace-nowrap ${
+                      providerFilter === brand.id
+                        ? brand.activeClass
+                        : "bg-slate-800/80 text-slate-300 hover:text-white border border-slate-700/60"
+                    }`}
+                  >
+                    {brand.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* 1-Tap Search Selected Brand on Live Google Maps */}
+              {providerFilter !== 'ALL' && (
+                <button
+                  onClick={() => {
+                    const area = userLocation?.areaName || 'ใกล้ฉัน';
+                    const q = `สถานีชาร์จรถไฟฟ้า ${providerFilter} ${area}`;
+                    const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
+                    window.open(url, '_blank') || (window.location.href = url);
+                  }}
+                  className="w-full py-2 px-3 rounded-xl bg-emerald-950/70 hover:bg-emerald-900/70 border border-emerald-500/40 text-xs font-bold text-emerald-300 flex items-center justify-center gap-1.5 transition active:scale-95"
+                >
+                  <MapPin size={13} className="text-emerald-400" />
+                  <span>🔎 ค้นหาหมุดค่าย "{providerFilter}" ทุกสาขารอบตัวฉันบน Google Maps สด ↗</span>
+                </button>
+              )}
             </div>
 
             {/* Section Header: สถานีชาร์จใกล้ฉัน (เรียงตามระยะทางจริง) */}
