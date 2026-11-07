@@ -34,6 +34,38 @@ export function MyCarTab({ car: initialCar, batteryPct: initialBattery, onSaveCa
   });
 
   const [saveSuccessMsg, setSaveSuccessMsg] = useState('');
+  const [targetChargePct, setTargetChargePct] = useState(80);
+  const [v2lSelected, setV2lSelected] = useState(['ac', 'light']);
+
+  const V2L_APPLIANCES = [
+    { id: 'ac', name: '❄️ แอร์เคลื่อนที่แคมป์ปิ้ง', watts: 900 },
+    { id: 'stove', name: '🍳 เตาแม่เหล็กไฟฟ้า / ปิ้งย่าง', watts: 1200 },
+    { id: 'coffee', name: '☕ เครื่องชงกาแฟสด / กาต้มน้ำ', watts: 800 },
+    { id: 'light', name: '💡 พัดลม + ไฟเต็นท์ + โน้ตบุ๊ก', watts: 200 },
+  ];
+
+  // Check current real Thailand time for On-Peak vs Off-Peak
+  const now = new Date();
+  const day = now.getDay(); // 0 = Sun, 6 = Sat
+  const hour = now.getHours();
+  const isWeekend = day === 0 || day === 6;
+  const isOffPeakNow = isWeekend || hour >= 22 || hour < 9;
+
+  // Charging Cost & Time Calculation
+  const pctToAdd = Math.max(0, targetChargePct - batteryPct);
+  const kwhToAdd = Math.round(((pctToAdd / 100) * (car.batterySizeKwh || 67.0)) * 10) / 10;
+  const chargeMinutes = pctToAdd > 0 ? Math.max(5, Math.round((kwhToAdd / ((car.maxChargeSpeedKw || 130) * 0.82)) * 60)) : 0;
+  const onPeakCostBaht = Math.round(kwhToAdd * 7.7);
+  const offPeakCostBaht = Math.round(kwhToAdd * 4.7);
+  const savingsBaht = Math.max(0, onPeakCostBaht - offPeakCostBaht);
+
+  // V2L Camping Power Calculation (keep 20% battery reserve for driving home)
+  const usablePctForV2L = Math.max(0, batteryPct - 20);
+  const usableKwhForV2L = (usablePctForV2L / 100) * (car.batterySizeKwh || 67.0) * 0.90;
+  const totalV2LWatts = V2L_APPLIANCES
+    .filter(a => v2lSelected.includes(a.id))
+    .reduce((sum, a) => sum + a.watts, 0);
+  const v2lHours = totalV2LWatts > 0 ? Math.round((usableKwhForV2L / (totalV2LWatts / 1000)) * 10) / 10 : 0;
 
   const CAR_MODELS = [
     { name: "JAECOO 5 EV Ultra", battery: 67.0, maxSpeed: 130, range: 426, connector: "CCS2 / Type 2", tag: "รถของพี่นิค (Official)" },
@@ -230,6 +262,131 @@ export function MyCarTab({ car: initialCar, batteryPct: initialBattery, onSaveCa
           <p className="text-[11px] leading-relaxed text-slate-300">
             • รองรับฟังก์ชัน <b>V2L 3.3 kW</b> จ่ายไฟแคมป์ปิ้งได้สบาย
           </p>
+        </div>
+      </div>
+
+      {/* NEW FEATURE 1: Smart Charging Cost & Time Calculator (On-Peak vs Off-Peak) */}
+      <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-br from-[#131d31] to-[#0d1424] border border-slate-800 space-y-3.5 shadow-lg">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h3 className="text-sm sm:text-base font-extrabold text-white flex items-center gap-2">
+              <span>💰 คำนวณค่าไฟ & เวลาชาร์จจริง (TOU Calculator)</span>
+            </h3>
+            <p className="text-[11px] text-slate-400">
+              คำนวณจากแบตปัจจุบัน ({batteryPct}%) ของ {car.model}
+            </p>
+          </div>
+
+          <span className={`px-3 py-1 rounded-full text-[11px] font-bold border ${
+            isOffPeakNow
+              ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
+              : "bg-amber-500/20 text-amber-300 border-amber-500/40"
+          }`}>
+            {isOffPeakNow ? "🌙 ตอนนี้ช่วง Off-Peak (ค่าไฟถูก ~4.7฿)" : "☀️ ตอนนี้ช่วง On-Peak (~7.7฿/หน่วย)"}
+          </span>
+        </div>
+
+        {/* Target % Selector */}
+        <div className="flex items-center justify-between gap-2 bg-slate-950/80 p-3 rounded-2xl border border-slate-800">
+          <span className="text-xs text-slate-300 font-semibold">ต้องการชาร์จถึงระดับ:</span>
+          <div className="flex items-center gap-1.5">
+            {[80, 90, 100].map(target => (
+              <button
+                key={target}
+                onClick={() => setTargetChargePct(target)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition ${
+                  targetChargePct === target
+                    ? "bg-emerald-500 text-slate-950 shadow-md"
+                    : "bg-slate-900 text-slate-300 border border-slate-800"
+                }`}
+              >
+                ชาร์จถึง {target}%
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {pctToAdd > 0 ? (
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <div className="p-3 rounded-2xl bg-slate-950/90 border border-slate-800">
+              <span className="text-[10px] text-slate-400 block">ไฟที่ต้องเติม (+{pctToAdd}%)</span>
+              <span className="text-base sm:text-lg font-extrabold text-white font-mono">+{kwhToAdd} kWh</span>
+              <span className="text-[10px] text-emerald-400 block mt-0.5">⚡ ใช้เวลา ~{chargeMinutes} นาที</span>
+            </div>
+
+            <div className="p-3 rounded-2xl bg-slate-950/90 border border-slate-800">
+              <span className="text-[10px] text-amber-300 block">ชาร์จ On-Peak (กลางวัน)</span>
+              <span className="text-base sm:text-lg font-extrabold text-white font-mono">~{onPeakCostBaht} ฿</span>
+              <span className="text-[10px] text-slate-400 block mt-0.5">09:00 - 22:00 น.</span>
+            </div>
+
+            <div className="p-3 rounded-2xl bg-emerald-950/50 border border-emerald-500/40">
+              <span className="text-[10px] text-emerald-300 font-bold block">ชาร์จ Off-Peak (ประหยัด)</span>
+              <span className="text-base sm:text-lg font-extrabold text-emerald-300 font-mono">~{offPeakCostBaht} ฿</span>
+              <span className="text-[10px] text-emerald-400 font-semibold block mt-0.5">ประหยัดได้ {savingsBaht} บาท!</span>
+            </div>
+          </div>
+        ) : (
+          <div className="p-3 rounded-2xl bg-emerald-950/40 border border-emerald-500/30 text-center text-xs text-emerald-300 font-semibold">
+            ✓ แบตเตอรี่ปัจจุบัน ({batteryPct}%) สูงกว่าหรือเท่ากับเป้าหมาย ({targetChargePct}%) แล้ว พร้อมเดินทางได้ทันทีครับ!
+          </div>
+        )}
+      </div>
+
+      {/* NEW FEATURE 2: V2L 3.3 kW Camping & Emergency Power Calculator */}
+      <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-br from-[#122032] to-[#0c1422] border border-cyan-500/30 space-y-3.5 shadow-lg">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-sm sm:text-base font-extrabold text-white flex items-center gap-2">
+              <span>🏕️ คำนวณจ่ายไฟแคมป์ปิ้ง V2L (3,300W Max)</span>
+            </h3>
+            <p className="text-[11px] text-slate-400">
+              แตะเลือกเครื่องใช้ไฟฟ้าเพื่อดูว่า {car.model} จ่ายไฟได้นานกี่ชั่วโมง (เหลือแบตสำรอง 20% ไว้ขับกลับ)
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {V2L_APPLIANCES.map(app => {
+            const active = v2lSelected.includes(app.id);
+            return (
+              <button
+                key={app.id}
+                onClick={() => {
+                  setV2lSelected(prev =>
+                    prev.includes(app.id) ? prev.filter(x => x !== app.id) : [...prev, app.id]
+                  );
+                }}
+                className={`p-3 rounded-2xl border text-left text-xs flex items-center justify-between transition active:scale-95 ${
+                  active
+                    ? "bg-cyan-500/20 border-cyan-400 text-white font-bold shadow-[0_0_12px_rgba(6,182,212,0.2)]"
+                    : "bg-slate-950/70 border-slate-800 text-slate-400"
+                }`}
+              >
+                <span>{app.name}</span>
+                <span className={`font-mono px-2 py-0.5 rounded text-[11px] ${
+                  active ? "bg-cyan-400 text-slate-950 font-extrabold" : "bg-slate-800 text-slate-400"
+                }`}>
+                  {app.watts}W
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="p-3.5 rounded-2xl bg-slate-950/90 border border-slate-800 flex items-center justify-between text-xs">
+          <div>
+            <span className="text-slate-400 block text-[10px]">กำลังไฟที่ใช้รวม / รองรับสูงสุด:</span>
+            <span className="text-white font-extrabold text-sm sm:text-base font-mono">
+              {totalV2LWatts} W <span className="text-slate-500 text-xs">/ 3,300 W</span>
+            </span>
+          </div>
+          <div className="text-right">
+            <span className="text-slate-400 block text-[10px]">เปิดใช้งานต่อเนื่องได้นาน:</span>
+            <span className="text-cyan-300 font-extrabold text-base sm:text-lg font-mono">
+              {usablePctForV2L > 0 && totalV2LWatts > 0 ? `~${v2lHours} ชั่วโมง` : "0 ชม."}
+            </span>
+          </div>
         </div>
       </div>
 
