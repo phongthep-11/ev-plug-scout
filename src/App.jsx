@@ -539,40 +539,115 @@ export function App() {
           </div>
         </div>
 
-        {/* Tab 1: Route Stations View (Main Screen from Screenshot) */}
+        {/* Tab 1: Route Stations View (Modern 2026 Smart EV Cockpit) */}
         {activeTab === 'route' && (
-          <div className="space-y-3.5">
-            {/* Quick JAECOO 5 EV Vehicle Status Pill (Linked to saved vehicle state & battery) */}
-            <div className="flex items-center justify-between px-3.5 py-2 rounded-2xl bg-gradient-to-r from-[#121f33] to-[#0d1624] border border-emerald-500/30 text-xs shadow-sm">
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse flex-shrink-0" />
-                <span className="font-bold text-white truncate">🚙 {carData.model}</span>
-                <span className="text-emerald-400 font-mono flex-shrink-0">{batteryPct}% (~{estimatedRange} กม.)</span>
-              </div>
-              <button 
-                onClick={() => setActiveTab('car')}
-                className="text-[11px] text-emerald-300 hover:text-white font-medium flex items-center gap-0.5 flex-shrink-0 ml-2"
-              >
-                <span>จัดการรถ</span>
-                <span>&gt;</span>
-              </button>
-            </div>
+          <div className="space-y-4">
+            {/* SMART COCKPIT HERO CARD: JAECOO 5 EV + 1-TAP NEAREST AVAILABLE CHARGER */}
+            {(() => {
+              const nearestFree = stations.find(s => s.availablePlugs > 0) || stations[0];
+              return (
+                <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-br from-[#122238] via-[#0e192b] to-[#0a121f] border border-emerald-500/50 shadow-[0_8px_30px_rgba(16,185,129,0.16)] relative overflow-hidden">
+                  <div className="absolute -right-10 -top-10 w-36 h-36 bg-emerald-500/15 rounded-full blur-3xl pointer-events-none" />
+
+                  {/* Vehicle Row + Quick Battery Switcher */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-800/80">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-9 h-9 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400">
+                        <Car size={20} />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-extrabold text-white text-sm">{carData.model}</span>
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">
+                            CCS2 • {carData.maxChargeSpeedKw} kW
+                          </span>
+                        </div>
+                        <div className="text-xs text-slate-300 mt-0.5">
+                          แบตเตอรี่ <b className="text-emerald-400 font-mono">{batteryPct}%</b> • วิ่งได้อีก <b className="text-white font-mono">~{estimatedRange} กม.</b>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 1-Tap Quick Battery Adjust Pills right on Home Screen */}
+                    <div className="flex items-center gap-1">
+                      {[20, 50, 80, 100].map(pct => (
+                        <button
+                          key={pct}
+                          onClick={() => handleSaveCarSettings(carData, pct)}
+                          className={`px-2 py-1 rounded-lg text-[10px] font-bold border transition active:scale-95 ${
+                            batteryPct === pct
+                              ? "bg-emerald-500 text-slate-950 border-emerald-400 shadow-sm"
+                              : "bg-slate-900/90 text-slate-400 border-slate-800 hover:text-white"
+                          }`}
+                        >
+                          {pct}%
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 1-Tap Instant Nearest Available Charger Action */}
+                  {nearestFree && (
+                    <div className="pt-3 space-y-2.5">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-emerald-400 font-bold flex items-center gap-1.5">
+                          <Zap size={14} className="fill-emerald-400" />
+                          <span>ตู้ชาร์จว่างที่ใกล้รถที่สุดตอนนี้:</span>
+                        </span>
+                        <span className="text-white font-mono font-extrabold bg-emerald-500/20 border border-emerald-500/40 px-2 py-0.5 rounded-lg text-xs">
+                          {nearestFree.distanceKm != null ? `${nearestFree.distanceKm} กม.` : "ใกล้คุณ"} • ⚡ {nearestFree.power}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <h3 className="text-white font-extrabold text-sm sm:text-base truncate">
+                            {nearestFree.name}
+                          </h3>
+                          <p className="text-xs text-emerald-300 font-medium">
+                            🟢 ว่างพร้อมชาร์จ {nearestFree.availablePlugs}/{nearestFree.totalPlugs} หัวจ่าย • {nearestFree.travelTime}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-5 gap-2 pt-1">
+                        <button
+                          onClick={() => handleNavigate(nearestFree)}
+                          className="col-span-3 py-3 px-3 rounded-2xl bg-gradient-to-r from-emerald-500 via-emerald-400 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 font-extrabold text-xs sm:text-sm shadow-[0_4px_20px_rgba(16,185,129,0.4)] flex items-center justify-center gap-1.5 transition active:scale-95"
+                        >
+                          <Navigation size={15} className="stroke-[2.5]" />
+                          <span>นำทางไปตู้ใกล้สุดทันที</span>
+                        </button>
+
+                        <button
+                          onClick={() => setActiveTab('plan')}
+                          className="col-span-2 py-3 px-3 rounded-2xl bg-slate-900/90 hover:bg-slate-800 text-cyan-300 font-bold text-xs border border-cyan-500/40 flex items-center justify-center gap-1 transition active:scale-95"
+                        >
+                          <Compass size={14} />
+                          <span>วางแผนทริปไกล</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Highway Route Selector */}
             <div className="space-y-1.5">
               <div className="flex items-center justify-between px-1 text-[11px] text-slate-400 font-medium">
-                <span>เลือกเส้นทางเดินทาง:</span>
-                <span className="text-emerald-400">{ROUTES.find(r => r.id === selectedRouteId)?.highway}</span>
+                <span>เลือกภูมิภาค / เส้นทางทางหลวง:</span>
+                <span className="text-emerald-400 font-semibold">{ROUTES.find(r => r.id === selectedRouteId)?.highway}</span>
               </div>
               <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs">
                 {ROUTES.map((route) => (
                   <button
                     key={route.id}
                     onClick={() => handleSelectRoute(route.id)}
-                    className={`px-3 py-1.5 rounded-xl transition-all whitespace-nowrap text-xs flex items-center gap-1.5 ${
+                    className={`px-3.5 py-2 rounded-2xl transition-all whitespace-nowrap text-xs flex items-center gap-1.5 active:scale-95 ${
                       selectedRouteId === route.id
-                        ? "bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 font-bold shadow-[0_0_12px_rgba(16,185,129,0.3)]"
-                        : "bg-slate-900/80 text-slate-400 hover:text-white border border-slate-800"
+                        ? "bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 font-extrabold shadow-[0_0_12px_rgba(16,185,129,0.3)]"
+                        : "bg-slate-900/80 text-slate-300 hover:text-white border border-slate-800"
                     }`}
                   >
                     <span>🛣️</span>
@@ -582,125 +657,122 @@ export function App() {
               </div>
             </div>
 
-            {/* Search Input Bar */}
-            <div className="relative">
-              <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input 
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="ค้นหาชื่อสถานี, จังหวัด (เช่น เชียงใหม่, พัทยา, โคราช, บางนา)..."
-                className="w-full pl-10 pr-9 py-2.5 rounded-2xl bg-slate-900/90 border border-slate-700/80 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-emerald-500 shadow-inner"
-              />
-              {searchQuery && (
-                <button 
-                  onClick={() => setSearchQuery('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-white"
-                >
-                  <X size={14} />
-                </button>
-              )}
+            {/* Search Input Bar + Voice Button Inline */}
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="พิมพ์ค้นหาสถานี, จังหวัด (เช่น เวสต์เกต, หัวหิน, พัทยา, โคราช)..."
+                  className="w-full pl-10 pr-9 py-3 rounded-2xl bg-slate-900/95 border border-slate-700/80 text-xs sm:text-sm text-white placeholder-slate-400 focus:outline-none focus:border-emerald-500 shadow-inner"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-white"
+                  >
+                    <X size={15} />
+                  </button>
+                )}
+              </div>
+
+              <button
+                onClick={() => {
+                  soundEffects.playListening();
+                  setIsVoiceModalOpen(true);
+                }}
+                title="สั่งงานด้วยเสียง AI"
+                className="px-3.5 py-3 rounded-2xl bg-gradient-to-r from-emerald-500/20 to-teal-500/20 border border-emerald-500/50 text-emerald-300 hover:text-white text-xs font-bold flex items-center gap-1.5 flex-shrink-0 active:scale-95 transition"
+              >
+                <Volume2 size={16} className="text-emerald-400" />
+                <span className="hidden sm:inline">สั่งด้วยเสียง</span>
+              </button>
             </div>
 
-            {/* AI Voice Assistant Card (Exact match to screenshot) */}
-            <VoiceAssistantCard
-              onOpenVoice={() => {
-                soundEffects.playListening();
-                setIsVoiceModalOpen(true);
-              }}
-              isSpeaking={isSpeaking}
-            />
-
-            {/* Filter Pills */}
+            {/* Quick Smart Filter Pills */}
             <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs">
               <button
-                onClick={() => setProviderFilter('ALL')}
-                className={`px-3 py-1.5 rounded-full font-medium transition-all whitespace-nowrap ${providerFilter === 'ALL'
-                    ? "bg-slate-200 text-slate-900 font-bold"
-                    : "bg-slate-800/80 text-slate-400 hover:text-white"
-                  }`}
+                onClick={() => {
+                  setProviderFilter('ALL');
+                  setOnlyAvailableFilter(false);
+                  setFastOnlyFilter(false);
+                }}
+                className={`px-3 py-1.5 rounded-xl font-bold transition-all whitespace-nowrap ${
+                  providerFilter === 'ALL' && !onlyAvailableFilter && !fastOnlyFilter
+                    ? "bg-white text-slate-950 shadow-sm"
+                    : "bg-slate-800/90 text-slate-300 hover:text-white"
+                }`}
               >
                 ทั้งหมด ({stations.length})
               </button>
               <button
-                onClick={() => setProviderFilter('PEA VOLTA')}
-                className={`px-3 py-1.5 rounded-full font-medium transition-all whitespace-nowrap ${providerFilter === 'PEA VOLTA'
+                onClick={() => setOnlyAvailableFilter(!onlyAvailableFilter)}
+                className={`px-3 py-1.5 rounded-xl font-bold transition-all whitespace-nowrap ${
+                  onlyAvailableFilter
+                    ? "bg-emerald-500 text-slate-950 shadow-[0_0_10px_rgba(16,185,129,0.3)]"
+                    : "bg-slate-800/90 text-emerald-300 border border-emerald-500/30"
+                }`}
+              >
+                🟢 เฉพาะตู้ว่างพร้อมชาร์จ
+              </button>
+              <button
+                onClick={() => setFastOnlyFilter(!fastOnlyFilter)}
+                className={`px-3 py-1.5 rounded-xl font-bold transition-all whitespace-nowrap ${
+                  fastOnlyFilter
+                    ? "bg-amber-400 text-slate-950 shadow-[0_0_10px_rgba(251,191,36,0.3)]"
+                    : "bg-slate-800/90 text-amber-300 border border-amber-500/30"
+                }`}
+              >
+                ⚡ Ultra Fast (≥150 kW)
+              </button>
+              <button
+                onClick={() => setProviderFilter(providerFilter === 'EV STATION PLUZ' ? 'ALL' : 'EV STATION PLUZ')}
+                className={`px-3 py-1.5 rounded-xl font-semibold transition-all whitespace-nowrap ${
+                  providerFilter === 'EV STATION PLUZ'
+                    ? "bg-emerald-600 text-white font-bold"
+                    : "bg-slate-800/80 text-slate-300 hover:text-white"
+                }`}
+              >
+                ปตท. PluZ
+              </button>
+              <button
+                onClick={() => setProviderFilter(providerFilter === 'PEA VOLTA' ? 'ALL' : 'PEA VOLTA')}
+                className={`px-3 py-1.5 rounded-xl font-semibold transition-all whitespace-nowrap ${
+                  providerFilter === 'PEA VOLTA'
                     ? "bg-purple-600 text-white font-bold"
-                    : "bg-slate-800/80 text-slate-400 hover:text-white"
-                  }`}
+                    : "bg-slate-800/80 text-slate-300 hover:text-white"
+                }`}
               >
                 PEA VOLTA
               </button>
               <button
-                onClick={() => setProviderFilter('EV STATION PLUZ')}
-                className={`px-3 py-1.5 rounded-full font-medium transition-all whitespace-nowrap ${providerFilter === 'EV STATION PLUZ'
-                    ? "bg-emerald-600 text-white font-bold"
-                    : "bg-slate-800/80 text-slate-400 hover:text-white"
-                  }`}
-              >
-                EV Station PluZ
-              </button>
-              <button
-                onClick={() => setProviderFilter('EA ANYWHERE')}
-                className={`px-3 py-1.5 rounded-full font-medium transition-all whitespace-nowrap ${providerFilter === 'EA ANYWHERE'
+                onClick={() => setProviderFilter(providerFilter === 'EA ANYWHERE' ? 'ALL' : 'EA ANYWHERE')}
+                className={`px-3 py-1.5 rounded-xl font-semibold transition-all whitespace-nowrap ${
+                  providerFilter === 'EA ANYWHERE'
                     ? "bg-blue-600 text-white font-bold"
-                    : "bg-slate-800/80 text-slate-400 hover:text-white"
-                  }`}
+                    : "bg-slate-800/80 text-slate-300 hover:text-white"
+                }`}
               >
                 EA Anywhere
               </button>
-              <button
-                onClick={() => setProviderFilter('SHELL RECHARGE')}
-                className={`px-3 py-1.5 rounded-full font-medium transition-all whitespace-nowrap ${providerFilter === 'SHELL RECHARGE'
-                    ? "bg-amber-600 text-white font-bold"
-                    : "bg-slate-800/80 text-slate-400 hover:text-white"
-                  }`}
-              >
-                Shell
-              </button>
-              <button
-                onClick={() => setOnlyAvailableFilter(!onlyAvailableFilter)}
-                className={`px-3 py-1.5 rounded-full font-medium transition-all whitespace-nowrap ${onlyAvailableFilter
-                    ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/50"
-                    : "bg-slate-800/80 text-slate-400 hover:text-white"
-                  }`}
-              >
-                {onlyAvailableFilter ? "✓ เฉพาะตู้ว่าง" : "เฉพาะตู้ว่าง"}
-              </button>
-              <button
-                onClick={() => setCcs2OnlyFilter(!ccs2OnlyFilter)}
-                className={`px-3 py-1.5 rounded-full font-medium transition-all whitespace-nowrap ${ccs2OnlyFilter
-                    ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/50"
-                    : "bg-slate-800/80 text-slate-400 hover:text-white"
-                  }`}
-              >
-                {ccs2OnlyFilter ? "✓ หัว CCS2 (JAECOO)" : "หัว CCS2"}
-              </button>
-              <button
-                onClick={() => setFastOnlyFilter(!fastOnlyFilter)}
-                className={`px-3 py-1.5 rounded-full font-medium transition-all whitespace-nowrap ${fastOnlyFilter
-                    ? "bg-amber-500/20 text-amber-300 border border-amber-500/50"
-                    : "bg-slate-800/80 text-slate-400 hover:text-white"
-                  }`}
-              >
-                {fastOnlyFilter ? "✓ Ultra Fast (>=150kW)" : "Ultra Fast"}
-              </button>
             </div>
 
-            {/* Section Header: สถานีชาร์จตามเส้นทาง (เรียงตามระยะทาง) & อัปเดตสด */}
+            {/* Section Header: สถานีชาร์จใกล้ฉัน (เรียงตามระยะทางจริง) */}
             <div className="flex items-center justify-between pt-1">
-              <div className="flex items-center gap-2 text-slate-300 font-bold text-sm">
-                <span className="text-emerald-400">🛣️</span>
-                <span>สถานีชาร์จตามเส้นทาง (เรียงตามระยะทาง)</span>
+              <div className="flex items-center gap-2 text-white font-extrabold text-sm">
+                <span className="text-emerald-400">📍</span>
+                <span>ตู้ชาร์จเรียงจากใกล้รถที่สุด ({filteredStations.length} แห่ง)</span>
               </div>
 
               <button
                 onClick={handleRefresh}
                 disabled={isRefreshing}
-                className="flex items-center gap-1.5 text-xs text-emerald-400 hover:text-emerald-300 active:scale-95 transition-all font-medium"
+                className="px-2.5 py-1 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center gap-1.5 text-xs text-emerald-400 hover:text-emerald-300 active:scale-95 transition-all font-semibold"
               >
-                <RotateCw size={13} className={isRefreshing ? "animate-spin" : ""} />
-                <span>{isRefreshing ? "กำลังรีเฟรช..." : "อัปเดตสด"}</span>
+                <RotateCw size={12} className={isRefreshing ? "animate-spin" : ""} />
+                <span>{isRefreshing ? "กำลังอัปเดต..." : "อัปเดตสถานะตู้"}</span>
               </button>
             </div>
 
@@ -716,8 +788,19 @@ export function App() {
               ))}
 
               {filteredStations.length === 0 && (
-                <div className="text-center py-12 text-slate-500 text-sm">
-                  ไม่พบสถานีตามตัวกรองที่เลือก
+                <div className="text-center py-12 rounded-3xl bg-slate-900/50 border border-slate-800 p-6 space-y-3">
+                  <p className="text-slate-300 font-semibold text-sm">ไม่พบสถานีตามตัวกรองที่เลือก</p>
+                  <button
+                    onClick={() => {
+                      setProviderFilter('ALL');
+                      setOnlyAvailableFilter(false);
+                      setFastOnlyFilter(false);
+                      setSearchQuery('');
+                    }}
+                    className="px-4 py-2 rounded-xl bg-emerald-500 text-slate-950 font-bold text-xs"
+                  >
+                    ล้างตัวกรองทั้งหมด
+                  </button>
                 </div>
               )}
             </div>
@@ -775,6 +858,7 @@ export function App() {
       <BottomNav
         activeTab={activeTab}
         setActiveTab={setActiveTab}
+        availableCount={stations.filter(s => s.availablePlugs > 0).length}
       />
     </div>
   );

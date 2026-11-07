@@ -410,157 +410,230 @@ export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 
     setCalcCounter(prev => prev + 1);
   };
 
-  return (
-    <div className="space-y-4 pb-20 animate-fade-in text-slate-100">
-      {/* Header */}
-      <div>
-        <h2 className="text-lg font-bold text-white flex items-center gap-2">
-          <Route className="text-emerald-400" size={20} />
-          <span>วางแผนชาร์จตามเส้นทาง (Smart Highway Itinerary)</span>
-        </h2>
-        <p className="text-xs text-slate-400 mt-0.5">
-          คัดกรองจุดแวะชาร์จที่เหมาะสมจริง 1-3 จุด ตรงทิศทางตามถนน ไม่พาเลี้ยวเข้าซอย
-        </p>
-      </div>
+  const handleSwapRoute = () => {
+    const tempOrigin = originText;
+    setOriginText(destText);
+    setDestText(tempOrigin);
+    setCalcCounter(prev => prev + 1);
+  };
 
-      {/* Preset 1-Click Route Chips */}
-      <div className="space-y-1.5">
-        <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1.5">
-          <Sparkles size={12} className="text-amber-400" />
-          <span>เส้นทางเดินทางยอดนิยมของพี่นิค:</span>
-        </span>
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar text-xs">
-          <button
-            onClick={() => handleApplyPreset("📍 ตำแหน่งปัจจุบันของฉัน (บางใหญ่ / นนทบุรี)", "หัวหิน (จ.ประจวบคีรีขันธ์)")}
-            className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 font-bold whitespace-nowrap shadow-md active:scale-95 transition"
-          >
-            🏖️ บางใหญ่ ➡️ หัวหิน (189 กม.)
-          </button>
-          <button
-            onClick={() => handleApplyPreset("ไทรน้อย (จ.นนทบุรี)", "หัวหิน (จ.ประจวบคีรีขันธ์)")}
-            className="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-slate-300 font-medium whitespace-nowrap hover:text-white active:scale-95 transition"
-          >
-            🏖️ ไทรน้อย ➡️ หัวหิน
-          </button>
-          <button
-            onClick={() => handleApplyPreset("📍 ตำแหน่งปัจจุบันของฉัน (บางใหญ่ / นนทบุรี)", "พัทยา / จอมเทียน (จ.ชลบุรี)")}
-            className="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-cyan-300 font-medium whitespace-nowrap active:scale-95 transition"
-          >
-            🌊 บางใหญ่ ➡️ พัทยา
-          </button>
-          <button
-            onClick={() => handleApplyPreset("กรุงเทพฯ (เซ็นทรัล พระราม 2)", "หัวหิน (จ.ประจวบคีรีขันธ์)")}
-            className="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-slate-300 font-medium whitespace-nowrap active:scale-95 transition"
-          >
-            🚗 พระราม 2 ➡️ หัวหิน
-          </button>
+  const handleOpenFullTripGoogleMaps = () => {
+    const { destLoc, primaryStop } = routeCalculation;
+    if (!destLoc) return;
+    let url = `https://www.google.com/maps/dir/?api=1&destination=${destLoc.lat},${destLoc.lng}&travelmode=driving`;
+    if (primaryStop?.coordinates?.lat && primaryStop?.coordinates?.lng) {
+      url += `&waypoints=${primaryStop.coordinates.lat},${primaryStop.coordinates.lng}`;
+    }
+    window.open(url, '_blank') || (window.location.href = url);
+  };
+
+  const QUICK_DESTINATIONS = [
+    { label: "🏖️ หัวหิน", value: "หัวหิน (จ.ประจวบคีรีขันธ์)", sub: "ประจวบฯ • ทล.4" },
+    { label: "🌊 พัทยา", value: "พัทยา / จอมเทียน (จ.ชลบุรี)", sub: "ชลบุรี • มอเตอร์เวย์ 7" },
+    { label: "⛰️ โคราช", value: "นครราชสีมา (โคราช)", sub: "ปากช่อง • มิตรภาพ" },
+    { label: "🌸 เชียงใหม่", value: "เชียงใหม่ (จ.เชียงใหม่)", sub: "ภาคเหนือ • สายเอเชีย" },
+    { label: "🏞️ กาญจนบุรี", value: "กาญจนบุรี (จ.กาญจนบุรี)", sub: "เมืองกาญจน์ • M81" },
+    { label: "🏝️ ระยอง", value: "ระยอง (จ.ระยอง)", sub: "บ้านเพ • ทล.36" },
+  ];
+
+  return (
+    <div className="space-y-4 pb-24 animate-fade-in text-slate-100">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-extrabold text-white flex items-center gap-2">
+            <Route className="text-emerald-400" size={22} />
+            <span>วางแผนเดินทางอัจฉริยะ (Smart Trip)</span>
+          </h2>
+          <p className="text-xs text-slate-400 mt-0.5">
+            แตะเลือกปลายทางเพียง 1 ครั้ง คัดจุดแวะชาร์จเร็วตรงเส้นทางให้ทันที
+          </p>
         </div>
       </div>
 
-      {/* Origin - Destination Interactive Card */}
-      <div className="p-4 rounded-3xl bg-gradient-to-br from-[#121928] to-[#0d1322] border border-slate-800 space-y-3.5 shadow-lg">
-        <div className="flex items-center gap-3">
-          <div className="flex flex-col items-center">
-            <span className="w-3.5 h-3.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]" />
-            <span className="w-0.5 h-12 bg-slate-700 my-1" />
-            <span className="w-3.5 h-3.5 rounded-full bg-amber-400 shadow-[0_0_8px_#fbbf24]" />
+      {/* 1-Tap Visual Destination Grid (Modern & Effortless) */}
+      <div className="space-y-2">
+        <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+          <Sparkles size={13} className="text-amber-400" />
+          <span>1. แตะเลือกจังหวัดปลายทางด่วน (1-Tap Destination):</span>
+        </span>
+        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+          {QUICK_DESTINATIONS.map((d) => {
+            const isSelected = destText.includes(d.value.split(' ')[0]);
+            return (
+              <button
+                key={d.label}
+                onClick={() => {
+                  setDestText(d.value);
+                  setCalcCounter(prev => prev + 1);
+                }}
+                className={`p-2.5 rounded-2xl border text-left transition-all active:scale-95 ${
+                  isSelected
+                    ? "bg-gradient-to-br from-emerald-500 to-teal-500 text-slate-950 font-extrabold border-emerald-400 shadow-[0_4px_15px_rgba(16,185,129,0.35)]"
+                    : "bg-[#131b2e] border-slate-800 text-slate-200 hover:border-slate-700"
+                }`}
+              >
+                <div className="text-xs sm:text-sm font-bold truncate">{d.label}</div>
+                <div className={`text-[10px] truncate mt-0.5 ${isSelected ? "text-slate-900 font-semibold" : "text-slate-400"}`}>
+                  {d.sub}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Origin - Destination Interactive Card with Swap Button */}
+      <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-br from-[#131d31] via-[#101726] to-[#0b101b] border border-slate-800/90 space-y-4 shadow-xl">
+        <div className="relative space-y-3">
+          {/* Origin Box */}
+          <div className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800/90">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-[11px] text-emerald-400 font-bold flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]" />
+                <span>จุดเริ่มต้นออกเดินทาง (Origin)</span>
+              </span>
+              <span className="text-[11px] text-slate-300 font-semibold truncate max-w-[180px]">
+                {routeCalculation.originLoc.name}
+              </span>
+            </div>
+            <input
+              type="text"
+              value={originText}
+              onChange={(e) => setOriginText(e.target.value)}
+              placeholder="พิมพ์จุดเริ่มต้น (เช่น บางใหญ่, ไทรน้อย, พระราม 2)..."
+              className="w-full bg-slate-900/90 border border-slate-700/80 rounded-xl px-3 py-2 text-xs sm:text-sm text-white focus:outline-none focus:border-emerald-500 font-semibold"
+            />
+            <div className="flex items-center gap-1.5 overflow-x-auto pt-2 text-[11px] no-scrollbar">
+              <span className="text-slate-500 text-[10px] font-semibold flex-shrink-0">ต้นทางด่วน:</span>
+              <button
+                onClick={() => setOriginText("📍 ตำแหน่งปัจจุบันของฉัน (บางใหญ่ / นนทบุรี)")}
+                className={`px-2.5 py-1 rounded-lg font-semibold flex-shrink-0 border transition ${
+                  originText.includes("ตำแหน่งปัจจุบัน")
+                    ? "bg-emerald-500 text-slate-950 border-emerald-400"
+                    : "bg-slate-900 text-emerald-300 border-emerald-500/40"
+                }`}
+              >
+                📍 พิกัดรถปัจจุบัน (GPS)
+              </button>
+              <button
+                onClick={() => setOriginText("บางใหญ่ (เซ็นทรัล เวสต์เกต / พระปิ่น 3)")}
+                className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-white flex-shrink-0"
+              >
+                🏢 บางใหญ่ / พระปิ่น 3
+              </button>
+              <button
+                onClick={() => setOriginText("ไทรน้อย (จ.นนทบุรี)")}
+                className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-white flex-shrink-0"
+              >
+                🏠 ไทรน้อย
+              </button>
+              <button
+                onClick={() => setOriginText("กรุงเทพฯ (เซ็นทรัล พระราม 2)")}
+                className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-white flex-shrink-0"
+              >
+                🚗 พระราม 2
+              </button>
+            </div>
           </div>
 
-          <div className="flex-1 space-y-2.5">
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">จุดเริ่มต้น (Origin)</span>
-                <span className="text-[10px] text-emerald-400 font-semibold">{routeCalculation.originLoc.name}</span>
-              </div>
-              <input
-                type="text"
-                value={originText}
-                onChange={(e) => setOriginText(e.target.value)}
-                placeholder="พิมพ์จุดเริ่มต้น (เช่น บางใหญ่, ไทรน้อย, พระราม 2)..."
-                className="w-full bg-slate-950/90 border border-slate-700/80 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 font-medium"
-              />
-              <div className="flex items-center gap-1 overflow-x-auto pt-1 text-[11px] no-scrollbar">
-                <span className="text-slate-500 text-[10px] flex-shrink-0">เลือกด่วน:</span>
-                <button onClick={() => setOriginText("📍 ตำแหน่งปัจจุบันของฉัน (บางใหญ่ / นนทบุรี)")} className="px-2 py-0.5 rounded bg-emerald-950/80 border border-emerald-500/50 text-emerald-300 font-medium flex-shrink-0">📍 ตำแหน่งรถจริง (บางใหญ่)</button>
-                <button onClick={() => setOriginText("บางใหญ่ (เซ็นทรัล เวสต์เกต / พระปิ่น 3)")} className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-300 flex-shrink-0">บางใหญ่</button>
-                <button onClick={() => setOriginText("ไทรน้อย (จ.นนทบุรี)")} className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-300 flex-shrink-0">ไทรน้อย</button>
-                <button onClick={() => setOriginText("กรุงเทพฯ (เซ็นทรัล พระราม 2)")} className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-300 flex-shrink-0">พระราม 2</button>
-              </div>
-            </div>
+          {/* Swap Direction Button */}
+          <div className="flex items-center justify-center -my-1.5 relative z-10">
+            <button
+              onClick={handleSwapRoute}
+              title="สลับต้นทาง-ปลายทาง (ขาไป ⇄ ขากลับ)"
+              className="px-3.5 py-1 rounded-full bg-slate-800 hover:bg-emerald-500 hover:text-slate-950 text-emerald-300 border border-slate-700 text-[11px] font-bold shadow-md flex items-center gap-1.5 transition-all active:scale-95"
+            >
+              <span>⇅ สลับขาไป-ขากลับ</span>
+            </button>
+          </div>
 
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">จุดหมายปลายทาง (Destination)</span>
-                <span className="text-[10px] text-amber-300 font-semibold">{routeCalculation.destLoc.name}</span>
-              </div>
-              <input
-                type="text"
-                value={destText}
-                onChange={(e) => setDestText(e.target.value)}
-                placeholder="พิมพ์ปลายทาง (เช่น หัวหิน, พัทยา, โคราช, เชียงใหม่)..."
-                className="w-full bg-slate-950/90 border border-slate-700/80 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 font-medium"
-              />
-              <div className="flex items-center gap-1 overflow-x-auto pt-1 text-[11px] no-scrollbar">
-                <span className="text-slate-500 text-[10px] flex-shrink-0">เลือกด่วน:</span>
-                <button onClick={() => setDestText("หัวหิน (จ.ประจวบคีรีขันธ์)")} className="px-2 py-0.5 rounded bg-amber-950/60 border border-amber-500/40 text-amber-300 font-medium flex-shrink-0">หัวหิน</button>
-                <button onClick={() => setDestText("พัทยา / จอมเทียน (จ.ชลบุรี)")} className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-300 flex-shrink-0">พัทยา</button>
-                <button onClick={() => setDestText("นครราชสีมา (โคราช)")} className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-300 flex-shrink-0">โคราช</button>
-                <button onClick={() => setDestText("เชียงใหม่ (จ.เชียงใหม่)")} className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-300 flex-shrink-0">เชียงใหม่</button>
-              </div>
+          {/* Destination Box */}
+          <div className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800/90">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-[11px] text-amber-400 font-bold flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-400 shadow-[0_0_8px_#fbbf24]" />
+                <span>จุดหมายปลายทาง (Destination)</span>
+              </span>
+              <span className="text-[11px] text-amber-300 font-semibold truncate max-w-[180px]">
+                {routeCalculation.destLoc.name}
+              </span>
             </div>
+            <input
+              type="text"
+              value={destText}
+              onChange={(e) => setDestText(e.target.value)}
+              placeholder="พิมพ์ปลายทาง (เช่น หัวหิน, พัทยา, โคราช, เชียงใหม่)..."
+              className="w-full bg-slate-900/90 border border-slate-700/80 rounded-xl px-3 py-2 text-xs sm:text-sm text-white focus:outline-none focus:border-emerald-500 font-semibold"
+            />
+          </div>
+        </div>
+
+        {/* Visual Highway Journey Progress Bar */}
+        <div className="p-3.5 rounded-2xl bg-slate-950/90 border border-slate-800/90 space-y-2.5">
+          <div className="flex items-center justify-between text-[11px]">
+            <span className="text-emerald-400 font-bold">🚗 ต้นทาง ({batteryPct}%)</span>
+            <span className="text-amber-300 font-bold">
+              ⚡ แวะชาร์จกม.ที่ {routeCalculation.primaryStop?.distFromOrigin || "-"}
+            </span>
+            <span className="text-cyan-300 font-bold">🏁 ปลายทาง ({routeCalculation.drivingDistanceKm} กม.)</span>
+          </div>
+          <div className="relative h-2.5 rounded-full bg-slate-800 overflow-hidden">
+            <div className="absolute inset-y-0 left-0 bg-gradient-to-r from-emerald-500 via-amber-400 to-cyan-400 w-full rounded-full" />
+          </div>
+          <div className="text-[11px] text-slate-400 flex items-center justify-between">
+            <span className="truncate">{routeCalculation.highwayName}</span>
           </div>
         </div>
 
         {/* Dynamic Calculation Stats Box */}
-        <div className="pt-2.5 border-t border-slate-800/80 grid grid-cols-2 gap-2 text-xs">
-          <div className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800/80">
-            <span className="text-slate-400 block text-[10px]">ระยะทางจริงตามทางหลวง:</span>
-            <span className="text-white font-bold text-lg font-mono">{routeCalculation.drivingDistanceKm} กม.</span>
-            <span className="text-[10px] text-emerald-400 block mt-0.5 line-clamp-1">{routeCalculation.highwayName}</span>
+        <div className="grid grid-cols-3 gap-2 text-xs">
+          <div className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800/80 text-center">
+            <span className="text-slate-400 block text-[10px]">ระยะทางรวม</span>
+            <span className="text-white font-extrabold text-base sm:text-lg font-mono">{routeCalculation.drivingDistanceKm} กม.</span>
           </div>
 
-          <div className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800/80">
-            <span className="text-slate-400 block text-[10px]">เวลาขับขี่โดยประมาณ:</span>
-            <span className="text-white font-bold text-lg font-mono">{routeCalculation.driveTimeText}</span>
-            <span className="text-[10px] text-amber-300 block mt-0.5">
-              ใช้ไฟ ~{routeCalculation.batteryUsedKwh} kWh ({routeCalculation.batteryUsedPct}% แบตเตอรี่)
-            </span>
+          <div className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800/80 text-center">
+            <span className="text-slate-400 block text-[10px]">เวลาเดินทาง</span>
+            <span className="text-white font-extrabold text-base sm:text-lg font-mono">{routeCalculation.driveTimeText}</span>
+          </div>
+
+          <div className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800/80 text-center">
+            <span className="text-slate-400 block text-[10px]">ใช้ไฟ JAECOO 5</span>
+            <span className="text-amber-300 font-extrabold text-base sm:text-lg font-mono">~{routeCalculation.batteryUsedPct}%</span>
           </div>
         </div>
 
-        {/* Action Button: Recalculate */}
-        <button
-          onClick={() => setCalcCounter(prev => prev + 1)}
-          className="w-full py-2.5 px-3 rounded-xl bg-slate-800/90 hover:bg-slate-700/90 border border-slate-700 text-xs font-semibold text-emerald-400 flex items-center justify-center gap-1.5 transition active:scale-[0.98]"
-        >
-          <RefreshCw size={13} className="text-emerald-400" />
-          <span>⚡ คำนวณเส้นทางและจุดแวะใหม่ทันที (Recalculate Route)</span>
-        </button>
-
         {/* JAECOO 5 EV Ultra Charging Strategy Card */}
-        <div className="p-3.5 rounded-2xl bg-gradient-to-r from-emerald-950/60 to-slate-900 border border-emerald-500/40 text-xs text-emerald-200 flex items-start gap-2.5">
-          <div className="p-1.5 rounded-lg bg-emerald-500/20 text-emerald-400 flex-shrink-0">
-            <Zap size={16} />
+        <div className="p-3.5 rounded-2xl bg-gradient-to-r from-emerald-950/70 to-slate-900 border border-emerald-500/40 text-xs text-emerald-200 flex items-start gap-2.5">
+          <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-400 flex-shrink-0">
+            <Zap size={18} />
           </div>
           <div className="leading-relaxed">
-            <span className="font-bold text-white block mb-0.5">แผนชาร์จสำหรับ JAECOO 5 EV Ultra (67 kWh):</span>
+            <span className="font-bold text-white block mb-0.5">💡 แผนการชาร์จแนะนำสำหรับพี่นิค (JAECOO 5 EV Ultra):</span>
             <span className="text-slate-300 text-xs">{routeCalculation.adviceText}</span>
           </div>
         </div>
+
+        {/* Full Route in Google Maps Button */}
+        <button
+          onClick={handleOpenFullTripGoogleMaps}
+          className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-emerald-500 via-emerald-400 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 font-extrabold text-xs sm:text-sm shadow-[0_6px_25px_rgba(16,185,129,0.35)] flex items-center justify-center gap-2 transition-all active:scale-95"
+        >
+          <Navigation size={17} className="stroke-[2.5]" />
+          <span>🗺️ เริ่มนำทางทั้งทริป + แวะจุดชาร์จหลักใน Google Maps</span>
+        </button>
       </div>
 
       {/* SMART CURATED STOPS (2-3 STOPS ONLY, NOT 22 STOPS!) */}
-      <div className="space-y-2.5">
+      <div className="space-y-3">
         <div className="flex items-center justify-between px-1">
-          <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
-            <ShieldCheck size={14} className="text-emerald-400" />
-            <span>จุดแวะชาร์จที่แนะนำตามแผนจริง</span>
-            <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-semibold">
-              แนะนำแวะ 1 จุด ({routeCalculation.smartStops.length} จุดหลัก)
-            </span>
+          <h3 className="text-xs sm:text-sm font-extrabold text-white flex items-center gap-1.5">
+            <ShieldCheck size={16} className="text-emerald-400" />
+            <span>2. จุดแวะชาร์จตามเส้นทาง ({routeCalculation.smartStops.length} จุดหลัก)</span>
           </h3>
-          <span className="text-[11px] text-emerald-400 font-medium">
-            คัดกรองตู้เร็วตามทางหลวงตรงสาย
+          <span className="text-[11px] text-emerald-400 font-semibold">
+            คัดเฉพาะตู้เร็วริมทางหลวง
           </span>
         </div>
 
@@ -571,48 +644,54 @@ export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 
             <div
               key={st.id}
               onClick={() => onSelect(st)}
-              className={`p-4 rounded-3xl transition-all duration-200 border cursor-pointer ${st.isRecommended
-                  ? "bg-gradient-to-r from-[#142338] to-[#101c2e] border-emerald-500/90 shadow-[0_4px_25px_rgba(16,185,129,0.25)] ring-1 ring-emerald-500/60"
-                  : "bg-[#111726] border-slate-800/90 hover:border-slate-700"
-                }`}
+              className={`p-4 rounded-3xl transition-all duration-200 border cursor-pointer ${
+                st.isRecommended
+                  ? "bg-gradient-to-r from-[#14253b] to-[#101c2e] border-2 border-emerald-500/90 shadow-[0_6px_25px_rgba(16,185,129,0.22)]"
+                  : "bg-[#121929] border-slate-800/90 hover:border-slate-700"
+              }`}
             >
-              <div className="flex items-center justify-between mb-2">
-                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${st.roleBadge || "bg-slate-800 text-slate-300"}`}>
+              <div className="flex items-center justify-between mb-2.5">
+                <span className={`px-3 py-0.5 rounded-full text-[11px] font-bold border ${st.roleBadge || "bg-slate-800 text-slate-300"}`}>
                   {st.stopRole}
                 </span>
-                <span className="text-[11px] text-slate-400 font-mono">
-                  ~กม.ที่ {st.distFromOrigin} บนเส้นทาง
+                <span className="text-xs text-emerald-300 font-mono font-bold bg-slate-950/70 px-2.5 py-0.5 rounded-lg border border-slate-800">
+                  📍 กม.ที่ {st.distFromOrigin}
                 </span>
               </div>
 
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-start gap-3">
-                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs flex-shrink-0 mt-0.5 ${st.isRecommended
+                  <div className={`w-9 h-9 rounded-2xl flex items-center justify-center font-extrabold text-sm flex-shrink-0 mt-0.5 ${
+                    st.isRecommended
                       ? "bg-emerald-500 text-slate-950 shadow-[0_0_12px_rgba(16,185,129,0.4)]"
                       : "bg-slate-800 text-slate-300 border border-slate-700"
-                    }`}>
+                  }`}>
                     {idx + 1}
                   </div>
 
                   <div>
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex flex-wrap items-center gap-1.5 mb-1">
                       <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${st.providerTheme?.bg || "bg-teal-950"} ${st.providerTheme?.text || "text-emerald-300"} ${st.providerTheme?.border || "border-emerald-600/40"}`}>
                         {st.provider}
                       </span>
+                      {st.province && (
+                        <span className="text-[11px] text-slate-400 font-medium">
+                          • จ.{st.province}
+                        </span>
+                      )}
                     </div>
 
-                    <h4 className="font-bold text-sm text-white tracking-tight leading-snug">
+                    <h4 className="font-bold text-sm sm:text-base text-white tracking-tight leading-snug">
                       {st.name}
                     </h4>
 
-                    <div className="flex items-center gap-2 text-xs mt-1.5">
-                      <span className={`inline-flex items-center gap-1 font-semibold ${isFree ? "text-emerald-400" : "text-amber-400"
-                        }`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${isFree ? "bg-emerald-400 animate-pulse" : "bg-amber-400"}`} />
+                    <div className="flex flex-wrap items-center gap-2 text-xs mt-2">
+                      <span className={`inline-flex items-center gap-1 font-bold ${isFree ? "text-emerald-400" : "text-amber-400"}`}>
+                        <span className={`w-2 h-2 rounded-full ${isFree ? "bg-emerald-400 animate-pulse" : "bg-amber-400"}`} />
                         <span>{isFree ? `ว่าง ${st.availablePlugs} / ${st.totalPlugs} หัว` : "ตู้เต็ม (มีคิว)"}</span>
                       </span>
                       <span className="text-slate-600">•</span>
-                      <span className="text-slate-200 font-mono font-bold bg-slate-800/80 px-2 py-0.5 rounded text-[11px] border border-slate-700/50">
+                      <span className="text-amber-300 font-mono font-bold bg-amber-500/10 px-2 py-0.5 rounded text-[11px] border border-amber-500/30">
                         ⚡ {st.power}
                       </span>
                     </div>
@@ -625,9 +704,9 @@ export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 
                     onNavigate(st);
                   }}
                   title="เริ่มนำทาง Google Maps มุ่งหน้าสถานีนี้"
-                  className="px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 text-xs font-bold transition flex items-center gap-1.5 shadow-md active:scale-95 flex-shrink-0"
+                  className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 text-xs font-extrabold transition flex items-center gap-1.5 shadow-md active:scale-95 flex-shrink-0"
                 >
-                  <Navigation size={13} className="stroke-[2.5]" />
+                  <Navigation size={14} className="stroke-[2.5]" />
                   <span>นำทาง</span>
                 </button>
               </div>
@@ -639,10 +718,10 @@ export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 
         <div className="pt-2">
           <button
             onClick={() => setShowAllCorridorStops(!showAllCorridorStops)}
-            className="w-full py-2.5 px-3 rounded-2xl bg-slate-900/60 hover:bg-slate-900 border border-slate-800 text-xs text-slate-400 hover:text-slate-200 flex items-center justify-between transition"
+            className="w-full py-3 px-4 rounded-2xl bg-slate-900/70 hover:bg-slate-900 border border-slate-800 text-xs font-semibold text-slate-300 hover:text-white flex items-center justify-between transition"
           >
-            <span>📋 ดูสถานีอื่นๆ ทั้งหมดบนแนวถนนสายนี้ ({routeCalculation.allCorridorStops.length} จุด)</span>
-            {showAllCorridorStops ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            <span>📋 ดูสถานีชาร์จสำรองทั้งหมดบนถนนสายนี้ ({routeCalculation.allCorridorStops.length} สถานี)</span>
+            {showAllCorridorStops ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
           </button>
 
           {showAllCorridorStops && (
@@ -669,7 +748,7 @@ export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 
                       e.stopPropagation();
                       onNavigate(st);
                     }}
-                    className="px-2.5 py-1.5 rounded-lg bg-slate-800 text-emerald-400 hover:bg-slate-700 text-xs font-semibold"
+                    className="px-3 py-1.5 rounded-xl bg-slate-800 text-emerald-400 hover:bg-slate-700 text-xs font-bold"
                   >
                     นำทาง
                   </button>
