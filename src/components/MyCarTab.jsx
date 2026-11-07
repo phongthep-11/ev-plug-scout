@@ -111,6 +111,73 @@ export function MyCarTab({ car: initialCar, batteryPct: initialBattery, onSaveCa
     }
   });
   const [logBrandInput, setLogBrandInput] = useState('EV Station PluZ (ปตท.)');
+  const [subTab, setSubTab] = useState('all'); // 'all' | 'charge' | 'range' | 'care' | 'emergency'
+
+  // Feature: Real-World Speed & Terrain Range Simulator
+  const [simSpeedKmh, setSimSpeedKmh] = useState(110); // 90, 110, 120
+  const [simTerrain, setSimTerrain] = useState('flat'); // 'flat', 'rain', 'mountain'
+
+  // Feature: Smart Mall Parking & Free Hours Tracker
+  const [parkingMemo, setParkingMemo] = useState(() => {
+    try {
+      const saved = localStorage.getItem('ev_plug_scout_parking_memo');
+      return saved ? JSON.parse(saved) : {
+        mall: 'เซ็นทรัล เวสต์เกต (บางใหญ่)',
+        floor: 'ชั้น B1',
+        pillar: 'เสา E14 (โซนชาร์จ EV)',
+        freeHours: 3,
+        savedAt: '13:30 น.'
+      };
+    } catch {
+      return {
+        mall: 'เซ็นทรัล เวสต์เกต (บางใหญ่)',
+        floor: 'ชั้น B1',
+        pillar: 'เสา E14 (โซนชาร์จ EV)',
+        freeHours: 3,
+        savedAt: '13:30 น.'
+      };
+    }
+  });
+
+  // Feature: Smart EV Odometer & Maintenance Tracker
+  const [odometerKm, setOdometerKm] = useState(() => {
+    try {
+      const saved = localStorage.getItem('ev_plug_scout_odometer_km');
+      return saved ? Number(saved) : 3850;
+    } catch {
+      return 3850;
+    }
+  });
+
+  const handleSaveParkingMemo = (updated) => {
+    const nowTime = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.';
+    const finalMemo = { ...updated, savedAt: nowTime };
+    setParkingMemo(finalMemo);
+    try {
+      localStorage.setItem('ev_plug_scout_parking_memo', JSON.stringify(finalMemo));
+    } catch {}
+    setSaveSuccessMsg(`🅿️ บันทึกจุดจอดรถ: ${finalMemo.mall} • ${finalMemo.floor} (${finalMemo.pillar}) เรียบร้อย!`);
+    setTimeout(() => setSaveSuccessMsg(''), 3500);
+  };
+
+  const handleUpdateOdometer = (newKm) => {
+    const validKm = Math.max(0, Number(newKm) || 0);
+    setOdometerKm(validKm);
+    try {
+      localStorage.setItem('ev_plug_scout_odometer_km', String(validKm));
+    } catch {}
+  };
+
+  // Real-World Range Calculation
+  const speedFactor = simSpeedKmh === 90 ? 1.02 : simSpeedKmh === 110 ? 0.88 : 0.75;
+  const terrainFactor = simTerrain === 'flat' ? 1.0 : simTerrain === 'rain' ? 0.92 : 0.82;
+  const nedcRangeKm = Math.round((batteryPct / 100) * ((car.batterySizeKwh || 67.0) * 6.3));
+  const realWorldRangeKm = Math.round(nedcRangeKm * speedFactor * terrainFactor);
+  const safeStopRangeKm = Math.max(10, Math.round(realWorldRangeKm * 0.82));
+
+  // Next JAECOO Service Interval (Every 10,000 km)
+  const nextServiceMilestoneKm = (Math.floor(odometerKm / 10000) + 1) * 10000;
+  const kmUntilNextService = Math.max(0, nextServiceMilestoneKm - odometerKm);
 
   useEffect(() => {
     if (!timerRunning) return;
@@ -475,6 +542,332 @@ export function MyCarTab({ car: initialCar, batteryPct: initialBattery, onSaveCa
           </a>
         </div>
       </div>
+
+      {/* NEW: Quick Section Filter Bar for S25 Ultra One-Handed Navigation */}
+      <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1 text-xs">
+        {[
+          { id: 'all', label: '📋 เครื่องมือทั้งหมด' },
+          { id: 'range', label: '🌧️ คำนวณระยะทางจริง' },
+          { id: 'care', label: '🅿️ จอดห้าง & เช็กระยะ' },
+          { id: 'charge', label: '⚡ ค่าไฟ & โปรส่วนลด' },
+          { id: 'emergency', label: '🆘 เบอร์ฉุกเฉิน 12 ค่าย' },
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setSubTab(tab.id)}
+            className={`px-3 py-2 rounded-2xl font-extrabold whitespace-nowrap border transition active:scale-95 ${
+              subTab === tab.id
+                ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-md'
+                : 'bg-slate-900/90 text-slate-300 border-slate-800'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* NEW FEATURE A: 🌧️ เครื่องคำนวณระยะทางวิ่งจริงตามความเร็ว & สภาพเส้นทาง (Real-World Range Simulator) */}
+      {(subTab === 'all' || subTab === 'range') && (
+        <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-br from-[#13243a] via-[#0e1b2d] to-[#09121e] border-2 border-sky-500/50 space-y-3.5 shadow-lg">
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <h3 className="text-sm sm:text-base font-extrabold text-white flex items-center gap-2">
+                <span>🌧️ คำนวณระยะทางวิ่งจริงตามความเร็ว & ขึ้นเขา</span>
+              </h3>
+              <p className="text-[11px] text-slate-300 mt-0.5">
+                จำลองอัตราสิ้นเปลืองไฟจริงของ {car.model} จากแบตปัจจุบัน (<b className="text-emerald-400">{batteryPct}%</b>)
+              </p>
+            </div>
+            <span className="px-2.5 py-1 rounded-full bg-sky-500/20 border border-sky-500/40 text-sky-300 text-[10px] font-extrabold whitespace-nowrap">
+              🎯 แม่นยำตามความเร็ว
+            </span>
+          </div>
+
+          <div className="space-y-2 text-xs">
+            <div className="p-2.5 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-1.5">
+              <span className="text-[11px] text-slate-400 font-semibold block">1. ความเร็วเฉลี่ยที่ใช้ขับขี่:</span>
+              <div className="grid grid-cols-3 gap-1.5">
+                {[
+                  { speed: 90, label: '🐢 90 กม./ชม.' },
+                  { speed: 110, label: '🚗 110 กม./ชม.' },
+                  { speed: 120, label: '🚀 120+ กม./ชม.' },
+                ].map((s) => (
+                  <button
+                    key={s.speed}
+                    onClick={() => setSimSpeedKmh(s.speed)}
+                    className={`py-2 px-1.5 rounded-xl text-xs font-extrabold whitespace-nowrap transition active:scale-95 ${
+                      simSpeedKmh === s.speed
+                        ? 'bg-sky-400 text-slate-950 shadow'
+                        : 'bg-slate-900 text-slate-300 border border-slate-800'
+                    }`}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="p-2.5 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-1.5">
+              <span className="text-[11px] text-slate-400 font-semibold block">2. สภาพเส้นทาง & อากาศ:</span>
+              <div className="grid grid-cols-3 gap-1.5">
+                {[
+                  { id: 'flat', label: '🛣️ ทางราบปกติ' },
+                  { id: 'rain', label: '🌧️ แดดจัด/ฝนตก' },
+                  { id: 'mountain', label: '⛰️ ขึ้นเขา/ทางชัน' },
+                ].map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => setSimTerrain(t.id)}
+                    className={`py-2 px-1.5 rounded-xl text-xs font-extrabold whitespace-nowrap transition active:scale-95 ${
+                      simTerrain === t.id
+                        ? 'bg-emerald-400 text-slate-950 shadow'
+                        : 'bg-slate-900 text-slate-300 border border-slate-800'
+                    }`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <div className="p-3 rounded-2xl bg-slate-950/90 border border-slate-800">
+              <span className="text-[10px] text-slate-400 block">หน้าปัดมาตรฐาน</span>
+              <span className="text-base sm:text-lg font-extrabold text-slate-300 font-mono">
+                ~{nedcRangeKm} กม.
+              </span>
+              <span className="text-[10px] text-slate-500 block mt-0.5">สเปกโรงงาน</span>
+            </div>
+
+            <div className="p-3 rounded-2xl bg-sky-950/60 border border-sky-500/50">
+              <span className="text-[10px] text-sky-300 font-bold block">วิ่งได้จริงตามที่เลือก</span>
+              <span className="text-base sm:text-lg font-extrabold text-white font-mono">
+                ~{realWorldRangeKm} กม.
+              </span>
+              <span className="text-[10px] text-sky-400 font-bold block mt-0.5">
+                ที่ {simSpeedKmh} กม./ชม.
+              </span>
+            </div>
+
+            <div className="p-3 rounded-2xl bg-emerald-950/60 border border-emerald-500/50">
+              <span className="text-[10px] text-emerald-300 font-bold block">ระยะแวะชาร์จปลอดภัย</span>
+              <span className="text-base sm:text-lg font-extrabold text-emerald-300 font-mono">
+                ~{safeStopRangeKm} กม.
+              </span>
+              <span className="text-[10px] text-emerald-400 font-bold block mt-0.5">เหลือแบต ~18%</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* NEW FEATURE B: 🅿️ ระบบจำตำแหน่งจอดรถในห้าง & นับชั่วโมงจอดฟรี (Smart Mall Parking Tracker) */}
+      {(subTab === 'all' || subTab === 'care') && (
+        <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-br from-[#1f1b38] via-[#151528] to-[#0c0e1a] border-2 border-purple-500/50 space-y-3.5 shadow-lg">
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <h3 className="text-sm sm:text-base font-extrabold text-white flex items-center gap-2">
+                <span>🅿️ จำจุดจอดรถในห้าง & เวลาจอดฟรี (Parking Memo)</span>
+              </h3>
+              <p className="text-[11px] text-slate-300 mt-0.5">
+                ป้องกันลืมชั้นจอดรถหรือจอดเกินเวลาฟรีในห้าง (เวสต์เกต / เมกาบางนา / เซ็นทรัล)
+              </p>
+            </div>
+            <span className="px-2.5 py-1 rounded-full bg-purple-500/20 border border-purple-500/40 text-purple-300 text-[10px] font-extrabold whitespace-nowrap">
+              🕒 จอดเมื่อ {parkingMemo.savedAt}
+            </span>
+          </div>
+
+          {/* Current Saved Parking Banner */}
+          <div className="p-3.5 rounded-2xl bg-slate-950/90 border border-purple-500/40 flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <span className="text-[10px] text-purple-300 font-bold block">📍 ตำแหน่งจอดรถที่บันทึกไว้ล่าสุด:</span>
+              <div className="text-sm sm:text-base font-extrabold text-white truncate mt-0.5">
+                {parkingMemo.floor} • {parkingMemo.pillar}
+              </div>
+              <div className="text-[11px] text-slate-400 truncate">
+                🏢 {parkingMemo.mall} • จอดฟรี {parkingMemo.freeHours} ชม. (บันทึกตอน {parkingMemo.savedAt})
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                soundEffects.playListening();
+                speechService.speak(
+                  `รถของพี่นิคจอดอยู่ที่ ${parkingMemo.mall} ${parkingMemo.floor} โซน ${parkingMemo.pillar} บันทึกไว้เมื่อเวลา ${parkingMemo.savedAt} ครับ`
+                );
+              }}
+              className="px-3 py-2 rounded-xl bg-purple-500 hover:bg-purple-400 text-slate-950 font-extrabold text-xs whitespace-nowrap flex-shrink-0 active:scale-95 transition"
+            >
+              🔊 อ่านจุดจอด
+            </button>
+          </div>
+
+          {/* Floor Quick Selector */}
+          <div className="space-y-1.5 text-xs">
+            <span className="text-[11px] text-slate-400 font-semibold block">แตะเลือกชั้นที่จอดด่วน:</span>
+            <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
+              {['ชั้น B2', 'ชั้น B1', 'ชั้น G', 'ชั้น 1', 'ชั้น 2', 'ช่องชาร์จ EV'].map((fl) => (
+                <button
+                  key={fl}
+                  onClick={() => handleSaveParkingMemo({ ...parkingMemo, floor: fl })}
+                  className={`py-2 px-2 rounded-xl text-xs font-extrabold whitespace-nowrap transition active:scale-95 ${
+                    parkingMemo.floor === fl
+                      ? 'bg-purple-400 text-slate-950 shadow'
+                      : 'bg-slate-900 text-slate-300 border border-slate-800'
+                  }`}
+                >
+                  {fl}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Pillar / Mall Input Row */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+            <input
+              type="text"
+              value={parkingMemo.pillar}
+              onChange={(e) => setParkingMemo({ ...parkingMemo, pillar: e.target.value })}
+              placeholder="เลขเสา / โซน (เช่น เสา E14 หน้าลิฟต์)..."
+              className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-semibold focus:outline-none focus:border-purple-400"
+            />
+            <div className="flex items-center gap-1.5">
+              <input
+                type="text"
+                value={parkingMemo.mall}
+                onChange={(e) => setParkingMemo({ ...parkingMemo, mall: e.target.value })}
+                placeholder="ชื่อห้าง / สถานที่..."
+                className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-semibold focus:outline-none focus:border-purple-400"
+              />
+              <button
+                onClick={() => handleSaveParkingMemo(parkingMemo)}
+                className="px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs whitespace-nowrap active:scale-95 transition"
+              >
+                💾 จำจุดจอด
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* NEW FEATURE C: 🛞 สมุดเช็กระยะเลขไมล์ JAECOO 5 EV & ตารางลมยางมาตรฐาน (Maintenance & Tire Care) */}
+      {(subTab === 'all' || subTab === 'care') && (
+        <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-br from-[#162722] via-[#101c1a] to-[#0a1212] border-2 border-emerald-500/40 space-y-3.5 shadow-lg">
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <h3 className="text-sm sm:text-base font-extrabold text-white flex items-center gap-2">
+                <span>🛞 เช็กระยะศูนย์ JAECOO 5 & ตารางลมยางมาตรฐาน</span>
+              </h3>
+              <p className="text-[11px] text-slate-300 mt-0.5">
+                แจ้งเตือนเช็กระยะทุก 10,000 กม. และค่าลมยางที่ช่วยให้วิ่งประหยัดไฟที่สุด
+              </p>
+            </div>
+            <span className="px-2.5 py-1 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-[10px] font-extrabold whitespace-nowrap">
+              อีก {kmUntilNextService.toLocaleString()} กม. เข้าศูนย์
+            </span>
+          </div>
+
+          {/* Odometer Input & Next Service Milestone */}
+          <div className="p-3 rounded-2xl bg-slate-950/90 border border-slate-800 space-y-2.5 text-xs">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-slate-300 font-semibold">เลขไมล์รถปัจจุบัน (Odometer):</span>
+              <span className="text-emerald-400 font-mono font-extrabold text-sm">
+                เช็กระยะรอบถัดไป: {nextServiceMilestoneKm.toLocaleString()} กม.
+              </span>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <input
+                type="number"
+                value={odometerKm}
+                onChange={(e) => handleUpdateOdometer(e.target.value)}
+                className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm font-mono font-extrabold text-white focus:outline-none focus:border-emerald-400"
+              />
+              <button
+                onClick={() => handleUpdateOdometer(odometerKm + 500)}
+                className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs whitespace-nowrap active:scale-95 transition"
+              >
+                +500 กม.
+              </button>
+              <button
+                onClick={() => handleUpdateOdometer(odometerKm + 1000)}
+                className="px-3 py-2 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-bold text-xs whitespace-nowrap active:scale-95 transition"
+              >
+                +1,000 กม.
+              </button>
+            </div>
+          </div>
+
+          {/* Official Tire Pressure Table for JAECOO 5 EV Ultra */}
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            <div className="p-3 rounded-2xl bg-slate-950/90 border border-emerald-500/30">
+              <span className="text-[10px] text-emerald-400 font-bold block">🟢 ขับทั่วไป (1-3 คน)</span>
+              <div className="text-sm sm:text-base font-extrabold text-white font-mono mt-0.5">
+                34 / 34 PSI
+              </div>
+              <span className="text-[10px] text-slate-400 block mt-0.5">
+                (230 kPa) นุ่มนวล เกาะถนน
+              </span>
+            </div>
+
+            <div className="p-3 rounded-2xl bg-slate-950/90 border border-cyan-500/30">
+              <span className="text-[10px] text-cyan-300 font-bold block">🔵 วิ่งทางไกล / นั่งเต็มคัน</span>
+              <div className="text-sm sm:text-base font-extrabold text-white font-mono mt-0.5">
+                35 / 36 PSI
+              </div>
+              <span className="text-[10px] text-slate-400 block mt-0.5">
+                (240-250 kPa) ประหยัดไฟ +4%
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* NEW FEATURE D: 💳 คู่มือโปรโมชั่นส่วนลดค่าชาร์จ & สะสมแต้มครบทุกค่าย (EV Privilege & Promo Guide) */}
+      {(subTab === 'all' || subTab === 'charge') && (
+        <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-br from-[#272012] via-[#1c170e] to-[#110f0a] border-2 border-amber-500/40 space-y-3 shadow-lg">
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <h3 className="text-sm sm:text-base font-extrabold text-white flex items-center gap-2">
+                <span>💳 สิทธิพิเศษ & โปรโมชั่นลดค่าชาร์จ EV ครบทุกค่าย</span>
+              </h3>
+              <p className="text-[11px] text-slate-300 mt-0.5">
+                รวมทริคสะสมแต้มและส่วนลดค่าไฟสำหรับผู้ใช้ JAECOO 5 EV
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+            <div className="p-3 rounded-2xl bg-slate-950/85 border border-slate-800 space-y-1">
+              <div className="font-extrabold text-emerald-300">⛽ EV Station PluZ (ปตท.)</div>
+              <p className="text-[11px] text-slate-300 leading-relaxed">
+                ผูกบัตร <b>blueplus+ (Blue Card)</b> ในแอป ชาร์จครบทุก 20 บาท รับ 1 แต้ม และใช้ <b>100 แต้มแลกส่วนลดค่าชาร์จ 20 บาท</b> ทันที
+              </p>
+            </div>
+
+            <div className="p-3 rounded-2xl bg-slate-950/85 border border-slate-800 space-y-1">
+              <div className="font-extrabold text-orange-300">⚡ EleXA (กฟผ. / ปั๊ม PT)</div>
+              <p className="text-[11px] text-slate-300 leading-relaxed">
+                ผูกสมาชิก <b>PT Max Card</b> สะสมแต้มทุกหน่วย kWh แลกคูปองส่วนลดค่าชาร์จและส่วนลดร้านกาแฟพันธุ์ไทยระหว่างรอชาร์จ
+              </p>
+            </div>
+
+            <div className="p-3 rounded-2xl bg-slate-950/85 border border-slate-800 space-y-1">
+              <div className="font-extrabold text-purple-300">🟣 PEA VOLTA & 🟢 Altervim</div>
+              <p className="text-[11px] text-slate-300 leading-relaxed">
+                แวะชาร์จช่วง <b>Off-Peak (หลัง 22:00 น. หรือวันเสาร์-อาทิตย์ทั้งวัน)</b> เรทลดจาก ~7.7฿ เหลือเพียง <b>4.5–4.7฿/หน่วย (ลดเกือบ 40%)</b>
+              </p>
+            </div>
+
+            <div className="p-3 rounded-2xl bg-slate-950/85 border border-slate-800 space-y-1">
+              <div className="font-extrabold text-cyan-300">💳 บัตรเครดิต Cashback สาย EV</div>
+              <p className="text-[11px] text-slate-300 leading-relaxed">
+                จ่ายค่าชาร์จผ่านบัตรเครดิตที่ร่วมรายการ (อาทิ KBank / SCB / Krungsri / UOB EV) รับเครดิตเงินคืนสูงสุด <b>5%–10%</b>
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* NEW FEATURE 1: Smart Charging Cost & Time Calculator (On-Peak vs Off-Peak) */}
       <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-br from-[#132238] via-[#101b2e] to-[#0b1322] border-2 border-emerald-500/60 space-y-3.5 shadow-[0_6px_25px_rgba(16,185,129,0.18)]">
