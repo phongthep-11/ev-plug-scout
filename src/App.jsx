@@ -633,13 +633,22 @@ export function App() {
                         </button>
                       </div>
 
-                      <button
-                        onClick={handleOpenLiveGoogleMapsRadar}
-                        className="w-full py-2 px-3 rounded-xl bg-slate-950/80 hover:bg-slate-900 border border-slate-800 text-[11px] font-semibold text-emerald-300 flex items-center justify-center gap-1.5 transition active:scale-95"
-                      >
-                        <MapPin size={13} className="text-emerald-400" />
-                        <span>🔎 เปิดดูหมุดตู้ชาร์จ EV รอบตัวฉันจาก Google Maps สด (Live Radar)</span>
-                      </button>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          onClick={handleOpenLiveGoogleMapsRadar}
+                          className="py-2 px-2.5 rounded-xl bg-slate-950/80 hover:bg-slate-900 border border-slate-800 text-[11px] font-semibold text-emerald-300 flex items-center justify-center gap-1 transition active:scale-95"
+                        >
+                          <MapPin size={12} className="text-emerald-400 flex-shrink-0" />
+                          <span className="truncate">🔎 หมุดตู้ชาร์จ Google Maps สด</span>
+                        </button>
+
+                        <button
+                          onClick={() => setActiveTab('car')}
+                          className="py-2 px-2.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-[11px] font-bold text-amber-300 flex items-center justify-center gap-1 transition active:scale-95"
+                        >
+                          <span>💰 คำนวณค่าไฟ TOU / เวลาชาร์จ</span>
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>

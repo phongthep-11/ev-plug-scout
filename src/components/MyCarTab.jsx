@@ -35,6 +35,8 @@ export function MyCarTab({ car: initialCar, batteryPct: initialBattery, onSaveCa
 
   const [saveSuccessMsg, setSaveSuccessMsg] = useState('');
   const [targetChargePct, setTargetChargePct] = useState(80);
+  const [selectedChargerKw, setSelectedChargerKw] = useState(130);
+  const [selectedTariff, setSelectedTariff] = useState('station'); // 'station' (7.7/4.7) or 'home' (5.8/2.63)
   const [v2lSelected, setV2lSelected] = useState(['ac', 'light']);
 
   const V2L_APPLIANCES = [
@@ -51,12 +53,20 @@ export function MyCarTab({ car: initialCar, batteryPct: initialBattery, onSaveCa
   const isWeekend = day === 0 || day === 6;
   const isOffPeakNow = isWeekend || hour >= 22 || hour < 9;
 
+  // Tariff rates
+  const onPeakRate = selectedTariff === 'home' ? 5.79 : 7.70;
+  const offPeakRate = selectedTariff === 'home' ? 2.63 : 4.70;
+
   // Charging Cost & Time Calculation
   const pctToAdd = Math.max(0, targetChargePct - batteryPct);
   const kwhToAdd = Math.round(((pctToAdd / 100) * (car.batterySizeKwh || 67.0)) * 10) / 10;
-  const chargeMinutes = pctToAdd > 0 ? Math.max(5, Math.round((kwhToAdd / ((car.maxChargeSpeedKw || 130) * 0.82)) * 60)) : 0;
-  const onPeakCostBaht = Math.round(kwhToAdd * 7.7);
-  const offPeakCostBaht = Math.round(kwhToAdd * 4.7);
+  const effectiveSpeedKw = selectedChargerKw === 7.4 ? 7.0 : Math.min(selectedChargerKw, car.maxChargeSpeedKw || 130) * 0.82;
+  const chargeMinutes = pctToAdd > 0 ? Math.max(5, Math.round((kwhToAdd / effectiveSpeedKw) * 60)) : 0;
+  const chargeTimeFormatted = chargeMinutes >= 60
+    ? `~${Math.floor(chargeMinutes / 60)} ชม. ${chargeMinutes % 60} นาที`
+    : `~${chargeMinutes} นาที`;
+  const onPeakCostBaht = Math.round(kwhToAdd * onPeakRate);
+  const offPeakCostBaht = Math.round(kwhToAdd * offPeakRate);
   const savingsBaht = Math.max(0, onPeakCostBaht - offPeakCostBaht);
 
   // V2L Camping Power Calculation (keep 20% battery reserve for driving home)
@@ -266,14 +276,14 @@ export function MyCarTab({ car: initialCar, batteryPct: initialBattery, onSaveCa
       </div>
 
       {/* NEW FEATURE 1: Smart Charging Cost & Time Calculator (On-Peak vs Off-Peak) */}
-      <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-br from-[#131d31] to-[#0d1424] border border-slate-800 space-y-3.5 shadow-lg">
+      <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-br from-[#132238] via-[#101b2e] to-[#0b1322] border-2 border-emerald-500/60 space-y-3.5 shadow-[0_6px_25px_rgba(16,185,129,0.18)]">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <h3 className="text-sm sm:text-base font-extrabold text-white flex items-center gap-2">
-              <span>💰 คำนวณค่าไฟ & เวลาชาร์จจริง (TOU Calculator)</span>
+              <span>💰 เครื่องคำนวณค่าไฟ & เวลาชาร์จจริง (Smart TOU)</span>
             </h3>
-            <p className="text-[11px] text-slate-400">
-              คำนวณจากแบตปัจจุบัน ({batteryPct}%) ของ {car.model}
+            <p className="text-[11px] text-slate-300 mt-0.5">
+              คำนวณจากแบตเตอรี่ปัจจุบัน (<b className="text-emerald-400">{batteryPct}%</b>) ➔ เป้าหมาย (<b className="text-emerald-400">{targetChargePct}%</b>)
             </p>
           </div>
 
@@ -282,8 +292,60 @@ export function MyCarTab({ car: initialCar, batteryPct: initialBattery, onSaveCa
               ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
               : "bg-amber-500/20 text-amber-300 border-amber-500/40"
           }`}>
-            {isOffPeakNow ? "🌙 ตอนนี้ช่วง Off-Peak (ค่าไฟถูก ~4.7฿)" : "☀️ ตอนนี้ช่วง On-Peak (~7.7฿/หน่วย)"}
+            {isOffPeakNow ? `🌙 ตอนนี้ช่วง Off-Peak (${offPeakRate}฿/หน่วย)` : `☀️ ตอนนี้ช่วง On-Peak (${onPeakRate}฿/หน่วย)`}
           </span>
+        </div>
+
+        {/* Tariff & Charger Speed Selector */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+          <div className="p-2.5 rounded-2xl bg-slate-950/80 border border-slate-800 flex items-center justify-between gap-1">
+            <span className="text-[11px] text-slate-400 font-semibold">เรทค่าไฟ:</span>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setSelectedTariff('station')}
+                className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition ${
+                  selectedTariff === 'station'
+                    ? "bg-emerald-500 text-slate-950"
+                    : "bg-slate-900 text-slate-400"
+                }`}
+              >
+                ⛽ ตู้ปั๊ม (7.7/4.7฿)
+              </button>
+              <button
+                onClick={() => setSelectedTariff('home')}
+                className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition ${
+                  selectedTariff === 'home'
+                    ? "bg-emerald-500 text-slate-950"
+                    : "bg-slate-900 text-slate-400"
+                }`}
+              >
+                🏠 ไฟบ้าน TOU (2.6฿)
+              </button>
+            </div>
+          </div>
+
+          <div className="p-2.5 rounded-2xl bg-slate-950/80 border border-slate-800 flex items-center justify-between gap-1">
+            <span className="text-[11px] text-slate-400 font-semibold">หัวชาร์จ:</span>
+            <div className="flex items-center gap-1">
+              {[
+                { kw: 130, label: '⚡ 130kW DC' },
+                { kw: 50, label: '50kW DC' },
+                { kw: 7.4, label: '🏠 7.4kW บ้าน' }
+              ].map(sp => (
+                <button
+                  key={sp.kw}
+                  onClick={() => setSelectedChargerKw(sp.kw)}
+                  className={`px-2 py-1 rounded-xl text-[11px] font-bold transition ${
+                    selectedChargerKw === sp.kw
+                      ? "bg-amber-400 text-slate-950"
+                      : "bg-slate-900 text-slate-400"
+                  }`}
+                >
+                  {sp.label}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
         {/* Target % Selector */}
@@ -311,19 +373,19 @@ export function MyCarTab({ car: initialCar, batteryPct: initialBattery, onSaveCa
             <div className="p-3 rounded-2xl bg-slate-950/90 border border-slate-800">
               <span className="text-[10px] text-slate-400 block">ไฟที่ต้องเติม (+{pctToAdd}%)</span>
               <span className="text-base sm:text-lg font-extrabold text-white font-mono">+{kwhToAdd} kWh</span>
-              <span className="text-[10px] text-emerald-400 block mt-0.5">⚡ ใช้เวลา ~{chargeMinutes} นาที</span>
+              <span className="text-[10px] text-emerald-400 font-bold block mt-0.5">⏱️ {chargeTimeFormatted}</span>
             </div>
 
             <div className="p-3 rounded-2xl bg-slate-950/90 border border-slate-800">
-              <span className="text-[10px] text-amber-300 block">ชาร์จ On-Peak (กลางวัน)</span>
+              <span className="text-[10px] text-amber-300 block">☀️ ช่วง On-Peak</span>
               <span className="text-base sm:text-lg font-extrabold text-white font-mono">~{onPeakCostBaht} ฿</span>
-              <span className="text-[10px] text-slate-400 block mt-0.5">09:00 - 22:00 น.</span>
+              <span className="text-[10px] text-slate-400 block mt-0.5">09:00-22:00 น. ({onPeakRate}฿)</span>
             </div>
 
-            <div className="p-3 rounded-2xl bg-emerald-950/50 border border-emerald-500/40">
-              <span className="text-[10px] text-emerald-300 font-bold block">ชาร์จ Off-Peak (ประหยัด)</span>
+            <div className="p-3 rounded-2xl bg-emerald-950/60 border border-emerald-500/50">
+              <span className="text-[10px] text-emerald-300 font-bold block">🌙 ช่วง Off-Peak</span>
               <span className="text-base sm:text-lg font-extrabold text-emerald-300 font-mono">~{offPeakCostBaht} ฿</span>
-              <span className="text-[10px] text-emerald-400 font-semibold block mt-0.5">ประหยัดได้ {savingsBaht} บาท!</span>
+              <span className="text-[10px] text-emerald-400 font-extrabold block mt-0.5">ประหยัด {savingsBaht} บาท!</span>
             </div>
           </div>
         ) : (
