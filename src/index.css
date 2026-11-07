@@ -1,9 +1,31 @@
 @import "tailwindcss";
 
 @layer base {
-  body {
+  html, body {
     font-family: 'Prompt', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background-color: #0b0f17;
+    color: #f1f5f9;
+    overflow-x: hidden;
+    max-width: 100vw;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-font-smoothing: antialiased;
+    touch-action: manipulation;
   }
+
+  #root {
+    min-height: 100dvh;
+    overflow-x: hidden;
+    max-width: 100vw;
+  }
+}
+
+/* Safe Area Utilities for Galaxy S25 Ultra, Android Edge-to-Edge & iOS */
+.safe-top {
+  padding-top: max(0.65rem, env(safe-area-inset-top, 0px));
+}
+
+.safe-bottom {
+  padding-bottom: max(0.6rem, env(safe-area-inset-bottom, 0px));
 }
 
 /* Custom glow animations and styling for driving mode */
@@ -51,8 +73,8 @@
 
 /* Custom scrollbars */
 ::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+  width: 4px;
+  height: 4px;
 }
 ::-webkit-scrollbar-track {
   background: #0b0f17;

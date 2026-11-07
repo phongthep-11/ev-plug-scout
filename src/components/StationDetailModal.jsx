@@ -284,23 +284,23 @@ export function StationDetailModal({ station, onClose, onNavigate, onReportStatu
         </div>
 
         {/* Action Buttons */}
-        <div className="grid grid-cols-2 gap-2.5 pt-2 border-t border-slate-800">
+        <div className="grid grid-cols-2 gap-2 pt-2 safe-bottom border-t border-slate-800">
           <button
             onClick={() => onNavigate(station)}
-            className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-bold text-sm shadow-[0_0_20px_rgba(16,185,129,0.3)] flex items-center justify-center gap-2 active:scale-95 transition-all"
+            className="w-full min-h-[46px] py-3 px-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-extrabold text-xs sm:text-sm shadow-[0_0_20px_rgba(16,185,129,0.3)] flex items-center justify-center gap-1.5 whitespace-nowrap active:scale-95 transition-all"
           >
-            <Navigation size={16} className="stroke-[2.5]" />
-            <span>นำทางด้วย Google Maps</span>
+            <Navigation size={15} className="stroke-[2.5] flex-shrink-0" />
+            <span>นำทาง Google Maps</span>
           </button>
 
           <a
             href={station.providerAppUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="w-full py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-medium text-sm flex items-center justify-center gap-2 border border-slate-700 transition-all text-center"
+            className="w-full min-h-[46px] py-3 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 border border-slate-700 whitespace-nowrap truncate transition-all text-center active:scale-95"
           >
-            <ExternalLink size={15} />
-            <span>เปิดแอป {station.provider}</span>
+            <ExternalLink size={14} className="flex-shrink-0" />
+            <span className="truncate">แอป {station.provider}</span>
           </a>
         </div>
       </div>

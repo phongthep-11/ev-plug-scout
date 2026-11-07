@@ -445,71 +445,62 @@ export function App() {
         )}
 
         {/* GPS Live Status Bar & Location Calibration */}
-        <div className="mb-3 p-3 rounded-2xl bg-gradient-to-r from-slate-900/95 to-slate-950/95 border border-slate-800 text-xs shadow-md space-y-2.5">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <span className={`w-3 h-3 rounded-full flex-shrink-0 ${
+        <div className="mb-3 p-3 rounded-2xl bg-gradient-to-r from-slate-900/95 to-slate-950/95 border border-slate-800 text-xs shadow-md space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${
                 userLocation ? 'bg-emerald-400 shadow-[0_0_8px_#34d399] animate-pulse' : isLocating ? 'bg-amber-400 animate-ping' : 'bg-slate-500'
               }`} />
-              <div className="min-w-0">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="font-bold text-white text-xs truncate">
-                    {userLocation 
-                      ? `📍 ${userLocation.areaName || getAreaNameFromCoords(userLocation.lat, userLocation.lng)}`
-                      : isLocating 
-                        ? "กำลังค้นหาสัญญาณดาวเทียม GPS..." 
-                        : "ยังไม่ได้เปิดสัญญาณ GPS จริง"}
-                  </span>
-                  {userLocation && (
-                    <span className="text-[10px] text-emerald-400 font-mono bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-500/30">
-                      {userLocation.lat.toFixed(4)}, {userLocation.lng.toFixed(4)}
-                    </span>
-                  )}
+              <div className="min-w-0 flex-1">
+                <div className="font-bold text-white text-xs truncate">
+                  {userLocation 
+                    ? `📍 ${userLocation.areaName || getAreaNameFromCoords(userLocation.lat, userLocation.lng)}`
+                    : isLocating 
+                      ? "กำลังค้นหาสัญญาณดาวเทียม GPS..." 
+                      : "ยังไม่ได้เปิดสัญญาณ GPS จริง"}
                 </div>
-                <div className="text-[10px] text-slate-400 mt-0.5">
+                <div className="text-[10px] text-slate-400 truncate mt-0.5">
                   {userLocation ? (
                     gpsAccuracy && gpsAccuracy > 500 ? (
                       <span className="text-amber-400 font-medium">
-                        ⚠️ สัญญาณ Wi-Fi ในอาคาร (คลาดเคลื่อน ±{gpsAccuracy} ม.) แตะเลือกจุดจริงด้านล่างได้เลยครับ
+                        ⚠️ Wi-Fi ในอาคาร (±{gpsAccuracy} ม.) แตะเลือกจุดด้านล่างได้ครับ
                       </span>
                     ) : (
-                      <span>ความแม่นยำรัศมี ~{gpsAccuracy || 5} เมตร • คำนวณระยะทางจริงตรง 100%</span>
+                      <span>พิกัด {userLocation.lat.toFixed(4)}, {userLocation.lng.toFixed(4)} • แม่นยำ ~{gpsAccuracy || 5} ม.</span>
                     )
                   ) : (
-                    <span>แตะปุ่มด้านขวาเพื่อเปิด GPS นำทางจริง</span>
+                    <span>แตะปุ่มรีเฟรชเพื่อจับพิกัดดาวเทียม</span>
                   )}
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center gap-1.5 flex-shrink-0">
-              <button
-                onClick={handleRefreshGps}
-                title="รีเฟรชสัญญาณดาวเทียม GPS ทันที"
-                className="px-2.5 py-1.5 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 border border-cyan-500/40 text-[11px] font-semibold transition-all flex items-center gap-1 active:scale-95"
-              >
-                <RotateCw size={12} className={isLocating ? "animate-spin" : ""} />
-                <span>{isLocating ? "ค้นหา..." : "รีเฟรช GPS"}</span>
-              </button>
-            </div>
+            <button
+              onClick={handleRefreshGps}
+              title="รีเฟรชสัญญาณดาวเทียม GPS ทันที"
+              className="h-8 px-2.5 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 border border-cyan-500/40 text-[11px] font-bold transition-all flex items-center gap-1 whitespace-nowrap flex-shrink-0 active:scale-95"
+            >
+              <RotateCw size={12} className={isLocating ? "animate-spin flex-shrink-0" : "flex-shrink-0"} />
+              <span>{isLocating ? "ค้นหา..." : "รีเฟรช GPS"}</span>
+            </button>
           </div>
 
           {/* Quick Location Calibrator Pills for Nick */}
           <div className="pt-2 border-t border-slate-800/80 flex items-center gap-1.5 overflow-x-auto no-scrollbar text-[11px]">
-            <span className="text-slate-500 text-[10px] font-semibold flex-shrink-0">📍 ตั้งจุดรถด่วน:</span>
+            <span className="text-slate-500 text-[10px] font-semibold flex-shrink-0">📍 ตั้งจุดด่วน:</span>
             <button
               onClick={() => handleSetCustomLocation(13.9800, 100.3150, "ไทรน้อย (จ.นนทบุรี)")}
-              className={`px-2.5 py-1 rounded-lg border font-medium flex-shrink-0 transition active:scale-95 ${
+              className={`px-2.5 py-1 rounded-lg border font-medium flex-shrink-0 whitespace-nowrap transition active:scale-95 ${
                 userLocation?.areaName?.includes("ไทรน้อย")
                   ? "bg-emerald-500 text-slate-950 font-bold border-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.3)]"
                   : "bg-slate-900 text-emerald-300 border-emerald-500/40 hover:bg-slate-800"
               }`}
             >
-              🏠 ไทรน้อย (บ้าน)
+              🏠 ไทรน้อย
             </button>
             <button
               onClick={() => handleSetCustomLocation(13.8760, 100.4115, "เซ็นทรัล เวสต์เกต บางใหญ่")}
-              className={`px-2.5 py-1 rounded-lg border font-medium flex-shrink-0 transition active:scale-95 ${
+              className={`px-2.5 py-1 rounded-lg border font-medium flex-shrink-0 whitespace-nowrap transition active:scale-95 ${
                 userLocation?.areaName?.includes("บางใหญ่")
                   ? "bg-emerald-500 text-slate-950 font-bold border-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.3)]"
                   : "bg-slate-900 text-slate-300 border-slate-800 hover:bg-slate-800"
@@ -519,7 +510,7 @@ export function App() {
             </button>
             <button
               onClick={() => handleSetCustomLocation(13.6280, 100.4120, "เซ็นทรัล พระราม 2")}
-              className={`px-2.5 py-1 rounded-lg border font-medium flex-shrink-0 transition active:scale-95 ${
+              className={`px-2.5 py-1 rounded-lg border font-medium flex-shrink-0 whitespace-nowrap transition active:scale-95 ${
                 userLocation?.areaName?.includes("พระราม 2")
                   ? "bg-emerald-500 text-slate-950 font-bold border-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.3)]"
                   : "bg-slate-900 text-slate-300 border-slate-800 hover:bg-slate-800"
@@ -529,7 +520,7 @@ export function App() {
             </button>
             <button
               onClick={() => handleSetCustomLocation(13.6465, 100.6800, "เมกาบางนา")}
-              className={`px-2.5 py-1 rounded-lg border font-medium flex-shrink-0 transition active:scale-95 ${
+              className={`px-2.5 py-1 rounded-lg border font-medium flex-shrink-0 whitespace-nowrap transition active:scale-95 ${
                 userLocation?.areaName?.includes("บางนา")
                   ? "bg-emerald-500 text-slate-950 font-bold border-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.3)]"
                   : "bg-slate-900 text-slate-300 border-slate-800 hover:bg-slate-800"
@@ -539,126 +530,132 @@ export function App() {
             </button>
             <button
               onClick={handleRefreshGps}
-              className="px-2.5 py-1 rounded-lg bg-cyan-950/60 border border-cyan-500/40 text-cyan-300 font-medium flex-shrink-0 hover:bg-cyan-900/60 active:scale-95 transition"
+              className="px-2.5 py-1 rounded-lg bg-cyan-950/60 border border-cyan-500/40 text-cyan-300 font-medium flex-shrink-0 whitespace-nowrap hover:bg-cyan-900/60 active:scale-95 transition"
             >
-              🛰️ ดาวเทียม GPS จริง
+              🛰️ ดาวเทียมจริง
             </button>
           </div>
         </div>
 
         {/* Tab 1: Route Stations View (Modern 2026 Smart EV Cockpit) */}
         {activeTab === 'route' && (
-          <div className="space-y-4">
+          <div className="space-y-3.5">
             {/* SMART COCKPIT HERO CARD: JAECOO 5 EV + 1-TAP NEAREST AVAILABLE CHARGER */}
             {(() => {
               const nearestFree = stations.find(s => s.availablePlugs > 0) || stations[0];
               return (
-                <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-br from-[#122238] via-[#0e192b] to-[#0a121f] border border-emerald-500/50 shadow-[0_8px_30px_rgba(16,185,129,0.16)] relative overflow-hidden">
+                <div className="p-3.5 sm:p-5 rounded-3xl bg-gradient-to-br from-[#122238] via-[#0e192b] to-[#0a121f] border border-emerald-500/50 shadow-[0_8px_30px_rgba(16,185,129,0.16)] relative overflow-hidden space-y-3">
                   <div className="absolute -right-10 -top-10 w-36 h-36 bg-emerald-500/15 rounded-full blur-3xl pointer-events-none" />
 
-                  {/* Vehicle Row + Quick Battery Switcher */}
-                  <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-800/80">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-9 h-9 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400">
+                  {/* Row 1: Vehicle Info + CCS2 Badge (Clean 1-Line Alignment on All Phones) */}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 flex-shrink-0">
                         <Car size={20} />
                       </div>
-                      <div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-extrabold text-white text-sm">{carData.model}</span>
-                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">
-                            CCS2 • {carData.maxChargeSpeedKw} kW
-                          </span>
+                      <div className="min-w-0">
+                        <div className="font-extrabold text-white text-sm truncate">
+                          {carData.model}
                         </div>
-                        <div className="text-xs text-slate-300 mt-0.5">
-                          แบตเตอรี่ <b className="text-emerald-400 font-mono">{batteryPct}%</b> • วิ่งได้อีก <b className="text-white font-mono">~{estimatedRange} กม.</b>
+                        <div className="text-xs text-slate-300 truncate mt-0.5">
+                          แบต <b className="text-emerald-400 font-mono">{batteryPct}%</b> • วิ่งได้ <b className="text-white font-mono">~{estimatedRange} กม.</b>
                         </div>
                       </div>
                     </div>
 
-                    {/* 1-Tap Quick Battery Adjust Pills right on Home Screen */}
-                    <div className="flex items-center gap-1">
-                      {[20, 50, 80, 100].map(pct => (
-                        <button
-                          key={pct}
-                          onClick={() => handleSaveCarSettings(carData, pct)}
-                          className={`px-2 py-1 rounded-lg text-[10px] font-bold border transition active:scale-95 ${
-                            batteryPct === pct
-                              ? "bg-emerald-500 text-slate-950 border-emerald-400 shadow-sm"
-                              : "bg-slate-900/90 text-slate-400 border-slate-800 hover:text-white"
-                          }`}
-                        >
-                          {pct}%
-                        </button>
-                      ))}
-                    </div>
+                    <span className="text-[10px] px-2.5 py-1 rounded-xl bg-emerald-500/20 text-emerald-300 font-extrabold border border-emerald-500/30 whitespace-nowrap flex-shrink-0">
+                      ⚡ CCS2 • {carData.maxChargeSpeedKw} kW
+                    </span>
                   </div>
 
-                  {/* 1-Tap Instant Nearest Available Charger Action */}
+                  {/* Row 2: Full-Width Symmetrical 4-Column Battery Selector Bar */}
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {[
+                      { pct: 20, label: '🔋 20%' },
+                      { pct: 50, label: '🔋 50%' },
+                      { pct: 80, label: '🔋 80%' },
+                      { pct: 100, label: '🔋 100%' }
+                    ].map(item => (
+                      <button
+                        key={item.pct}
+                        onClick={() => handleSaveCarSettings(carData, item.pct)}
+                        className={`py-1.5 rounded-xl text-xs font-extrabold border transition active:scale-95 whitespace-nowrap ${
+                          batteryPct === item.pct
+                            ? "bg-emerald-500 text-slate-950 border-emerald-400 shadow-sm"
+                            : "bg-slate-900/90 text-slate-300 border-slate-800 hover:text-white"
+                        }`}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Row 3: 1-Tap Instant Nearest Available Charger Sub-Card */}
                   {nearestFree && (
-                    <div className="pt-3 space-y-2.5">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-emerald-400 font-bold flex items-center gap-1.5">
-                          <Zap size={14} className="fill-emerald-400" />
-                          <span>ตู้ชาร์จว่างที่ใกล้รถที่สุดตอนนี้:</span>
+                    <div className="p-3 rounded-2xl bg-slate-950/80 border border-emerald-500/30 space-y-2.5">
+                      <div className="flex items-center justify-between gap-2 text-xs">
+                        <span className="text-emerald-400 font-extrabold flex items-center gap-1 whitespace-nowrap">
+                          <Zap size={13} className="fill-emerald-400 flex-shrink-0" />
+                          <span>ตู้ว่างใกล้รถที่สุด:</span>
                         </span>
-                        <span className="text-white font-mono font-extrabold bg-emerald-500/20 border border-emerald-500/40 px-2 py-0.5 rounded-lg text-xs">
+                        <span className="text-white font-mono font-extrabold bg-emerald-500/20 border border-emerald-500/40 px-2 py-0.5 rounded-lg text-[11px] whitespace-nowrap">
                           {nearestFree.distanceKm != null ? `${nearestFree.distanceKm} กม.` : "ใกล้คุณ"} • ⚡ {nearestFree.power}
                         </span>
                       </div>
 
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="min-w-0">
-                          <h3 className="text-white font-extrabold text-sm sm:text-base truncate">
-                            {nearestFree.name}
-                          </h3>
-                          <p className="text-xs text-emerald-300 font-medium">
-                            🟢 ว่างพร้อมชาร์จ {nearestFree.availablePlugs}/{nearestFree.totalPlugs} หัวจ่าย • {nearestFree.travelTime}
-                          </p>
-                        </div>
+                      <div className="min-w-0">
+                        <h3 className="text-white font-extrabold text-sm sm:text-base truncate">
+                          {nearestFree.name}
+                        </h3>
+                        <p className="text-xs text-emerald-300 font-semibold truncate mt-0.5">
+                          🟢 ว่างพร้อมชาร์จ {nearestFree.availablePlugs}/{nearestFree.totalPlugs} หัวจ่าย • {nearestFree.travelTime}
+                        </p>
                       </div>
 
-                      <div className="grid grid-cols-5 gap-2 pt-1">
+                      {/* Primary Action Buttons (Equal 2-Column Touch Targets) */}
+                      <div className="grid grid-cols-2 gap-2 pt-0.5">
                         <button
                           onClick={() => handleNavigate(nearestFree)}
-                          className="col-span-3 py-3 px-3 rounded-2xl bg-gradient-to-r from-emerald-500 via-emerald-400 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 font-extrabold text-xs sm:text-sm shadow-[0_4px_20px_rgba(16,185,129,0.4)] flex items-center justify-center gap-1.5 transition active:scale-95"
+                          className="min-h-[44px] py-2.5 px-3 rounded-2xl bg-gradient-to-r from-emerald-500 via-emerald-400 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 font-extrabold text-xs shadow-[0_4px_20px_rgba(16,185,129,0.35)] flex items-center justify-center gap-1.5 whitespace-nowrap transition active:scale-95"
                         >
-                          <Navigation size={15} className="stroke-[2.5]" />
-                          <span>นำทางไปตู้ใกล้สุดทันที</span>
+                          <Navigation size={14} className="stroke-[2.5] flex-shrink-0" />
+                          <span>นำทางตู้ใกล้สุด</span>
                         </button>
 
                         <button
                           onClick={() => setActiveTab('plan')}
-                          className="col-span-2 py-3 px-3 rounded-2xl bg-slate-900/90 hover:bg-slate-800 text-cyan-300 font-bold text-xs border border-cyan-500/40 flex items-center justify-center gap-1 transition active:scale-95"
+                          className="min-h-[44px] py-2.5 px-3 rounded-2xl bg-slate-900 hover:bg-slate-800 text-cyan-300 font-extrabold text-xs border border-cyan-500/40 flex items-center justify-center gap-1.5 whitespace-nowrap transition active:scale-95"
                         >
-                          <Compass size={14} />
+                          <Compass size={14} className="flex-shrink-0" />
                           <span>วางแผนทริปไกล</span>
                         </button>
                       </div>
 
+                      {/* Secondary Quick Tools Bar (3 Equal Columns — Fits Every Phone Screen) */}
                       <div className="grid grid-cols-3 gap-1.5">
                         <button
                           onClick={() => setViewMode(viewMode === 'map' ? 'list' : 'map')}
-                          className={`py-2 px-2 rounded-xl border text-[11px] font-bold flex items-center justify-center gap-1 transition active:scale-95 ${
+                          className={`py-2 px-1.5 rounded-xl border text-[11px] font-bold flex items-center justify-center gap-1 whitespace-nowrap transition active:scale-95 ${
                             viewMode === 'map'
                               ? 'bg-emerald-500 text-slate-950 border-emerald-400'
-                              : 'bg-slate-950/80 hover:bg-slate-900 border-emerald-500/40 text-emerald-300'
+                              : 'bg-slate-900/90 border-emerald-500/35 text-emerald-300'
                           }`}
                         >
-                          <span>{viewMode === 'map' ? '📋 ดูการ์ดสถานี' : '🗺️ แผนที่เรดาร์'}</span>
+                          <span>{viewMode === 'map' ? '📋 ดูการ์ด' : '🗺️ เรดาร์'}</span>
                         </button>
 
                         <button
                           onClick={() => setActiveTab('car')}
-                          className="py-2 px-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-[11px] font-bold text-amber-300 flex items-center justify-center gap-1 transition active:scale-95"
+                          className="py-2 px-1.5 rounded-xl bg-amber-500/15 border border-amber-500/40 text-[11px] font-bold text-amber-300 flex items-center justify-center gap-1 whitespace-nowrap transition active:scale-95"
                         >
-                          <span className="truncate">⏱️ จับเวลา/สมุดค่าไฟ</span>
+                          <span>⏱️ จับเวลา/ไฟ</span>
                         </button>
 
                         <button
                           onClick={handleOpenLiveGoogleMapsRadar}
-                          className="py-2 px-2 rounded-xl bg-slate-950/80 hover:bg-slate-900 border border-slate-800 text-[11px] font-semibold text-cyan-300 flex items-center justify-center gap-1 transition active:scale-95"
+                          className="py-2 px-1.5 rounded-xl bg-slate-900/90 border border-slate-800 text-[11px] font-semibold text-cyan-300 flex items-center justify-center gap-1 whitespace-nowrap transition active:scale-95"
                         >
-                          <span className="truncate">🔎 Google Maps สด</span>
+                          <span>🔎 Maps สด</span>
                         </button>
                       </div>
                     </div>

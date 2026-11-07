@@ -360,40 +360,24 @@ export function MyCarTab({ car: initialCar, batteryPct: initialBattery, onSaveCa
             className="w-full accent-emerald-400 h-2.5 bg-slate-800 rounded-lg cursor-pointer"
           />
 
-          {/* Quick Preset Buttons */}
-          <div className="flex items-center justify-between gap-1 pt-1 text-xs">
-            <button
-              onClick={() => handleQuickBatterySet(20)}
-              className={`px-2.5 py-1 rounded-lg border text-[11px] transition ${
-                batteryPct === 20 ? "bg-amber-500 text-slate-950 font-bold border-amber-400" : "bg-slate-900 text-slate-300 border-slate-800"
-              }`}
-            >
-              20% (ใกล้หมด)
-            </button>
-            <button
-              onClick={() => handleQuickBatterySet(50)}
-              className={`px-2.5 py-1 rounded-lg border text-[11px] transition ${
-                batteryPct === 50 ? "bg-emerald-500 text-slate-950 font-bold border-emerald-400" : "bg-slate-900 text-slate-300 border-slate-800"
-              }`}
-            >
-              50% (ครึ่งถัง)
-            </button>
-            <button
-              onClick={() => handleQuickBatterySet(80)}
-              className={`px-2.5 py-1 rounded-lg border text-[11px] transition ${
-                batteryPct === 80 ? "bg-emerald-500 text-slate-950 font-bold border-emerald-400" : "bg-slate-900 text-slate-300 border-slate-800"
-              }`}
-            >
-              80% (สปีดชาร์จดีสุด)
-            </button>
-            <button
-              onClick={() => handleQuickBatterySet(100)}
-              className={`px-2.5 py-1 rounded-lg border text-[11px] transition ${
-                batteryPct === 100 ? "bg-emerald-500 text-slate-950 font-bold border-emerald-400" : "bg-slate-900 text-slate-300 border-slate-800"
-              }`}
-            >
-              100% (เต็ม)
-            </button>
+          {/* Quick Preset Buttons (Symmetrical 4-Column Grid for All Mobile Screens) */}
+          <div className="grid grid-cols-4 gap-1.5 pt-1 text-xs">
+            {[
+              { pct: 20, label: '20% ต่ำ', activeClass: 'bg-amber-500 text-slate-950 font-extrabold border-amber-400' },
+              { pct: 50, label: '50% ครึ่ง', activeClass: 'bg-emerald-500 text-slate-950 font-extrabold border-emerald-400' },
+              { pct: 80, label: '80% ดีสุด', activeClass: 'bg-emerald-500 text-slate-950 font-extrabold border-emerald-400' },
+              { pct: 100, label: '100% เต็ม', activeClass: 'bg-emerald-500 text-slate-950 font-extrabold border-emerald-400' },
+            ].map((b) => (
+              <button
+                key={b.pct}
+                onClick={() => handleQuickBatterySet(b.pct)}
+                className={`py-2 px-1 rounded-xl border text-[11px] whitespace-nowrap transition active:scale-95 ${
+                  batteryPct === b.pct ? b.activeClass : "bg-slate-900 text-slate-300 border-slate-800"
+                }`}
+              >
+                {b.label}
+              </button>
+            ))}
           </div>
 
           {/* Range & Max Speed Display */}
@@ -459,49 +443,49 @@ export function MyCarTab({ car: initialCar, batteryPct: initialBattery, onSaveCa
           </span>
         </div>
 
-        {/* Tariff & Charger Speed Selector */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-          <div className="p-2.5 rounded-2xl bg-slate-950/80 border border-slate-800 flex items-center justify-between gap-1">
-            <span className="text-[11px] text-slate-400 font-semibold">เรทค่าไฟ:</span>
-            <div className="flex items-center gap-1">
+        {/* Tariff & Charger Speed Selector (Clean Stacked Mobile Grid) */}
+        <div className="space-y-2 text-xs">
+          <div className="p-2.5 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-1.5">
+            <span className="text-[11px] text-slate-400 font-semibold block">1. เลือกเรทค่าไฟที่ใช้คำนวณ:</span>
+            <div className="grid grid-cols-2 gap-1.5">
               <button
                 onClick={() => setSelectedTariff('station')}
-                className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition ${
+                className={`py-2 px-2 rounded-xl text-xs font-extrabold whitespace-nowrap transition active:scale-95 ${
                   selectedTariff === 'station'
-                    ? "bg-emerald-500 text-slate-950"
-                    : "bg-slate-900 text-slate-400"
+                    ? "bg-emerald-500 text-slate-950 shadow"
+                    : "bg-slate-900 text-slate-300 border border-slate-800"
                 }`}
               >
-                ⛽ ตู้ปั๊ม (7.7/4.7฿)
+                ⛽ ตู้ปั๊ม (7.7 / 4.7฿)
               </button>
               <button
                 onClick={() => setSelectedTariff('home')}
-                className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition ${
+                className={`py-2 px-2 rounded-xl text-xs font-extrabold whitespace-nowrap transition active:scale-95 ${
                   selectedTariff === 'home'
-                    ? "bg-emerald-500 text-slate-950"
-                    : "bg-slate-900 text-slate-400"
+                    ? "bg-emerald-500 text-slate-950 shadow"
+                    : "bg-slate-900 text-slate-300 border border-slate-800"
                 }`}
               >
-                🏠 ไฟบ้าน TOU (2.6฿)
+                🏠 ไฟบ้าน TOU (2.63฿)
               </button>
             </div>
           </div>
 
-          <div className="p-2.5 rounded-2xl bg-slate-950/80 border border-slate-800 flex items-center justify-between gap-1">
-            <span className="text-[11px] text-slate-400 font-semibold">หัวชาร์จ:</span>
-            <div className="flex items-center gap-1">
+          <div className="p-2.5 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-1.5">
+            <span className="text-[11px] text-slate-400 font-semibold block">2. เลือกความเร็วหัวชาร์จ:</span>
+            <div className="grid grid-cols-3 gap-1.5">
               {[
                 { kw: 130, label: '⚡ 130kW DC' },
-                { kw: 50, label: '50kW DC' },
+                { kw: 50, label: '🔌 50kW DC' },
                 { kw: 7.4, label: '🏠 7.4kW บ้าน' }
               ].map(sp => (
                 <button
                   key={sp.kw}
                   onClick={() => setSelectedChargerKw(sp.kw)}
-                  className={`px-2 py-1 rounded-xl text-[11px] font-bold transition ${
+                  className={`py-2 px-1.5 rounded-xl text-xs font-extrabold whitespace-nowrap transition active:scale-95 ${
                     selectedChargerKw === sp.kw
-                      ? "bg-amber-400 text-slate-950"
-                      : "bg-slate-900 text-slate-400"
+                      ? "bg-amber-400 text-slate-950 shadow"
+                      : "bg-slate-900 text-slate-300 border border-slate-800"
                   }`}
                 >
                   {sp.label}
@@ -509,25 +493,24 @@ export function MyCarTab({ car: initialCar, batteryPct: initialBattery, onSaveCa
               ))}
             </div>
           </div>
-        </div>
 
-        {/* Target % Selector */}
-        <div className="flex items-center justify-between gap-2 bg-slate-950/80 p-3 rounded-2xl border border-slate-800">
-          <span className="text-xs text-slate-300 font-semibold">ต้องการชาร์จถึงระดับ:</span>
-          <div className="flex items-center gap-1.5">
-            {[80, 90, 100].map(target => (
-              <button
-                key={target}
-                onClick={() => setTargetChargePct(target)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition ${
-                  targetChargePct === target
-                    ? "bg-emerald-500 text-slate-950 shadow-md"
-                    : "bg-slate-900 text-slate-300 border border-slate-800"
-                }`}
-              >
-                ชาร์จถึง {target}%
-              </button>
-            ))}
+          <div className="p-2.5 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-1.5">
+            <span className="text-[11px] text-slate-400 font-semibold block">3. เป้าหมายระดับแบตเตอรี่ที่ต้องการชาร์จ:</span>
+            <div className="grid grid-cols-3 gap-1.5">
+              {[80, 90, 100].map(target => (
+                <button
+                  key={target}
+                  onClick={() => setTargetChargePct(target)}
+                  className={`py-2 px-2 rounded-xl text-xs font-extrabold whitespace-nowrap transition active:scale-95 ${
+                    targetChargePct === target
+                      ? "bg-emerald-500 text-slate-950 shadow-md"
+                      : "bg-slate-900 text-slate-300 border border-slate-800"
+                  }`}
+                >
+                  ชาร์จถึง {target}%
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
