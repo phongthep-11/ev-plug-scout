@@ -86,13 +86,13 @@ export function SavedStationsTab({ stations, userLocation, onSelect, onNavigate 
   useEffect(() => {
     try {
       localStorage.setItem('ev_plug_scout_fav_ids', JSON.stringify(favIds));
-    } catch {}
+    } catch { }
   }, [favIds]);
 
   useEffect(() => {
     try {
       localStorage.setItem('ev_plug_scout_custom_stations', JSON.stringify(customStations));
-    } catch {}
+    } catch { }
   }, [customStations]);
 
   useEffect(() => {
@@ -281,9 +281,8 @@ export function SavedStationsTab({ stations, userLocation, onSelect, onNavigate 
             <button
               key={tab.id}
               onClick={() => setActiveSubMenu(tab.id)}
-              className={`min-h-[40px] py-2 px-2 rounded-xl font-extrabold flex items-center justify-center gap-1.5 whitespace-nowrap transition active:scale-95 ${
-                active ? 'bg-emerald-500 text-slate-950 shadow-md' : 'text-slate-400 hover:text-white'
-              }`}
+              className={`min-h-[40px] py-2 px-2 rounded-xl font-extrabold flex items-center justify-center gap-1.5 whitespace-nowrap transition active:scale-95 ${active ? 'bg-emerald-500 text-slate-950 shadow-md' : 'text-slate-400 hover:text-white'
+                }`}
             >
               <Icon size={14} className="flex-shrink-0" />
               <span className="truncate">{tab.label}</span>
@@ -323,22 +322,20 @@ export function SavedStationsTab({ stations, userLocation, onSelect, onNavigate 
                 <a
                   key={idx}
                   href={`tel:${item.phone}`}
-                  className={`p-3 rounded-2xl border flex items-center justify-between gap-2 transition active:scale-95 ${
-                    item.highlight
-                      ? 'bg-emerald-950/50 border-emerald-500/50 text-white'
-                      : 'bg-slate-950/85 border-slate-800 hover:border-slate-700 text-slate-200'
-                  }`}
+                  className={`p-3 rounded-2xl border flex items-center justify-between gap-2 transition active:scale-95 ${item.highlight
+                    ? 'bg-emerald-950/50 border-emerald-500/50 text-white'
+                    : 'bg-slate-950/85 border-slate-800 hover:border-slate-700 text-slate-200'
+                    }`}
                 >
                   <div className="min-w-0">
                     <div className="text-xs font-extrabold truncate">{item.name}</div>
                     <span className="text-[10px] text-slate-400 block mt-0.5">{item.badge}</span>
                   </div>
                   <span
-                    className={`px-2.5 py-1.5 rounded-xl font-mono text-xs font-extrabold flex items-center gap-1.5 flex-shrink-0 ${
-                      item.highlight
-                        ? 'bg-emerald-500 text-slate-950'
-                        : 'bg-rose-500/15 border border-rose-500/35 text-rose-300'
-                    }`}
+                    className={`px-2.5 py-1.5 rounded-xl font-mono text-xs font-extrabold flex items-center gap-1.5 flex-shrink-0 ${item.highlight
+                      ? 'bg-emerald-500 text-slate-950'
+                      : 'bg-rose-500/15 border border-rose-500/35 text-rose-300'
+                      }`}
                   >
                     <PhoneCall size={12} />
                     <span>{item.display}</span>

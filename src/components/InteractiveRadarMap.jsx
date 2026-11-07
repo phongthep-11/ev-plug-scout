@@ -1,14 +1,18 @@
 import React, { useState, useMemo } from 'react';
 import {
-  MapPin,
   Navigation,
   Zap,
   ZoomIn,
   ZoomOut,
   Compass,
   Car,
-  Layers
+  Layers,
+  CheckCircle2,
+  CalendarCheck,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
+import { getStationAccessInfo } from '../utils/stationStatus';
 
 export function InteractiveRadarMap({
   stations = [],
@@ -19,22 +23,43 @@ export function InteractiveRadarMap({
   const [selectedPin, setSelectedPin] = useState(() => stations[0] || null);
   const [zoomLevel, setZoomLevel] = useState(1);
   const [mapMode, setMapMode] = useState('radar');
+  const [radarFilter, setRadarFilter] = useState('all'); // 'all' | 'empty' | 'walkin' | 'fast'
 
   const centerLat = userLocation?.lat || 13.8434;
   const centerLng = userLocation?.lng || 100.4034;
 
+  const filteredMapStations = useMemo(() => {
+    return stations.filter((st) => {
+      const access = getStationAccessInfo(st);
+      if (radarFilter === 'empty' && access.occupancyState !== 'EMPTY_ALL_FREE') return false;
+      if (radarFilter === 'walkin' && (!access.isPureWalkIn || st.availablePlugs <= 0)) return false;
+      if (radarFilter === 'fast' && (st.powerKw || 120) < 120) return false;
+      return true;
+    });
+  }, [stations, radarFilter]);
+
   const activeStation = useMemo(() => {
-    if (selectedPin && stations.some((s) => s.id === selectedPin.id)) {
-      return stations.find((s) => s.id === selectedPin.id);
+    if (selectedPin && filteredMapStations.some((s) => s.id === selectedPin.id)) {
+      return filteredMapStations.find((s) => s.id === selectedPin.id);
     }
-    return stations[0] || null;
-  }, [selectedPin, stations]);
+    return filteredMapStations[0] || stations[0] || null;
+  }, [selectedPin, filteredMapStations, stations]);
 
   const plottedStations = useMemo(() => {
-    const maxSpanDeg = 0.42 / zoomLevel;
-    return stations.slice(0, 30).map((st) => {
-      const dLat = (st.lat || centerLat) - centerLat;
-      const dLng = (st.lng || centerLng) - centerLng;
+    const maxSpanDeg = 0.35 / zoomLevel;
+    return filteredMapStations.slice(0, 30).map((st, idx) => {
+      const stLat = st.coordinates?.lat ?? st.lat ?? centerLat;
+      const stLng = st.coordinates?.lng ?? st.lng ?? centerLng;
+      let dLat = stLat - centerLat;
+      let dLng = stLng - centerLng;
+
+      // Slight deterministic offset if two stations share almost identical coordinates
+      if (Math.abs(dLat) < 0.0005 && Math.abs(dLng) < 0.0005) {
+        const angle = (idx * 137.5 * Math.PI) / 180;
+        dLat += Math.sin(angle) * 0.015;
+        dLng += Math.cos(angle) * 0.015;
+      }
+
       const rawX = dLng / maxSpanDeg;
       const rawY = -dLat / maxSpanDeg;
       const distFactor = Math.sqrt(rawX * rawX + rawY * rawY);
@@ -49,7 +74,17 @@ export function InteractiveRadarMap({
         yPct: Math.max(10, Math.min(90, yPct))
       };
     });
-  }, [stations, centerLat, centerLng, zoomLevel]);
+  }, [filteredMapStations, centerLat, centerLng, zoomLevel]);
+
+  const handleCycleStation = (dir) => {
+    if (plottedStations.length === 0) return;
+    const currentIndex = plottedStations.findIndex((s) => s.id === activeStation?.id);
+    const nextIndex =
+      currentIndex === -1
+        ? 0
+        : (currentIndex + dir + plottedStations.length) % plottedStations.length;
+    setSelectedPin(plottedStations[nextIndex]);
+  };
 
   const getBrandPinColor = (provider = '') => {
     const p = provider.toUpperCase();
@@ -63,8 +98,11 @@ export function InteractiveRadarMap({
     return 'bg-cyan-400 border-cyan-100 text-slate-950';
   };
 
+  const activeAccess = activeStation ? getStationAccessInfo(activeStation) : null;
+
   return (
     <div className="rounded-3xl bg-gradient-to-b from-[#0f192b] to-[#09101d] border border-emerald-500/40 overflow-hidden shadow-[0_8px_35px_rgba(0,0,0,0.6)] space-y-3 p-3 sm:p-4 animate-fade-in">
+      {/* Row 1: Map Mode Switcher + Zoom Controls */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-1.5 bg-slate-950/90 p-1 rounded-2xl border border-slate-800">
           <button
@@ -112,6 +150,28 @@ export function InteractiveRadarMap({
             </button>
           </div>
         )}
+      </div>
+
+      {/* Row 2: Quick Radar Pin Filters */}
+      <div className="grid grid-cols-4 gap-1.5 text-[11px]">
+        {[
+          { id: 'all', label: 'ทุกหมุด' },
+          { id: 'empty', label: 'โล่ง 100%' },
+          { id: 'walkin', label: 'ไม่ต้องจอง' },
+          { id: 'fast', label: '120kW+' }
+        ].map((f) => (
+          <button
+            key={f.id}
+            onClick={() => setRadarFilter(f.id)}
+            className={`py-1.5 px-2 rounded-xl font-extrabold border transition active:scale-95 whitespace-nowrap ${
+              radarFilter === f.id
+                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50'
+                : 'bg-slate-950/80 text-slate-400 border-slate-800 hover:text-white'
+            }`}
+          >
+            {f.label}
+          </button>
+        ))}
       </div>
 
       {mapMode === 'radar' ? (
@@ -194,7 +254,7 @@ export function InteractiveRadarMap({
           })}
 
           <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between px-2.5 py-1 rounded-xl bg-slate-950/85 border border-slate-800/90 text-[10px] text-slate-300">
-            <span>แตะที่หมุดบนเรดาร์เพื่อดูข้อมูลสถานีและนำทาง</span>
+            <span>แตะที่หมุดบนเรดาร์เพื่อดูสถานะคนชาร์จและนำทาง</span>
             <span className="text-emerald-400 font-bold">จุดไฟกระพริบ = มีหัวชาร์จว่าง</span>
           </div>
         </div>
@@ -214,11 +274,32 @@ export function InteractiveRadarMap({
         </div>
       )}
 
-      {activeStation && (
+      {activeStation && activeAccess && (
         <div className="p-3.5 rounded-2xl bg-slate-950/95 border border-emerald-500/50 shadow-lg space-y-2.5">
+          {/* Top Switcher Bar */}
+          <div className="flex items-center justify-between border-b border-slate-800/80 pb-2 text-[11px]">
+            <button
+              onClick={() => handleCycleStation(-1)}
+              className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 font-bold flex items-center gap-1 active:scale-95 transition"
+            >
+              <ChevronLeft size={13} />
+              <span>หมุดก่อนหน้า</span>
+            </button>
+            <span className="text-emerald-400 font-extrabold">
+              เรทตอนนี้ {activeAccess.currentRateBaht.toFixed(2)} บ./kWh (30-80% ~{activeAccess.estCost30To80Baht} บ.)
+            </span>
+            <button
+              onClick={() => handleCycleStation(1)}
+              className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 font-bold flex items-center gap-1 active:scale-95 transition"
+            >
+              <span>หมุดถัดไป</span>
+              <ChevronRight size={13} />
+            </button>
+          </div>
+
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <div className="flex items-center gap-1.5 mb-1">
+              <div className="flex items-center gap-1.5 mb-1 flex-wrap">
                 <span className="px-2 py-0.5 rounded bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-[10px] font-extrabold">
                   {activeStation.provider}
                 </span>
@@ -238,13 +319,34 @@ export function InteractiveRadarMap({
             </div>
           </div>
 
+          {/* Walk-in vs Booking & Occupancy Pill */}
+          <div className="p-2 rounded-xl bg-slate-900/90 border border-slate-800 flex flex-wrap items-center justify-between gap-2 text-[11px]">
+            <span className="text-emerald-300 font-bold flex items-center gap-1.5">
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  activeAccess.availPlugs > 0 ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'
+                }`}
+              />
+              <span>{activeAccess.occupancyBadgeText}</span>
+            </span>
+
+            <span
+              className={`font-extrabold flex items-center gap-1 ${
+                activeAccess.isPureWalkIn ? 'text-emerald-400' : 'text-cyan-300'
+              }`}
+            >
+              {activeAccess.isPureWalkIn ? <CheckCircle2 size={12} /> : <CalendarCheck size={12} />}
+              <span>{activeAccess.bookingShortBadge}</span>
+            </span>
+          </div>
+
           <div className="grid grid-cols-2 gap-2 pt-1">
             <button
               onClick={() => onSelectStation && onSelectStation(activeStation)}
               className="min-h-[42px] py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs border border-slate-700 flex items-center justify-center gap-1.5 active:scale-95 transition"
             >
               <Zap size={14} className="text-emerald-400" />
-              <span>ดูหัวชาร์จ / เบอร์ฉุกเฉิน</span>
+              <span>ดูหัวชาร์จ / โน้ตประจำตู้</span>
             </button>
 
             <button

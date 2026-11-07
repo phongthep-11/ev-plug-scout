@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Mic, X, Volume2, VolumeX, Sparkles, AlertCircle, ArrowRight } from 'lucide-react';
+import { Mic, X, Volume2, Sparkles, AlertCircle, ArrowRight, Navigation } from 'lucide-react';
 import { speechService } from '../services/speechService';
 
-export function VoiceModal({ isOpen, onClose, stations, onSelectStation }) {
+export function VoiceModal({ isOpen, onClose, stations, onSelectStation, onNavigate }) {
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [transcript, setTranscript] = useState('');
@@ -12,16 +12,17 @@ export function VoiceModal({ isOpen, onClose, stations, onSelectStation }) {
 
   // Quick preset questions for driver safety
   const PRESET_QUESTIONS = [
-    "ปั๊มข้างหน้าว่างไหม มีคนชาร์จไหม?",
-    "ตู้ข้างหน้าต้องจองไหม หรือเข้าได้เลย?",
-    "หาตู้ว่างที่ไม่มีคน ใช้ได้เลยทันที",
-    "รถ JAECOO 5 ชาร์จตู้ข้างหน้าได้ไหม?"
+    'ปั๊มข้างหน้าว่างไหม มีคนชาร์จไหม?',
+    'ตู้ข้างหน้าต้องจองไหม หรือเข้าได้เลย?',
+    'ตู้ไหนค่าไฟถูกสุดตอนนี้?',
+    'หาตู้ที่มีร้านกาแฟ ห้องน้ำสะอาด',
+    'หาตู้ว่างที่ไม่มีคน ใช้ได้เลยทันที',
+    'ดึงสายชาร์จไม่ออก ทำยังไง?'
   ];
 
   useEffect(() => {
     if (isOpen) {
-      // Default query on opening: "ปั๊มข้างหน้าว่างไหม?"
-      handleAskQuestion("ปั๊มข้างหน้าว่างไหม?");
+      handleAskQuestion('ปั๊มข้างหน้าว่างไหม?');
     } else {
       speechService.stop();
       setIsListening(false);
@@ -36,7 +37,6 @@ export function VoiceModal({ isOpen, onClose, stations, onSelectStation }) {
     setAnswer(result.text);
     setMatchedStation(result.targetStation);
 
-    // Speak answer in Thai
     speechService.speak(
       result.text,
       () => setIsSpeaking(true),
@@ -56,7 +56,7 @@ export function VoiceModal({ isOpen, onClose, stations, onSelectStation }) {
         setIsListening(false);
         handleAskQuestion(text);
       },
-      onError: (err) => {
+      onError: () => {
         setIsListening(false);
         setErrorMsg('ไม่สามารถรับเสียงได้ กรุณาแตะเลือกคำถามด่วนด้านล่างแทนครับ');
       },
@@ -73,15 +73,15 @@ export function VoiceModal({ isOpen, onClose, stations, onSelectStation }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
-      <div 
-        className="w-full max-w-md bg-[#0f1624] border border-emerald-500/40 rounded-3xl p-6 shadow-[0_0_50px_rgba(16,185,129,0.2)] text-slate-100 flex flex-col items-center relative overflow-hidden"
+      <div
+        className="w-full max-w-md bg-[#0f1624] border border-emerald-500/40 rounded-3xl p-5 sm:p-6 shadow-[0_0_50px_rgba(16,185,129,0.2)] text-slate-100 flex flex-col items-center relative overflow-hidden max-h-[92vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Glow blob */}
         <div className="absolute -top-20 w-48 h-48 bg-emerald-500/20 rounded-full blur-3xl pointer-events-none" />
 
         {/* Close Button */}
-        <button 
+        <button
           onClick={onClose}
           className="absolute top-4 right-4 p-2 rounded-full bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
         >
@@ -89,48 +89,47 @@ export function VoiceModal({ isOpen, onClose, stations, onSelectStation }) {
         </button>
 
         {/* Title Badge */}
-        <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-medium mb-5">
+        <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-medium mb-4">
           <Sparkles size={13} className="text-emerald-400" />
           <span>ผู้ช่วยเสียง AI อัจฉริยะ (Voice Assistant)</span>
         </div>
 
         {/* Animated Microphone / Soundwave Circle */}
-        <div className="relative mb-6">
+        <div className="relative mb-5">
           <button
             onClick={isListening ? () => speechService.stop() : handleStartListening}
-            className={`w-24 h-24 rounded-full flex items-center justify-center transition-all duration-300 relative z-10 ${
+            className={`w-20 h-20 rounded-full flex items-center justify-center transition-all duration-300 relative z-10 ${
               isListening
-                ? "bg-red-500 text-white shadow-[0_0_35px_rgba(239,68,68,0.5)] scale-105"
+                ? 'bg-red-500 text-white shadow-[0_0_35px_rgba(239,68,68,0.5)] scale-105'
                 : isSpeaking
-                ? "bg-emerald-500 text-slate-950 shadow-[0_0_35px_rgba(16,185,129,0.6)]"
-                : "bg-gradient-to-tr from-emerald-600 to-teal-500 text-slate-950 hover:scale-105 shadow-[0_0_25px_rgba(16,185,129,0.35)]"
+                ? 'bg-emerald-500 text-slate-950 shadow-[0_0_35px_rgba(16,185,129,0.6)]'
+                : 'bg-gradient-to-tr from-emerald-600 to-teal-500 text-slate-950 hover:scale-105 shadow-[0_0_25px_rgba(16,185,129,0.35)]'
             }`}
           >
             {isListening ? (
               <div className="flex items-center gap-1">
-                <span className="w-1.5 h-8 bg-white rounded-full animate-bounce" />
-                <span className="w-1.5 h-10 bg-white rounded-full animate-bounce [animation-delay:150ms]" />
-                <span className="w-1.5 h-8 bg-white rounded-full animate-bounce [animation-delay:300ms]" />
+                <span className="w-1.5 h-7 bg-white rounded-full animate-bounce" />
+                <span className="w-1.5 h-9 bg-white rounded-full animate-bounce [animation-delay:150ms]" />
+                <span className="w-1.5 h-7 bg-white rounded-full animate-bounce [animation-delay:300ms]" />
               </div>
             ) : isSpeaking ? (
-              <Volume2 className="w-10 h-10 animate-pulse stroke-[2.5]" />
+              <Volume2 className="w-9 h-9 animate-pulse stroke-[2.5]" />
             ) : (
-              <Mic className="w-10 h-10 stroke-[2.5]" />
+              <Mic className="w-9 h-9 stroke-[2.5]" />
             )}
           </button>
 
-          {/* Pulse ring when speaking or listening */}
           {(isListening || isSpeaking) && (
             <span className="absolute inset-0 rounded-full border-2 border-emerald-400/50 animate-ping pointer-events-none" />
           )}
         </div>
 
-        <p className="text-xs text-slate-400 mb-2 font-medium">
-          {isListening 
-            ? "กำลังฟังเสียงของคุณ พูดได้เลยครับ..." 
-            : isSpeaking 
-            ? "กำลังตอบด้วยเสียงภาษาไทย..." 
-            : "แตะไมโครโฟนเพื่อพูดคำสั่ง หรือเลือกคำถามด้านล่าง"}
+        <p className="text-xs text-slate-400 mb-2 font-medium text-center">
+          {isListening
+            ? 'กำลังฟังเสียงของคุณ พูดได้เลยครับ...'
+            : isSpeaking
+            ? 'กำลังตอบด้วยเสียงภาษาไทย...'
+            : 'แตะไมโครโฟนเพื่อพูดคำสั่ง หรือเลือกคำถามด่วนด้านล่าง'}
         </p>
 
         {/* Spoken Query Display */}
@@ -150,14 +149,14 @@ export function VoiceModal({ isOpen, onClose, stations, onSelectStation }) {
                 <span>คำตอบจากระบบ:</span>
               </span>
               {isSpeaking ? (
-                <button 
+                <button
                   onClick={handleStopSpeaking}
                   className="text-[11px] underline text-slate-300 hover:text-white"
                 >
                   หยุดพูด
                 </button>
               ) : (
-                <button 
+                <button
                   onClick={() => speechService.speak(answer, () => setIsSpeaking(true), () => setIsSpeaking(false))}
                   className="text-[11px] underline text-emerald-300 hover:text-white"
                 >
@@ -165,22 +164,35 @@ export function VoiceModal({ isOpen, onClose, stations, onSelectStation }) {
                 </button>
               )}
             </div>
-            <p className="text-xs sm:text-sm text-slate-200 leading-relaxed">
-              {answer}
-            </p>
+            <p className="text-xs sm:text-sm text-slate-200 leading-relaxed">{answer}</p>
 
-            {/* If a station was matched, allow viewing details */}
+            {/* If a station was matched, allow viewing details OR immediate navigation */}
             {matchedStation && (
-              <button
-                onClick={() => {
-                  onClose();
-                  onSelectStation(matchedStation);
-                }}
-                className="mt-3 w-full py-2 px-3 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 text-xs font-semibold flex items-center justify-center gap-1.5 transition-all"
-              >
-                <span>ดูรายละเอียด {matchedStation.name}</span>
-                <ArrowRight size={13} />
-              </button>
+              <div className="grid grid-cols-2 gap-2 mt-3">
+                <button
+                  onClick={() => {
+                    onClose();
+                    onSelectStation(matchedStation);
+                  }}
+                  className="py-2 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 border border-emerald-500/40 text-emerald-300 text-xs font-bold flex items-center justify-center gap-1 transition-all"
+                >
+                  <span className="truncate">ดูหัวชาร์จ</span>
+                  <ArrowRight size={13} />
+                </button>
+
+                {onNavigate && (
+                  <button
+                    onClick={() => {
+                      onClose();
+                      onNavigate(matchedStation);
+                    }}
+                    className="py-2 px-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-extrabold flex items-center justify-center gap-1 transition-all"
+                  >
+                    <Navigation size={13} className="stroke-[2.5]" />
+                    <span className="truncate">นำทางทันที</span>
+                  </button>
+                )}
+              </div>
             )}
           </div>
         )}
@@ -193,16 +205,16 @@ export function VoiceModal({ isOpen, onClose, stations, onSelectStation }) {
         )}
 
         {/* Quick Question Buttons */}
-        <div className="w-full mt-2">
+        <div className="w-full mt-1">
           <p className="text-[11px] text-slate-400 uppercase tracking-wider font-semibold mb-2 text-center">
-            คำถามด่วน (กดถามทันที)
+            คำถามด่วน (กดถามด้วยเสียงทันที)
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
             {PRESET_QUESTIONS.map((q, idx) => (
               <button
                 key={idx}
                 onClick={() => handleAskQuestion(q)}
-                className="text-left text-xs p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/60 text-slate-300 hover:text-white transition-all active:scale-98 truncate"
+                className="text-left text-xs p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/60 text-slate-300 hover:text-white transition-all active:scale-95 truncate"
               >
                 {q}
               </button>
@@ -213,4 +225,3 @@ export function VoiceModal({ isOpen, onClose, stations, onSelectStation }) {
     </div>
   );
 }
-

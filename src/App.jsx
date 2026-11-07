@@ -1149,6 +1149,7 @@ export function App() {
         onClose={() => setIsVoiceModalOpen(false)}
         stations={stations}
         onSelectStation={(s) => setSelectedStation(s)}
+        onNavigate={handleNavigate}
       />
 
       {/* Bottom Fixed Navigation Bar (5 Clearly Separated Tabs) */}

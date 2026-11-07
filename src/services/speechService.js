@@ -1,5 +1,5 @@
 // Speech Synthesis (Text-to-Speech) & Speech Recognition Service
-import { getStationAccessInfo } from '../utils/stationStatus';
+import { getStationAccessInfo, isThailandOffPeakNow } from '../utils/stationStatus';
 
 class SpeechService {
   constructor() {
@@ -27,7 +27,9 @@ class SpeechService {
   getThaiVoice() {
     if (!this.synth) return null;
     const voices = this.synth.getVoices();
-    const thaiVoice = voices.find(v => v.lang.includes('th') || v.lang.includes('TH') || v.name.toLowerCase().includes('thai'));
+    const thaiVoice = voices.find(
+      (v) => v.lang.includes('th') || v.lang.includes('TH') || v.name.toLowerCase().includes('thai')
+    );
     return thaiVoice || voices[0] || null;
   }
 
@@ -117,13 +119,50 @@ class SpeechService {
 
   generateAnswer(query, stations) {
     const q = (query || '').toLowerCase().trim();
-    const nextStation = stations.find(s => s.isNextOnRoute) || stations[0];
+    const nextStation = stations.find((s) => s.isNextOnRoute) || stations[0];
     const nextAccess = getStationAccessInfo(nextStation);
+
+    // Case A: Ask about stuck plug / unlocking CCS2
+    if (q.includes('ดึงสาย') || q.includes('ล็อก') || q.includes('ถอดไม่ออก') || q.includes('ฉุกเฉิน')) {
+      return {
+        text: `หากหัวชาร์จ CCS2 ล็อกดึงไม่ออก ให้พี่นิคกดสั่งหยุดชาร์จในแอปหรือที่จอกลางรถก่อน แล้วกดปุ่มปลดล็อกรถบนรีโมทกุญแจซ้ำ 2 ครั้งติดกัน กลอนล็อกไฟฟ้าที่เบ้าชาร์จ JAECOO 5 จะคลายตัวทันทีครับ`,
+        targetStation: nextStation
+      };
+    }
+
+    // Case B: Ask about cheapest electricity rate / Off-Peak right now
+    if (q.includes('ถูกสุด') || q.includes('ค่าไฟ') || q.includes('กี่บาท') || q.includes('ออฟพีค') || q.includes('off-peak')) {
+      const offPeakNow = isThailandOffPeakNow();
+      const cheapest = [...stations]
+        .filter((s) => s.availablePlugs > 0)
+        .sort((a, b) => getStationAccessInfo(a).currentRateBaht - getStationAccessInfo(b).currentRateBaht)[0] || nextStation;
+      const cAccess = getStationAccessInfo(cheapest);
+      const timeStatus = offPeakNow ? 'ขณะนี้เป็นช่วงเวลา Off-Peak ค่าไฟถูกลงพิเศษครับ' : 'ขณะนี้เป็นช่วงเวลา On-Peak ครับ';
+      return {
+        text: `${timeStatus} สถานีที่ว่างและค่าไฟคุ้มที่สุดใกล้พี่นิคคือ ${cheapest.name} ห่างไป ${cheapest.distanceKm} กิโลเมตร เรทตอนนี้ ${cAccess.currentRateBaht} บาทต่อหน่วย ชาร์จ 30 ถึง 80 เปอร์เซ็นต์ใช้เงินประมาณ ${cAccess.estCost30To80Baht} บาท และ${cAccess.bookingShortBadge}ครับ`,
+        targetStation: cheapest
+      };
+    }
+
+    // Case C: Ask about coffee shop / clean restroom / food
+    if (q.includes('กาแฟ') || q.includes('ห้องน้ำ') || q.includes('อเมซอน') || q.includes('ของกิน')) {
+      const withAmenity =
+        stations.find(
+          (s) =>
+            s.availablePlugs > 0 &&
+            (s.amenities || []).some((a) => a.includes('Amazon') || a.includes('กาแฟ') || a.includes('7-Eleven') || a.includes('ห้องน้ำ'))
+        ) || nextStation;
+      const aAccess = getStationAccessInfo(withAmenity);
+      return {
+        text: `แนะนำแวะพักที่ ${withAmenity.name} ห่างไป ${withAmenity.distanceKm} กิโลเมตร มี${(withAmenity.amenities || []).slice(0, 3).join(' ')} ตอนนี้${aAccess.occupancyBadgeText} และ${aAccess.bookingShortBadge}ครับ`,
+        targetStation: withAmenity
+      };
+    }
 
     // Case 0: Ask about Booking / Walk-in / Nobody there
     if (q.includes('จอง') || q.includes('เข้าได้เลย') || q.includes('มีคนไหม') || q.includes('โล่ง')) {
-      const walkInStations = stations.filter(s => s.availablePlugs > 0 && getStationAccessInfo(s).isPureWalkIn);
-      const emptyStations = stations.filter(s => getStationAccessInfo(s).occupancyState === 'EMPTY_ALL_FREE');
+      const walkInStations = stations.filter((s) => s.availablePlugs > 0 && getStationAccessInfo(s).isPureWalkIn);
+      const emptyStations = stations.filter((s) => getStationAccessInfo(s).occupancyState === 'EMPTY_ALL_FREE');
       const target = walkInStations[0] || emptyStations[0] || nextStation;
       const tAccess = getStationAccessInfo(target);
       return {
@@ -156,7 +195,12 @@ class SpeechService {
     ];
     for (const loc of majorLocations) {
       if (q.includes(loc.key)) {
-        const found = stations.find(s => (s.name || '').includes(loc.label) || (s.address || '').includes(loc.label) || (s.province || '').includes(loc.label));
+        const found = stations.find(
+          (s) =>
+            (s.name || '').includes(loc.label) ||
+            (s.address || '').includes(loc.label) ||
+            (s.province || '').includes(loc.label)
+        );
         if (found) {
           const fAccess = getStationAccessInfo(found);
           return {
@@ -169,7 +213,7 @@ class SpeechService {
 
     // Case 1: Ultra Fast chargers
     if (q.includes('ultra') || q.includes('เร็วสุด') || q.includes('360')) {
-      const ultra = stations.find(s => s.powerKw >= 300);
+      const ultra = stations.find((s) => s.powerKw >= 300);
       if (ultra) {
         const uAccess = getStationAccessInfo(ultra);
         return {
@@ -187,14 +231,16 @@ class SpeechService {
           targetStation: nextStation
         };
       } else {
-        const altStation = stations.find(s => s.id !== nextStation.id && s.availablePlugs > 0);
+        const altStation = stations.find((s) => s.id !== nextStation.id && s.availablePlugs > 0);
         const altAccess = getStationAccessInfo(altStation);
         const altText = altStation
           ? `แนะนำขับเลยไปที่ ${altStation.name} ตอนนี้${altAccess.occupancyBadgeText} และ${altAccess.bookingShortBadge} ครับ`
           : 'ขณะนี้สถานีข้างเคียงมีคิวหนาแน่นเช่นกันครับ';
 
         return {
-          text: `แจ้งเตือนครับ สถานีข้างหน้า ${nextStation.name} อีก ${nextStation.distanceKm} กิโลเมตร มีคนชาร์จเต็มทุกหัวและมีคิวรอ ${nextStation.waitingQueue || 1} คันครับ ${altText}`,
+          text: `แจ้งเตือนครับ สถานีข้างหน้า ${nextStation.name} อีก ${nextStation.distanceKm} กิโลเมตร มีคนชาร์จเต็มทุกหัวและมีคิวรอ ${
+            nextStation.waitingQueue || 1
+          } คันครับ ${altText}`,
           targetStation: nextStation
         };
       }
@@ -202,7 +248,9 @@ class SpeechService {
 
     // Case 3: Nearest available station
     if (q.includes('ใกล้สุด') || q.includes('หาตู้ว่าง')) {
-      const available = stations.filter(s => s.availablePlugs > 0).sort((a, b) => a.distanceKm - b.distanceKm)[0];
+      const available = stations
+        .filter((s) => s.availablePlugs > 0)
+        .sort((a, b) => a.distanceKm - b.distanceKm)[0];
       if (available) {
         const aAccess = getStationAccessInfo(available);
         return {
