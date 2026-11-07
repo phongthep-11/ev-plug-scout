@@ -70,7 +70,7 @@ export function DriveSimulatorBar({
           <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping" />
           <span className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
             <Gauge size={14} />
-            <span>กำลังจำลองการขับขี่จริง (พระราม 2 ➡️ ชะอำ)</span>
+            <span>กำลังจำลองการขับขี่จริง (พระราม 2 - ชะอำ)</span>
           </span>
         </div>
 

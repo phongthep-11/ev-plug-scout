@@ -7,7 +7,6 @@ import {
   ZoomOut,
   Compass,
   Car,
-  ExternalLink,
   Layers
 } from 'lucide-react';
 
@@ -18,33 +17,26 @@ export function InteractiveRadarMap({
   onNavigate
 }) {
   const [selectedPin, setSelectedPin] = useState(() => stations[0] || null);
-  const [zoomLevel, setZoomLevel] = useState(1); // 1 = Regional, 2 = City, 3.5 = Close-up
-  const [mapMode, setMapMode] = useState('radar'); // 'radar' (Interactive Pin Radar) or 'street' (Live Street Map Embed)
+  const [zoomLevel, setZoomLevel] = useState(1);
+  const [mapMode, setMapMode] = useState('radar');
 
   const centerLat = userLocation?.lat || 13.8434;
   const centerLng = userLocation?.lng || 100.4034;
 
-  // Keep selectedPin synced if stations list changes
   const activeStation = useMemo(() => {
-    if (selectedPin && stations.some(s => s.id === selectedPin.id)) {
-      return stations.find(s => s.id === selectedPin.id);
+    if (selectedPin && stations.some((s) => s.id === selectedPin.id)) {
+      return stations.find((s) => s.id === selectedPin.id);
     }
     return stations[0] || null;
   }, [selectedPin, stations]);
 
-  // Project stations onto 2D radar coordinate space (0% to 100%)
   const plottedStations = useMemo(() => {
-    // Base span in degrees around user (adjusted by zoomLevel)
     const maxSpanDeg = 0.42 / zoomLevel;
-
     return stations.slice(0, 30).map((st) => {
       const dLat = (st.lat || centerLat) - centerLat;
       const dLng = (st.lng || centerLng) - centerLng;
-
-      // Normalize to [-1, 1] with soft clamping so distant highway stations still appear on outer radar rim
       const rawX = dLng / maxSpanDeg;
-      const rawY = -dLat / maxSpanDeg; // North is up (-Y in screen coords)
-
+      const rawY = -dLat / maxSpanDeg;
       const distFactor = Math.sqrt(rawX * rawX + rawY * rawY);
       const clampedFactor = distFactor > 0.88 ? 0.88 / distFactor : 1;
 
@@ -72,8 +64,7 @@ export function InteractiveRadarMap({
   };
 
   return (
-    <div className="rounded-3xl bg-gradient-to-b from-[#0f192b] to-[#09101d] border-2 border-emerald-500/40 overflow-hidden shadow-[0_8px_35px_rgba(0,0,0,0.6)] space-y-3 p-3 sm:p-4 animate-fade-in">
-      {/* Top Bar: Map Mode Switcher & Zoom Controls */}
+    <div className="rounded-3xl bg-gradient-to-b from-[#0f192b] to-[#09101d] border border-emerald-500/40 overflow-hidden shadow-[0_8px_35px_rgba(0,0,0,0.6)] space-y-3 p-3 sm:p-4 animate-fade-in">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-1.5 bg-slate-950/90 p-1 rounded-2xl border border-slate-800">
           <button
@@ -85,7 +76,7 @@ export function InteractiveRadarMap({
             }`}
           >
             <Compass size={14} />
-            <span>🛰️ เรดาร์หมุดสถานี ({plottedStations.length})</span>
+            <span>เรดาร์หมุดสถานี ({plottedStations.length})</span>
           </button>
           <button
             onClick={() => setMapMode('street')}
@@ -96,24 +87,24 @@ export function InteractiveRadarMap({
             }`}
           >
             <Layers size={14} />
-            <span>🗺️ แผนที่ถนนจริง (Google Maps)</span>
+            <span>แผนที่ถนนจริง</span>
           </button>
         </div>
 
         {mapMode === 'radar' && (
           <div className="flex items-center gap-1 bg-slate-950/90 p-1 rounded-xl border border-slate-800 text-xs">
             <button
-              onClick={() => setZoomLevel(z => Math.max(0.5, +(z / 1.6).toFixed(2)))}
+              onClick={() => setZoomLevel((z) => Math.max(0.5, +(z / 1.6).toFixed(2)))}
               className="p-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300"
               title="ซูมออก"
             >
               <ZoomOut size={15} />
             </button>
             <span className="px-2 font-mono text-[11px] text-emerald-400 font-bold">
-              {zoomLevel === 1 ? 'รัศมี ~30กม.' : zoomLevel > 1 ? 'ซูมใกล้' : 'ทั่วภูมิภาค'}
+              {zoomLevel === 1 ? 'รัศมี 30 กม.' : zoomLevel > 1 ? 'ระยะใกล้' : 'ทั่วภูมิภาค'}
             </span>
             <button
-              onClick={() => setZoomLevel(z => Math.min(4, +(z * 1.6).toFixed(2)))}
+              onClick={() => setZoomLevel((z) => Math.min(4, +(z * 1.6).toFixed(2)))}
               className="p-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300"
               title="ซูมเข้า"
             >
@@ -123,10 +114,8 @@ export function InteractiveRadarMap({
         )}
       </div>
 
-      {/* MODE 1: Interactive Tactical EV Pin Radar */}
       {mapMode === 'radar' ? (
         <div className="relative w-full h-[340px] sm:h-[390px] rounded-2xl bg-[#07111e] border border-emerald-500/30 overflow-hidden select-none">
-          {/* Radar Grid & Distance Rings */}
           <div
             className="absolute inset-0 opacity-20 pointer-events-none"
             style={{
@@ -136,30 +125,29 @@ export function InteractiveRadarMap({
             }}
           />
 
-          {/* Concentric Radar Range Circles */}
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div className="w-[32%] h-[32%] rounded-full border border-emerald-500/25 flex items-start justify-center">
               <span className="text-[9px] text-emerald-400/70 bg-[#07111e]/80 px-1 -mt-2 font-mono">
-                ~{Math.round(8 / zoomLevel)} กม.
+                {Math.round(8 / zoomLevel)} กม.
               </span>
             </div>
           </div>
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div className="w-[64%] h-[64%] rounded-full border border-emerald-500/20 border-dashed flex items-start justify-center">
               <span className="text-[9px] text-emerald-400/60 bg-[#07111e]/80 px-1 -mt-2 font-mono">
-                ~{Math.round(20 / zoomLevel)} กม.
+                {Math.round(20 / zoomLevel)} กม.
               </span>
             </div>
           </div>
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div className="w-[92%] h-[92%] rounded-full border border-slate-700/50 flex items-start justify-center">
               <span className="text-[9px] text-slate-400 bg-[#07111e]/80 px-1 -mt-2 font-mono">
-                ทิศเหนือ (N) ▲
+                ทิศเหนือ (N)
               </span>
             </div>
           </div>
 
-          {/* Center User Vehicle Marker (JAECOO 5 EV) */}
+          {/* Center Vehicle Marker */}
           <div
             className="absolute z-20 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center pointer-events-none"
             style={{ left: '50%', top: '50%' }}
@@ -168,11 +156,10 @@ export function InteractiveRadarMap({
               <Car size={16} className="text-white" />
             </div>
             <span className="mt-0.5 px-2 py-0.5 rounded-full bg-slate-950/90 border border-emerald-500/50 text-[10px] font-extrabold text-emerald-300 whitespace-nowrap shadow">
-              🚗 รถพี่นิค ({userLocation?.areaName?.split(' ')[0] || 'บางใหญ่'})
+              JAECOO 5 ({userLocation?.areaName?.split(' ')[0] || 'บางใหญ่'})
             </span>
           </div>
 
-          {/* Station Pins */}
           {plottedStations.map((st) => {
             const isSelected = activeStation?.id === st.id;
             const hasFree = st.availablePlugs > 0;
@@ -192,18 +179,12 @@ export function InteractiveRadarMap({
                     isSelected ? 'ring-4 ring-white/40 shadow-[0_0_20px_rgba(16,185,129,0.9)]' : ''
                   }`}
                 >
-                  <span
-                    className={`w-1.5 h-1.5 rounded-full ${
-                      hasFree ? 'bg-white animate-ping' : 'bg-rose-500'
-                    }`}
-                  />
+                  <span className={`w-1.5 h-1.5 rounded-full ${hasFree ? 'bg-white animate-ping' : 'bg-rose-500'}`} />
                   <span>{st.powerKw || 120}kW</span>
                 </div>
                 <span
                   className={`mt-0.5 px-1.5 py-0.2 rounded bg-slate-950/90 text-[9px] font-semibold max-w-[95px] truncate border ${
-                    isSelected
-                      ? 'text-emerald-300 border-emerald-400 font-bold'
-                      : 'text-slate-300 border-slate-800/80'
+                    isSelected ? 'text-emerald-300 border-emerald-400 font-bold' : 'text-slate-300 border-slate-800/80'
                   }`}
                 >
                   {st.name.replace(/^EV Station PluZ - |^PEA VOLTA - |^EA Anywhere - /i, '')}
@@ -212,14 +193,12 @@ export function InteractiveRadarMap({
             );
           })}
 
-          {/* Bottom Legend */}
           <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between px-2.5 py-1 rounded-xl bg-slate-950/85 border border-slate-800/90 text-[10px] text-slate-300">
-            <span>💡 แตะที่หมุดบนเรดาร์เพื่อดูหัวชาร์จว่างและนำทาง</span>
-            <span className="text-emerald-400 font-bold">🟢 กระพริบ = มีหัวว่าง</span>
+            <span>แตะที่หมุดบนเรดาร์เพื่อดูข้อมูลสถานีและนำทาง</span>
+            <span className="text-emerald-400 font-bold">จุดไฟกระพริบ = มีหัวชาร์จว่าง</span>
           </div>
         </div>
       ) : (
-        /* MODE 2: Live Embedded Google Maps Street Map around Active Station */
         <div className="relative w-full h-[340px] sm:h-[390px] rounded-2xl bg-slate-900 border border-emerald-500/30 overflow-hidden">
           <iframe
             title="Google Maps Station Embed"
@@ -235,7 +214,6 @@ export function InteractiveRadarMap({
         </div>
       )}
 
-      {/* Selected Pin Interactive Card Popup */}
       {activeStation && (
         <div className="p-3.5 rounded-2xl bg-slate-950/95 border border-emerald-500/50 shadow-lg space-y-2.5">
           <div className="flex items-start justify-between gap-2">
@@ -245,12 +223,10 @@ export function InteractiveRadarMap({
                   {activeStation.provider}
                 </span>
                 <span className="text-xs font-mono font-bold text-white">
-                  📍 ห่าง {activeStation.distanceKm} กม. ({activeStation.travelTime})
+                  ห่าง {activeStation.distanceKm} กม. ({activeStation.travelTime})
                 </span>
               </div>
-              <h4 className="text-sm sm:text-base font-extrabold text-white truncate">
-                {activeStation.name}
-              </h4>
+              <h4 className="text-sm sm:text-base font-extrabold text-white truncate">{activeStation.name}</h4>
               <p className="text-[11px] text-slate-400 truncate">{activeStation.address}</p>
             </div>
 
@@ -258,24 +234,22 @@ export function InteractiveRadarMap({
               <span className="px-2.5 py-1 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-extrabold text-xs block">
                 ว่าง {activeStation.availablePlugs}/{activeStation.totalPlugs} หัว
               </span>
-              <span className="text-[11px] text-amber-300 font-mono font-bold block mt-1">
-                ⚡ {activeStation.power}
-              </span>
+              <span className="text-[11px] text-amber-300 font-mono font-bold block mt-1">{activeStation.power}</span>
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-2 pt-1">
             <button
               onClick={() => onSelectStation && onSelectStation(activeStation)}
-              className="py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs border border-slate-700 flex items-center justify-center gap-1.5 active:scale-95 transition"
+              className="min-h-[42px] py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs border border-slate-700 flex items-center justify-center gap-1.5 active:scale-95 transition"
             >
               <Zap size={14} className="text-emerald-400" />
-              <span>ดูหัวชาร์จ / เบอร์ฉุกเฉินตู้</span>
+              <span>ดูหัวชาร์จ / เบอร์ฉุกเฉิน</span>
             </button>
 
             <button
               onClick={() => onNavigate && onNavigate(activeStation)}
-              className="py-2.5 px-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-[0_0_15px_rgba(16,185,129,0.3)] active:scale-95 transition"
+              className="min-h-[42px] py-2.5 px-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-[0_0_15px_rgba(16,185,129,0.3)] active:scale-95 transition"
             >
               <Navigation size={14} className="stroke-[2.5]" />
               <span>นำทาง Google Maps</span>
@@ -286,4 +260,3 @@ export function InteractiveRadarMap({
     </div>
   );
 }
-

@@ -204,7 +204,7 @@ export function VoiceModal({ isOpen, onClose, stations, onSelectStation }) {
                 onClick={() => handleAskQuestion(q)}
                 className="text-left text-xs p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/60 text-slate-300 hover:text-white transition-all active:scale-98 truncate"
               >
-                ⚡ {q}
+                {q}
               </button>
             ))}
           </div>
