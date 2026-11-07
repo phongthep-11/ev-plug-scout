@@ -189,7 +189,7 @@ class SpeechService {
       } else {
         const altStation = stations.find(s => s.id !== nextStation.id && s.availablePlugs > 0);
         const altAccess = getStationAccessInfo(altStation);
-        const altText = altStation 
+        const altText = altStation
           ? `แนะนำขับเลยไปที่ ${altStation.name} ตอนนี้${altAccess.occupancyBadgeText} และ${altAccess.bookingShortBadge} ครับ`
           : 'ขณะนี้สถานีข้างเคียงมีคิวหนาแน่นเช่นกันครับ';
 

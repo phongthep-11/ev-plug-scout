@@ -102,3 +102,4 @@ export function getStationAccessInfo(station) {
     canEnterImmediately
   };
 }
+

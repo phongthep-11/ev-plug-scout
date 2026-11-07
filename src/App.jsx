@@ -37,6 +37,11 @@ import { MyCarTab } from './components/MyCarTab';
 import { ChargingCalculatorTab } from './components/ChargingCalculatorTab';
 import { InteractiveRadarMap } from './components/InteractiveRadarMap';
 import { getStationAccessInfo } from './utils/stationStatus';
+import {
+  searchLocalThailandPlaces,
+  searchOnlineThailandPlaces,
+  reverseGeocodeThailand
+} from './services/placeSearchService';
 
 // Haversine distance calculator
 function calculateDistance(lat1, lon1, lat2, lon2) {
@@ -102,6 +107,10 @@ export function App() {
   const [gpsAccuracy, setGpsAccuracy] = useState(null);
   const [isLocating, setIsLocating] = useState(false);
   const [viewMode, setViewMode] = useState('list'); // 'list' | 'map'
+  const [isCustomLocSearchOpen, setIsCustomLocSearchOpen] = useState(false);
+  const [customLocQuery, setCustomLocQuery] = useState('');
+  const [customLocOnlineResults, setCustomLocOnlineResults] = useState([]);
+  const customLocTimerRef = useRef(null);
 
   // Persistent Car & Battery state
   const [carData, setCarData] = useState(() => {
@@ -198,6 +207,12 @@ export function App() {
         setGpsAccuracy(Math.round(accuracy));
         setIsRealGpsActive(true);
         setIsLocating(false);
+
+        reverseGeocodeThailand(latitude, longitude).then(addr => {
+          if (addr) {
+            setUserLocation(prev => prev && !prev.isManual ? { ...prev, areaName: addr } : prev);
+          }
+        });
 
         const targetList = (selectedRouteId === 'all' || !selectedRouteId)
           ? ALL_STATIONS_FLAT
@@ -489,9 +504,19 @@ export function App() {
             </button>
           </div>
 
-          {/* Quick Location Calibrator Pills */}
+          {/* Quick Location Calibrator Pills + Google Maps Place Search */}
           <div className="pt-2 border-t border-slate-800/80 flex items-center gap-1.5 overflow-x-auto no-scrollbar text-[11px]">
-            <span className="text-slate-500 text-[10px] font-semibold flex-shrink-0">ตั้งจุดด่วน:</span>
+            <button
+              onClick={() => setIsCustomLocSearchOpen(!isCustomLocSearchOpen)}
+              className={`px-2.5 py-1 rounded-lg border font-bold flex-shrink-0 whitespace-nowrap transition active:scale-95 flex items-center gap-1 ${
+                isCustomLocSearchOpen
+                  ? "bg-emerald-500 text-slate-950 border-emerald-400"
+                  : "bg-emerald-500/15 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/25"
+              }`}
+            >
+              <Search size={11} />
+              <span>ระบุตำแหน่งเอง (Google Maps)</span>
+            </button>
             <button
               onClick={() => handleSetCustomLocation(13.9800, 100.3150, "ไทรน้อย (จ.นนทบุรี)")}
               className={`px-2.5 py-1 rounded-lg border font-medium flex-shrink-0 whitespace-nowrap transition active:scale-95 flex items-center gap-1 ${
@@ -544,6 +569,73 @@ export function App() {
               <span>ดาวเทียมจริง</span>
             </button>
           </div>
+
+          {/* Expandable Google Maps-Style Location Picker in Top Bar */}
+          {isCustomLocSearchOpen && (
+            <div className="pt-2 border-t border-slate-800/80 space-y-2 animate-fade-in">
+              <div className="relative flex items-center">
+                <Search size={14} className="absolute left-3 text-emerald-400 pointer-events-none" />
+                <input
+                  type="text"
+                  value={customLocQuery}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setCustomLocQuery(val);
+                    if (customLocTimerRef.current) clearTimeout(customLocTimerRef.current);
+                    if (val.trim().length >= 2) {
+                      customLocTimerRef.current = setTimeout(async () => {
+                        const res = await searchOnlineThailandPlaces(val, userLocation);
+                        setCustomLocOnlineResults(res);
+                      }, 320);
+                    } else {
+                      setCustomLocOnlineResults([]);
+                    }
+                  }}
+                  placeholder="พิมพ์ชื่อสถานที่, ถนน, ตำบล, ห้าง, จังหวัด เพื่อตั้งจุดเริ่มต้น..."
+                  className="w-full bg-slate-950 border border-emerald-500/50 rounded-xl pl-9 pr-8 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-400"
+                />
+                {customLocQuery && (
+                  <button
+                    onClick={() => {
+                      setCustomLocQuery('');
+                      setCustomLocOnlineResults([]);
+                    }}
+                    className="absolute right-2.5 text-slate-400 hover:text-white"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+
+              <div className="max-h-48 overflow-y-auto rounded-xl bg-slate-950 border border-slate-800 divide-y divide-slate-800/70">
+                {[
+                  ...searchLocalThailandPlaces(customLocQuery, userLocation, ALL_STATIONS_FLAT),
+                  ...customLocOnlineResults
+                ]
+                  .slice(0, 8)
+                  .map((loc) => (
+                    <button
+                      key={loc.id}
+                      onClick={() => {
+                        handleSetCustomLocation(loc.lat, loc.lng, loc.name);
+                        setIsCustomLocSearchOpen(false);
+                        setCustomLocQuery('');
+                      }}
+                      className="w-full px-3 py-2 text-left hover:bg-slate-800/80 flex items-center justify-between gap-2 transition"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <MapPin size={13} className="text-emerald-400 flex-shrink-0" />
+                        <div className="min-w-0">
+                          <div className="text-xs font-bold text-white truncate">{loc.name}</div>
+                          <div className="text-[10px] text-slate-400 truncate">{loc.sub}</div>
+                        </div>
+                      </div>
+                      <span className="text-[10px] text-emerald-400 font-bold flex-shrink-0">เลือกจุดนี้</span>
+                    </button>
+                  ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Tab 1: Route Stations View (Modern 2026 Smart EV Cockpit — Zero Emoji) */}

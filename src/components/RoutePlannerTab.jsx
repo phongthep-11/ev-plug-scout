@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   Route,
   MapPin,
@@ -17,221 +17,235 @@ import {
   Award,
   List,
   CheckCircle2,
-  CalendarCheck
+  CalendarCheck,
+  Search,
+  X,
+  Loader2
 } from 'lucide-react';
 import { NATIONWIDE_STATIONS } from '../data/stations';
 import { getStationAccessInfo } from '../utils/stationStatus';
+import {
+  THAILAND_PLACES_DB,
+  calculateHaversineKm,
+  inferCorridorFromCoords,
+  searchLocalThailandPlaces,
+  searchOnlineThailandPlaces,
+  reverseGeocodeThailand,
+  fetchRealDrivingRoute
+} from '../services/placeSearchService';
 
-// Comprehensive Geographic Hubs in Thailand with Typo Tolerance
-const KNOWN_LOCATIONS = [
-  {
-    name: "บางใหญ่ (เซ็นทรัล เวสต์เกต / พระปิ่น 3)",
-    keywords: ["บางใหญ่", "เวสต์เกต", "เวสเกต", "westgate", "bangyai", "พระปิ่น", "พระปิ่น3", "บางแม่นาง"],
-    lat: 13.8434,
-    lng: 100.4034,
-    corridor: "west"
-  },
-  {
-    name: "ไทรน้อย (จ.นนทบุรี)",
-    keywords: ["ไทรน้อย", "ไทรนอน", "sainoi", "sai noi", "ไทร", "บางบัวทอง"],
-    lat: 13.9800,
-    lng: 100.3150,
-    corridor: "west"
-  },
-  {
-    name: "กรุงเทพฯ (เซ็นทรัล พระราม 2)",
-    keywords: ["พระราม 2", "พระราม2", "บางขุนเทียน", "rama 2", "rama2", "สมุทรสาคร"],
-    lat: 13.6280,
-    lng: 100.4120,
-    corridor: "south"
-  },
-  {
-    name: "กรุงเทพฯ (เมกาบางนา)",
-    keywords: ["บางนา", "เมกาบางนา", "mega bangna", "bangna", "สมุทรปราการ"],
-    lat: 13.6465,
-    lng: 100.6800,
-    corridor: "east"
-  },
-  {
-    name: "กรุงเทพฯ (ฟิวเจอร์พาร์ค รังสิต)",
-    keywords: ["รังสิต", "ฟิวเจอร์", "future park", "rangsit", "ปทุมธานี"],
-    lat: 13.9890,
-    lng: 100.6170,
-    corridor: "north"
-  },
-  {
-    name: "กรุงเทพฯ (ปิ่นเกล้า / บรมราชชนนี)",
-    keywords: ["ปิ่นเกล้า", "บรมราชชนนี", "pinklao", "ตลิ่งชัน", "ราชพฤกษ์"],
-    lat: 13.7800,
-    lng: 100.4500,
-    corridor: "west"
-  },
-  {
-    name: "กรุงเทพฯ (สยาม / ใจกลางเมือง)",
-    keywords: ["สยาม", "พารากอน", "กทม", "กรุงเทพ", "กรุงเทพฯ", "siam", "bkk", "bangkok"],
-    lat: 13.7460,
-    lng: 100.5350,
-    corridor: "central"
-  },
-  {
-    name: "หัวหิน (จ.ประจวบคีรีขันธ์)",
-    keywords: ["หัวหิน", "huahin", "hua hin", "ประจวบ", "ประจวบคีรีขันธ์", "ปราณบุรี"],
-    lat: 12.5530,
-    lng: 99.9600,
-    corridor: "south"
-  },
-  {
-    name: "ชะอำ / ท่ายาง (จ.เพชรบุรี)",
-    keywords: ["ชะอำ", "chaam", "cha-am", "ท่ายาง", "เพชรบุรี", "เขาย้อย"],
-    lat: 12.8750,
-    lng: 99.9210,
-    corridor: "south"
-  },
-  {
-    name: "พัทยา / จอมเทียน (จ.ชลบุรี)",
-    keywords: ["พัทยา", "pattaya", "จอมเทียน", "สัตหีบ", "แหลมฉบัง"],
-    lat: 12.9200,
-    lng: 100.8800,
-    corridor: "east"
-  },
-  {
-    name: "ชลบุรี / บางแสน",
-    keywords: ["ชลบุรี", "บางแสน", "chonburi", "ศรีราชา"],
-    lat: 13.3600,
-    lng: 100.9800,
-    corridor: "east"
-  },
-  {
-    name: "ระยอง (จ.ระยอง)",
-    keywords: ["ระยอง", "rayong", "มาบตาพุด", "บ้านฉาง", "แกลง"],
-    lat: 12.6800,
-    lng: 101.2800,
-    corridor: "east"
-  },
-  {
-    name: "นครราชสีมา (โคราช)",
-    keywords: ["โคราช", "นครราชสีมา", "korat", "ปากช่อง", "สีคิ้ว", "มวกเหล็ก"],
-    lat: 14.9700,
-    lng: 102.1000,
-    corridor: "northeast"
-  },
-  {
-    name: "ขอนแก่น (จ.ขอนแก่น)",
-    keywords: ["ขอนแก่น", "khonkaen", "บ้านไผ่"],
-    lat: 16.4300,
-    lng: 102.8300,
-    corridor: "northeast"
-  },
-  {
-    name: "เชียงใหม่ (จ.เชียงใหม่)",
-    keywords: ["เชียงใหม่", "chiangmai", "chiang mai", "ดอยสุเทพ", "หางดง"],
-    lat: 18.7900,
-    lng: 98.9800,
-    corridor: "north"
-  },
-  {
-    name: "นครสวรรค์ (จ.นครสวรรค์)",
-    keywords: ["นครสวรรค์", "nakhonsawan", "ปากน้ำโพ"],
-    lat: 15.7000,
-    lng: 100.1400,
-    corridor: "north"
-  },
-  {
-    name: "อยุธยา (จ.พระนครศรีอยุธยา)",
-    keywords: ["อยุธยา", "ayutthaya", "บางปะอิน", "วังน้อย"],
-    lat: 14.3500,
-    lng: 100.5700,
-    corridor: "north"
-  },
-  {
-    name: "กาญจนบุรี (จ.กาญจนบุรี)",
-    keywords: ["กาญจนบุรี", "kanchanaburi", "เมืองกาญจน์", "ท่าม่วง"],
-    lat: 14.0200,
-    lng: 99.5300,
-    corridor: "west"
-  }
-];
-
-function calculateHaversine(lat1, lon1, lat2, lon2) {
-  const R = 6371;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return Math.round(R * c * 10) / 10;
-}
-
-function resolveLocation(queryText, userLocation, fallback) {
+function resolveBestLocalPlace(queryText, userLocation, fallback) {
   if (!queryText) return fallback;
   const q = queryText.trim().toLowerCase();
 
-  if (q.includes("ตำแหน่งปัจจุบัน") || q.includes("พิกัดรถ") || q.includes("current")) {
+  if (q.includes("ตำแหน่งปัจจุบัน") || q.includes("พิกัดรถ") || q.includes("gps")) {
     if (userLocation && userLocation.lat && userLocation.lng) {
       return {
-        name: "ตำแหน่งปัจจุบันของรถ (บางใหญ่ / นนทบุรี)",
+        name: userLocation.areaName || "ตำแหน่งปัจจุบันของรถ (GPS)",
+        sub: `พิกัด ${userLocation.lat.toFixed(4)}, ${userLocation.lng.toFixed(4)}`,
         lat: userLocation.lat,
         lng: userLocation.lng,
-        corridor: "west"
+        corridor: inferCorridorFromCoords(userLocation.lat, userLocation.lng)
       };
     }
   }
 
-  for (const loc of KNOWN_LOCATIONS) {
-    if (loc.keywords.some(k => q.includes(k) || (k.length >= 3 && k.includes(q)))) {
-      return loc;
-    }
-  }
-
-  const qSub = q.slice(0, 3);
-  if (qSub.length >= 3) {
-    for (const loc of KNOWN_LOCATIONS) {
-      if (loc.keywords.some(k => k.startsWith(qSub))) {
-        return loc;
-      }
-    }
+  const localMatches = searchLocalThailandPlaces(queryText, userLocation, NATIONWIDE_STATIONS);
+  if (localMatches.length > 0) {
+    return localMatches[0];
   }
 
   return fallback;
 }
 
 export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 80, onSelect, onNavigate }) {
-  const [originText, setOriginText] = useState(() => {
+  // Locked coordinate objects (like Google Maps Place Selection)
+  const [originPlace, setOriginPlace] = useState(() => {
     if (userLocation && userLocation.lat && userLocation.lng) {
-      return "ตำแหน่งปัจจุบันของฉัน (บางใหญ่ / นนทบุรี)";
+      return {
+        name: userLocation.areaName || "ตำแหน่งปัจจุบันของฉัน (GPS)",
+        sub: "พิกัดดาวเทียมปัจจุบันของรถ",
+        lat: userLocation.lat,
+        lng: userLocation.lng,
+        corridor: inferCorridorFromCoords(userLocation.lat, userLocation.lng),
+        isCurrentGps: true
+      };
     }
-    return "บางใหญ่ (เซ็นทรัล เวสต์เกต / พระปิ่น 3)";
+    return THAILAND_PLACES_DB[0]; // เซ็นทรัล เวสต์เกต (บางใหญ่)
   });
 
-  const [destText, setDestText] = useState("หัวหิน (จ.ประจวบคีรีขันธ์)");
-  const [calcCounter, setCalcCounter] = useState(0);
+  const [destPlace, setDestPlace] = useState(() => {
+    return THAILAND_PLACES_DB.find(p => p.name.includes("หัวหิน")) || THAILAND_PLACES_DB[20];
+  });
+
+  // Text shown in the search inputs
+  const [originText, setOriginText] = useState(() => originPlace.name);
+  const [destText, setDestText] = useState(() => destPlace.name);
+
+  // Google Maps-style Autocomplete Dropdown state
+  const [activeField, setActiveField] = useState(null); // 'origin' | 'dest' | null
+  const [onlineSuggestions, setOnlineSuggestions] = useState([]);
+  const [isSearchingOnline, setIsSearchingOnline] = useState(false);
+  const [realRoadRoute, setRealRoadRoute] = useState(null);
+  const [isCalculatingRoute, setIsCalculatingRoute] = useState(false);
+  const [gpsAddressName, setGpsAddressName] = useState('');
   const [showAllCorridorStops, setShowAllCorridorStops] = useState(false);
+  const searchTimeoutRef = useRef(null);
 
+  // Reverse-geocode real GPS coordinates into actual street/district name like Google Maps
   useEffect(() => {
-    if (userLocation && userLocation.lat && userLocation.lng && originText.includes("ตำแหน่งปัจจุบัน")) {
-      setCalcCounter(prev => prev + 1);
+    let active = true;
+    if (userLocation?.lat && userLocation?.lng) {
+      if (userLocation.areaName) {
+        setGpsAddressName(userLocation.areaName);
+      }
+      reverseGeocodeThailand(userLocation.lat, userLocation.lng).then(addr => {
+        if (active && addr) {
+          setGpsAddressName(addr);
+          if (originPlace.isCurrentGps) {
+            const label = `ตำแหน่งปัจจุบัน (${addr})`;
+            setOriginPlace(prev => ({
+              ...prev,
+              name: label,
+              sub: addr,
+              lat: userLocation.lat,
+              lng: userLocation.lng
+            }));
+            setOriginText(label);
+          }
+        }
+      });
     }
-  }, [userLocation]);
+    return () => { active = false; };
+  }, [userLocation?.lat, userLocation?.lng]);
 
+  // Live Online Thailand Place Search (Nominatim OSM Thailand) when typing
+  useEffect(() => {
+    if (!activeField) {
+      setOnlineSuggestions([]);
+      return;
+    }
+
+    const query = activeField === 'origin' ? originText : destText;
+    const cleanQ = (query || '').replace(/ตำแหน่งปัจจุบัน.*/, '').trim();
+
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+
+    if (cleanQ.length < 2) {
+      setOnlineSuggestions([]);
+      setIsSearchingOnline(false);
+      return;
+    }
+
+    setIsSearchingOnline(true);
+    searchTimeoutRef.current = setTimeout(async () => {
+      const results = await searchOnlineThailandPlaces(cleanQ, userLocation);
+      setOnlineSuggestions(results);
+      setIsSearchingOnline(false);
+    }, 320);
+
+    return () => {
+      if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    };
+  }, [originText, destText, activeField, userLocation]);
+
+  // Resolve active Origin & Destination coordinates
+  const resolvedOrigin = useMemo(() => {
+    if (originPlace && originText.trim() === originPlace.name.trim()) {
+      return originPlace;
+    }
+    return resolveBestLocalPlace(originText, userLocation, originPlace);
+  }, [originText, originPlace, userLocation]);
+
+  const resolvedDest = useMemo(() => {
+    if (destPlace && destText.trim() === destPlace.name.trim()) {
+      return destPlace;
+    }
+    return resolveBestLocalPlace(destText, userLocation, destPlace);
+  }, [destText, destPlace, userLocation]);
+
+  // Fetch Real Highway Road Distance & Duration from OSRM Routing Engine
+  useEffect(() => {
+    let active = true;
+    if (resolvedOrigin?.lat && resolvedDest?.lat) {
+      setIsCalculatingRoute(true);
+      fetchRealDrivingRoute(
+        resolvedOrigin.lat,
+        resolvedOrigin.lng,
+        resolvedDest.lat,
+        resolvedDest.lng
+      ).then(routeData => {
+        if (active) {
+          setRealRoadRoute(routeData);
+          setIsCalculatingRoute(false);
+        }
+      });
+    }
+    return () => { active = false; };
+  }, [resolvedOrigin?.lat, resolvedOrigin?.lng, resolvedDest?.lat, resolvedDest?.lng]);
+
+  // Combine instant local places + live online Thailand places for the active input
+  const combinedSuggestions = useMemo(() => {
+    if (!activeField) return [];
+    const query = activeField === 'origin' ? originText : destText;
+    const cleanQ = (query || '').replace(/ตำแหน่งปัจจุบัน.*/, '').trim();
+    const localList = searchLocalThailandPlaces(cleanQ, userLocation, NATIONWIDE_STATIONS);
+
+    // Deduplicate by name
+    const seen = new Set(localList.map(i => i.name.toLowerCase()));
+    const merged = [...localList];
+    for (const onl of onlineSuggestions) {
+      const key = onl.name.toLowerCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        merged.push(onl);
+      }
+    }
+    return merged.slice(0, 12);
+  }, [activeField, originText, destText, onlineSuggestions, userLocation]);
+
+  const handleSelectSuggestion = (field, place) => {
+    if (field === 'origin') {
+      setOriginPlace(place);
+      setOriginText(place.name);
+    } else {
+      setDestPlace(place);
+      setDestText(place.name);
+    }
+    setActiveField(null);
+  };
+
+  const handleUseCurrentGpsAsOrigin = () => {
+    if (userLocation?.lat && userLocation?.lng) {
+      const addr = gpsAddressName || userLocation.areaName || `พิกัด ${userLocation.lat.toFixed(4)}, ${userLocation.lng.toFixed(4)}`;
+      const gpsPlace = {
+        name: `ตำแหน่งปัจจุบัน (${addr})`,
+        sub: addr,
+        lat: userLocation.lat,
+        lng: userLocation.lng,
+        corridor: inferCorridorFromCoords(userLocation.lat, userLocation.lng),
+        isCurrentGps: true
+      };
+      setOriginPlace(gpsPlace);
+      setOriginText(gpsPlace.name);
+      setActiveField(null);
+    } else {
+      const fallback = THAILAND_PLACES_DB[0];
+      setOriginPlace(fallback);
+      setOriginText(fallback.name);
+      setActiveField(null);
+    }
+  };
+
+  // Dynamic Route & Highway Charging Stop Calculation
   const routeCalculation = useMemo(() => {
-    const defaultOriginLoc = (userLocation && userLocation.lat && userLocation.lng)
-      ? { name: "ตำแหน่งปัจจุบันของรถ (บางใหญ่ / พระปิ่น 3)", lat: userLocation.lat, lng: userLocation.lng }
-      : { name: "บางใหญ่ (เซ็นทรัล เวสต์เกต / พระปิ่น 3)", lat: 13.8434, lng: 100.4034 };
+    const originLoc = resolvedOrigin;
+    const destLoc = resolvedDest;
 
-    const originLoc = resolveLocation(originText, userLocation, defaultOriginLoc);
+    const straightDist = calculateHaversineKm(originLoc.lat, originLoc.lng, destLoc.lat, destLoc.lng) || 120;
+    const drivingDistanceKm = realRoadRoute?.distanceKm || Math.max(10, Math.round(straightDist * 1.26));
 
-    const destLoc = resolveLocation(destText, userLocation, {
-      name: destText || "หัวหิน (จ.ประจวบคีรีขันธ์)",
-      lat: 12.5530,
-      lng: 99.9600
-    });
-
-    const straightDist = calculateHaversine(originLoc.lat, originLoc.lng, destLoc.lat, destLoc.lng);
-    const drivingDistanceKm = Math.max(15, Math.round(straightDist * 1.25));
-
-    const minutes = Math.round(drivingDistanceKm / 75 * 60);
+    const minutes = realRoadRoute?.durationMin || Math.round((drivingDistanceKm / 75) * 60);
     const hoursPart = Math.floor(minutes / 60);
     const minsPart = minutes % 60;
     const driveTimeText = hoursPart > 0 ? `~${hoursPart} ชม. ${minsPart} นาที` : `~${minsPart} นาที`;
@@ -240,39 +254,36 @@ export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 
     const batteryUsedKwh = Math.round((drivingDistanceKm / 6.0) * 10) / 10;
     const batteryUsedPct = Math.min(100, Math.round((batteryUsedKwh / batteryCapacityKwh) * 100));
 
-    let highwayName = "ถ.กาญจนาภิเษก ทล.9 -> ถ.พระราม 2 ทล.35 -> ถ.เพชรเกษม ทล.4";
-    const destLower = (destLoc.name + " " + destText).toLowerCase();
-    if (destLower.includes("พัทยา") || destLower.includes("ระยอง") || destLower.includes("ชลบุรี")) {
+    const destCorridor = destLoc.corridor || inferCorridorFromCoords(destLoc.lat, destLoc.lng);
+    let highwayName = "เส้นทางหลวงหลักตามพิกัด Google Maps";
+    if (destCorridor === "south") {
+      highwayName = "ถ.กาญจนาภิเษก ทล.9 -> ถ.พระราม 2 ทล.35 -> ถ.เพชรเกษม ทล.4";
+    } else if (destCorridor === "east") {
       highwayName = "ถ.กาญจนาภิเษก ทล.9 -> มอเตอร์เวย์ สาย 7 -> ถ.สุขุมวิท ทล.3";
-    } else if (destLower.includes("โคราช") || destLower.includes("ขอนแก่น") || destLower.includes("อีสาน")) {
+    } else if (destCorridor === "northeast") {
       highwayName = "ถ.กาญจนาภิเษก ทล.9 -> ถ.พหลโยธิน -> ถ.มิตรภาพ ทล.2";
-    } else if (destLower.includes("เชียงใหม่") || destLower.includes("นครสวรรค์") || destLower.includes("เหนือ")) {
+    } else if (destCorridor === "north") {
       highwayName = "ถ.กาญจนาภิเษก ทล.9 -> ถ.สายเอเชีย ทล.32 -> ถ.พหลโยธิน ทล.1";
-    } else if (destLower.includes("กาญจนบุรี")) {
-      highwayName = "ถ.บางบัวทอง-สุพรรณบุรี ทล.340 -> มอเตอร์เวย์ M81 -> ทล.323";
+    } else if (destCorridor === "west") {
+      highwayName = "ถ.บรมราชชนนี / มอเตอร์เวย์ M81 -> ถ.แสงชูโต ทล.323";
     }
 
     const dLat = destLoc.lat - originLoc.lat;
     const dLng = destLoc.lng - originLoc.lng;
     const L2 = dLat * dLat + dLng * dLng || 0.00001;
-    const destCorridor = destLoc.corridor || "";
-    const maxPerpKm = drivingDistanceKm > 400 ? 75 : 45;
+    const maxPerpKm = drivingDistanceKm > 400 ? 80 : 50;
 
     const allCorridorStops = [];
     for (const st of NATIONWIDE_STATIONS) {
-      if (st.id.includes("siamparagon") || st.id.includes("iconsiam") || st.id.includes("vibhavadi") || st.id.includes("ngamwongwan")) {
+      if (drivingDistanceKm > 60 && (st.id.includes("siamparagon") || st.id.includes("iconsiam"))) {
         continue;
       }
 
       if (dLng > 0 && st.id === "east-pluz-motorway-inbound") continue;
       if (dLng < 0 && st.id === "east-pluz-motorway-outbound") continue;
 
-      if (destCorridor && destCorridor !== "bkk" && st.region !== "bkk" && st.region !== destCorridor) {
+      if (destCorridor === "south" && st.coordinates.lat > originLoc.lat + 0.03) {
         continue;
-      }
-
-      if (destCorridor === "south" || destLower.includes("หัวหิน") || destLower.includes("ชะอำ") || destLower.includes("เพชรบุรี")) {
-        if (st.coordinates.lat > originLoc.lat + 0.02) continue;
       }
 
       const vLat = st.coordinates.lat - originLoc.lat;
@@ -280,9 +291,9 @@ export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 
       const t = (vLat * dLat + vLng * dLng) / L2;
       const perpDist = (Math.abs(dLat * vLng - dLng * vLat) / Math.sqrt(L2)) * 111.0;
 
-      if (t >= 0.10 && t <= 1.05 && perpDist <= maxPerpKm) {
-        const kmAlongRoute = Math.max(15, Math.min(drivingDistanceKm, Math.round(t * drivingDistanceKm)));
-        if (kmAlongRoute >= 20) {
+      if (t >= 0.08 && t <= 1.08 && perpDist <= maxPerpKm) {
+        const kmAlongRoute = Math.max(5, Math.min(drivingDistanceKm, Math.round(t * drivingDistanceKm)));
+        if (drivingDistanceKm <= 45 || kmAlongRoute >= 15) {
           allCorridorStops.push({
             ...st,
             t,
@@ -293,7 +304,23 @@ export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 
       }
     }
 
-    allCorridorStops.sort((a, b) => a.distFromOrigin - b.distFromOrigin);
+    // Fallback: if route is a custom cross-region route with few corridor hits, find stations closest to midpoint & destination
+    if (allCorridorStops.length === 0) {
+      const midLat = (originLoc.lat + destLoc.lat) / 2;
+      const midLng = (originLoc.lng + destLoc.lng) / 2;
+      const fallbackList = NATIONWIDE_STATIONS.map(st => {
+        const distFromStart = Math.round((calculateHaversineKm(originLoc.lat, originLoc.lng, st.coordinates.lat, st.coordinates.lng) || 20) * 1.2);
+        const distToMid = calculateHaversineKm(midLat, midLng, st.coordinates.lat, st.coordinates.lng) || 999;
+        return { ...st, distFromOrigin: distFromStart, distToMid };
+      })
+        .sort((a, b) => a.distToMid - b.distToMid)
+        .slice(0, 5)
+        .sort((a, b) => a.distFromOrigin - b.distFromOrigin);
+
+      allCorridorStops.push(...fallbackList);
+    } else {
+      allCorridorStops.sort((a, b) => a.distFromOrigin - b.distFromOrigin);
+    }
 
     const curatedStops = [];
     let primaryStop = allCorridorStops[0];
@@ -301,11 +328,11 @@ export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 
     if (drivingDistanceKm > 400) {
       const stop1 =
         allCorridorStops.find(st => st.distFromOrigin >= 180 && st.distFromOrigin <= 330 && st.powerKw >= 120) ||
-        allCorridorStops.find(st => st.distFromOrigin >= 150 && st.distFromOrigin <= 350);
+        allCorridorStops.find(st => st.distFromOrigin >= 140 && st.distFromOrigin <= 350);
       const stop2 =
         allCorridorStops.find(st => st.distFromOrigin >= 360 && st.distFromOrigin <= 580 && st.id !== stop1?.id && st.powerKw >= 120) ||
         allCorridorStops.find(st => st.distFromOrigin >= 350 && st.distFromOrigin <= 600 && st.id !== stop1?.id);
-      const destStop = allCorridorStops.find(st => st.distFromOrigin >= drivingDistanceKm - 35 && st.id !== stop1?.id && st.id !== stop2?.id);
+      const destStop = allCorridorStops.find(st => st.distFromOrigin >= drivingDistanceKm - 40 && st.id !== stop1?.id && st.id !== stop2?.id);
 
       primaryStop = stop1 || stop2 || allCorridorStops[0];
       if (stop1) {
@@ -336,7 +363,7 @@ export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 
       let maxPower = 0;
       allCorridorStops.forEach(st => {
         const ratio = st.distFromOrigin / (drivingDistanceKm || 1);
-        if (ratio >= 0.30 && ratio <= 0.85 && st.powerKw >= maxPower) {
+        if (ratio >= 0.25 && ratio <= 0.85 && st.powerKw >= maxPower) {
           maxPower = st.powerKw;
           primaryStop = st;
         }
@@ -344,11 +371,11 @@ export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 
 
       const backupStop = allCorridorStops.find(st => {
         const ratio = st.distFromOrigin / (drivingDistanceKm || 1);
-        return ratio >= 0.18 && ratio <= 0.45 && st.id !== primaryStop?.id && st.distFromOrigin < (primaryStop?.distFromOrigin || 999);
+        return ratio >= 0.15 && ratio <= 0.45 && st.id !== primaryStop?.id && st.distFromOrigin < (primaryStop?.distFromOrigin || 999);
       });
 
       const destinationStop = allCorridorStops.find(st => {
-        return st.distFromOrigin >= drivingDistanceKm - 25 && st.id !== primaryStop?.id && st.id !== backupStop?.id;
+        return st.distFromOrigin >= drivingDistanceKm - 30 && st.id !== primaryStop?.id && st.id !== backupStop?.id;
       });
 
       if (backupStop) {
@@ -379,8 +406,8 @@ export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 
 
     curatedStops.sort((a, b) => a.distFromOrigin - b.distFromOrigin);
 
-    const arrivalBatteryAtPrimary = Math.max(15, Math.round(batteryPct - (primaryStop?.distFromOrigin / 6.0 / batteryCapacityKwh * 100)));
-    let adviceText = `เดินทางจาก ${originLoc.name.split(' (')[0]} ไป ${destLoc.name.split(' (')[0]} (${drivingDistanceKm} กม.) แนะนำแวะชาร์จที่ "${primaryStop ? primaryStop.name : "สถานีระหว่างทาง"}" (กม.ที่ ${primaryStop?.distFromOrigin}) เสียบชาร์จด่วน 130-360 kW เพียง ~20 นาที แบตจะขึ้นมาถึง 80% ถึงที่หมายได้อย่างสบายใจครับ`;
+    const arrivalBatteryAtPrimary = Math.max(15, Math.round(batteryPct - ((primaryStop?.distFromOrigin || 50) / 6.0 / batteryCapacityKwh * 100)));
+    const adviceText = `เดินทางจาก ${originLoc.name.split(' (')[0]} ไป ${destLoc.name.split(' (')[0]} (${drivingDistanceKm} กม.) แนะนำแวะชาร์จที่ "${primaryStop ? primaryStop.name : "สถานีระหว่างทาง"}" (กม.ที่ ${primaryStop?.distFromOrigin || "-"}) เสียบชาร์จด่วน 130-360 kW เพียง ~20 นาที แบตจะขึ้นมาถึง 80% ถึงที่หมายได้อย่างสบายใจครับ`;
 
     return {
       originLoc,
@@ -396,20 +423,26 @@ export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 
       allCorridorStops,
       adviceText
     };
-  }, [originText, destText, userLocation, calcCounter, batteryPct]);
+  }, [resolvedOrigin, resolvedDest, realRoadRoute, carData, batteryPct]);
 
   const handleSwapRoute = () => {
-    const tempOrigin = originText;
+    const tempPlace = resolvedOrigin;
+    const tempText = originText;
+    setOriginPlace(resolvedDest);
     setOriginText(destText);
-    setDestText(tempOrigin);
-    setCalcCounter(prev => prev + 1);
+    setDestPlace(tempPlace);
+    setDestText(tempText);
+    setActiveField(null);
   };
 
   const handleOpenFullTripGoogleMaps = () => {
-    const { destLoc, primaryStop } = routeCalculation;
+    const { originLoc, destLoc, primaryStop } = routeCalculation;
     if (!destLoc) return;
-    const destPlace = destLoc.name || `${destLoc.lat},${destLoc.lng}`;
-    let url = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destPlace)}&travelmode=driving`;
+    const originParam = originLoc.isCurrentGps
+      ? ''
+      : `&origin=${encodeURIComponent(originLoc.name || `${originLoc.lat},${originLoc.lng}`)}`;
+    const destPlaceStr = destLoc.name || `${destLoc.lat},${destLoc.lng}`;
+    let url = `https://www.google.com/maps/dir/?api=1${originParam}&destination=${encodeURIComponent(destPlaceStr)}&travelmode=driving`;
     if (primaryStop) {
       const stopPlace = primaryStop.googleMapsQuery || `${primaryStop.name} ${primaryStop.province || ''}`.trim();
       url += `&waypoints=${encodeURIComponent(stopPlace)}`;
@@ -418,12 +451,12 @@ export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 
   };
 
   const QUICK_DESTINATIONS = [
-    { label: "หัวหิน", value: "หัวหิน (จ.ประจวบคีรีขันธ์)", sub: "ประจวบฯ • ทล.4" },
-    { label: "พัทยา", value: "พัทยา / จอมเทียน (จ.ชลบุรี)", sub: "ชลบุรี • มอเตอร์เวย์ 7" },
-    { label: "โคราช", value: "นครราชสีมา (โคราช)", sub: "ปากช่อง • มิตรภาพ" },
-    { label: "เชียงใหม่", value: "เชียงใหม่ (จ.เชียงใหม่)", sub: "ภาคเหนือ • สายเอเชีย" },
-    { label: "กาญจนบุรี", value: "กาญจนบุรี (จ.กาญจนบุรี)", sub: "เมืองกาญจน์ • M81" },
-    { label: "ระยอง", value: "ระยอง (จ.ระยอง)", sub: "บ้านเพ • ทล.36" },
+    { label: "หัวหิน", place: THAILAND_PLACES_DB.find(p => p.name.includes("หัวหิน")) },
+    { label: "พัทยา", place: THAILAND_PLACES_DB.find(p => p.name.includes("พัทยา")) },
+    { label: "เขาใหญ่/โคราช", place: THAILAND_PLACES_DB.find(p => p.name.includes("เขาใหญ่")) },
+    { label: "เชียงใหม่", place: THAILAND_PLACES_DB.find(p => p.name.includes("เชียงใหม่")) },
+    { label: "กาญจนบุรี", place: THAILAND_PLACES_DB.find(p => p.name.includes("กาญจนบุรี")) },
+    { label: "ระยอง/จันท์", place: THAILAND_PLACES_DB.find(p => p.name.includes("ระยอง")) },
   ];
 
   return (
@@ -433,30 +466,28 @@ export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 
         <div>
           <h2 className="text-lg font-extrabold text-white flex items-center gap-2">
             <Route className="text-emerald-400" size={22} />
-            <span>วางแผนเดินทางอัจฉริยะ (Smart Trip)</span>
+            <span>ค้นหาเส้นทางเหมือน Google Maps</span>
           </h2>
           <p className="text-xs text-slate-400 mt-0.5">
-            แตะเลือกปลายทางเพียง 1 ครั้ง คัดจุดแวะชาร์จเร็วตรงเส้นทางพร้อมแจ้งสถานะการจอง
+            พิมพ์ชื่อสถานที่ ห้าง วัด อำเภอ หรือจังหวัดทั่วไทยได้ทั้งต้นทางและปลายทาง
           </p>
         </div>
       </div>
 
-      {/* 1-Tap Visual Destination Grid (Zero Emoji) */}
+      {/* 1-Tap Visual Destination Grid */}
       <div className="space-y-2">
         <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
           <Compass size={13} className="text-emerald-400" />
-          <span>1. แตะเลือกจังหวัดปลายทางด่วน (1-Tap Destination):</span>
+          <span>แตะเลือกปลายทางยอดฮิต หรือพิมพ์ค้นหาเองด้านล่าง:</span>
         </span>
         <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
           {QUICK_DESTINATIONS.map((d) => {
-            const isSelected = destText.includes(d.value.split(' ')[0]);
+            if (!d.place) return null;
+            const isSelected = destText.includes(d.label.split('/')[0]);
             return (
               <button
                 key={d.label}
-                onClick={() => {
-                  setDestText(d.value);
-                  setCalcCounter(prev => prev + 1);
-                }}
+                onClick={() => handleSelectSuggestion('dest', d.place)}
                 className={`p-2.5 rounded-2xl border text-left transition-all active:scale-95 ${
                   isSelected
                     ? "bg-gradient-to-br from-emerald-500 to-teal-500 text-slate-950 font-extrabold border-emerald-400 shadow-[0_4px_15px_rgba(16,185,129,0.35)]"
@@ -468,7 +499,7 @@ export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 
                   <span>{d.label}</span>
                 </div>
                 <div className={`text-[10px] truncate mt-0.5 ${isSelected ? "text-slate-900 font-semibold" : "text-slate-400"}`}>
-                  {d.sub}
+                  {d.place.sub}
                 </div>
               </button>
             );
@@ -476,34 +507,68 @@ export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 
         </div>
       </div>
 
-      {/* Origin - Destination Interactive Card with Swap Button */}
+      {/* GOOGLE MAPS-STYLE ORIGIN & DESTINATION SEARCH CARD */}
       <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-br from-[#131d31] via-[#101726] to-[#0b101b] border border-slate-800/90 space-y-4 shadow-xl">
         <div className="relative space-y-3">
-          {/* Origin Box */}
-          <div className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800/90">
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-[11px] text-emerald-400 font-bold flex items-center gap-1.5">
+          {/* ================= ORIGIN INPUT BOX (GOOGLE MAPS STYLE) ================= */}
+          <div className="p-3 rounded-2xl bg-slate-950/90 border border-slate-800/90 relative">
+            <div className="flex items-center justify-between mb-1.5 gap-2">
+              <span className="text-[11px] text-emerald-400 font-bold flex items-center gap-1.5 flex-shrink-0">
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]" />
                 <span>จุดเริ่มต้นออกเดินทาง (Origin)</span>
               </span>
-              <span className="text-[11px] text-slate-300 font-semibold truncate max-w-[180px]">
-                {routeCalculation.originLoc.name}
+              <span className="text-[11px] text-slate-400 font-medium truncate">
+                {resolvedOrigin.sub || `${resolvedOrigin.lat.toFixed(4)}, ${resolvedOrigin.lng.toFixed(4)}`}
               </span>
             </div>
-            <input
-              type="text"
-              value={originText}
-              onChange={(e) => setOriginText(e.target.value)}
-              placeholder="พิมพ์จุดเริ่มต้น (เช่น บางใหญ่, ไทรน้อย, พระราม 2)..."
-              className="w-full bg-slate-900/90 border border-slate-700/80 rounded-xl px-3 py-2 text-xs sm:text-sm text-white focus:outline-none focus:border-emerald-500 font-semibold"
-            />
+
+            <div className="relative flex items-center">
+              <Search size={15} className="absolute left-3 text-emerald-400 pointer-events-none" />
+              <input
+                type="text"
+                value={originText}
+                onFocus={() => setActiveField('origin')}
+                onChange={(e) => {
+                  setOriginText(e.target.value);
+                  setActiveField('origin');
+                }}
+                placeholder="พิมพ์ค้นหาจุดเริ่มต้นเหมือน Google Maps (เช่น บางใหญ่, สยาม, อยุธยา)..."
+                className="w-full bg-slate-900/95 border border-slate-700/90 rounded-xl pl-9 pr-16 py-2.5 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 font-semibold"
+              />
+              <div className="absolute right-2 flex items-center gap-1">
+                {originText && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOriginText('');
+                      setActiveField('origin');
+                    }}
+                    title="ล้างข้อความเพื่อพิมพ์ใหม่"
+                    className="p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={handleUseCurrentGpsAsOrigin}
+                  title="ใช้ตำแหน่ง GPS ปัจจุบันของรถ"
+                  className="p-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 transition"
+                >
+                  <Crosshair size={14} />
+                </button>
+              </div>
+            </div>
+
+            {/* Quick Origin Pills */}
             <div className="flex items-center gap-1.5 overflow-x-auto pt-2 text-[11px] no-scrollbar">
               <span className="text-slate-500 text-[10px] font-semibold flex-shrink-0">ต้นทางด่วน:</span>
               <button
-                onClick={() => setOriginText("ตำแหน่งปัจจุบันของฉัน (บางใหญ่ / นนทบุรี)")}
+                type="button"
+                onClick={handleUseCurrentGpsAsOrigin}
                 className={`px-2.5 py-1 rounded-lg font-semibold flex-shrink-0 border transition flex items-center gap-1 ${
                   originText.includes("ตำแหน่งปัจจุบัน")
-                    ? "bg-emerald-500 text-slate-950 border-emerald-400"
+                    ? "bg-emerald-500 text-slate-950 border-emerald-400 font-bold"
                     : "bg-slate-900 text-emerald-300 border-emerald-500/40"
                 }`}
               >
@@ -511,32 +576,105 @@ export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 
                 <span>พิกัดรถปัจจุบัน (GPS)</span>
               </button>
               <button
-                onClick={() => setOriginText("บางใหญ่ (เซ็นทรัล เวสต์เกต / พระปิ่น 3)")}
+                type="button"
+                onClick={() => handleSelectSuggestion('origin', THAILAND_PLACES_DB[1])}
                 className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-white flex-shrink-0 flex items-center gap-1"
               >
                 <Building2 size={11} />
                 <span>บางใหญ่ / พระปิ่น 3</span>
               </button>
               <button
-                onClick={() => setOriginText("ไทรน้อย (จ.นนทบุรี)")}
+                type="button"
+                onClick={() => handleSelectSuggestion('origin', THAILAND_PLACES_DB[2])}
                 className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-white flex-shrink-0 flex items-center gap-1"
               >
                 <Home size={11} />
                 <span>ไทรน้อย</span>
               </button>
               <button
-                onClick={() => setOriginText("กรุงเทพฯ (เซ็นทรัล พระราม 2)")}
+                type="button"
+                onClick={() => handleSelectSuggestion('origin', THAILAND_PLACES_DB[9])}
                 className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-white flex-shrink-0 flex items-center gap-1"
               >
                 <Car size={11} />
                 <span>พระราม 2</span>
               </button>
             </div>
+
+            {/* GOOGLE MAPS AUTOCOMPLETE DROPDOWN FOR ORIGIN */}
+            {activeField === 'origin' && (
+              <div className="mt-2 rounded-2xl bg-[#0e1525] border border-emerald-500/50 shadow-2xl overflow-hidden z-30 max-h-64 overflow-y-auto divide-y divide-slate-800/80">
+                <div className="px-3 py-1.5 bg-slate-900/90 flex items-center justify-between text-[10px] text-slate-400">
+                  <span>เลือกสถานที่ต้นทาง (ค้นหาสดทั่วไทยเหมือน Google Maps)</span>
+                  <button
+                    type="button"
+                    onClick={() => setActiveField(null)}
+                    className="text-emerald-400 font-bold hover:underline"
+                  >
+                    ปิดรายการ
+                  </button>
+                </div>
+
+                {/* Option 0: Current Real GPS */}
+                <button
+                  type="button"
+                  onClick={handleUseCurrentGpsAsOrigin}
+                  className="w-full px-3.5 py-2.5 text-left hover:bg-emerald-950/40 flex items-center justify-between gap-2 transition"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="p-1.5 rounded-lg bg-emerald-500/20 text-emerald-400 flex-shrink-0">
+                      <Crosshair size={14} />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-xs font-bold text-emerald-300 truncate">
+                        ใช้ตำแหน่งปัจจุบันของรถ (GPS สด)
+                      </div>
+                      <div className="text-[10px] text-slate-400 truncate">
+                        {gpsAddressName || userLocation?.areaName || "จับพิกัดดาวเทียมปัจจุบันอัตโนมัติ"}
+                      </div>
+                    </div>
+                  </div>
+                  <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold flex-shrink-0">
+                    GPS
+                  </span>
+                </button>
+
+                {isSearchingOnline && (
+                  <div className="px-3.5 py-2 text-xs text-cyan-300 flex items-center gap-2 bg-slate-900/40">
+                    <Loader2 size={13} className="animate-spin text-cyan-400" />
+                    <span>กำลังค้นหาสถานที่จริงบนแผนที่ประเทศไทย...</span>
+                  </div>
+                )}
+
+                {combinedSuggestions.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => handleSelectSuggestion('origin', item)}
+                    className="w-full px-3.5 py-2.5 text-left hover:bg-slate-800/80 flex items-center justify-between gap-2 transition"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <MapPin size={14} className={item.source === 'online' ? "text-cyan-400 flex-shrink-0" : "text-emerald-400 flex-shrink-0"} />
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold text-white truncate">{item.name}</div>
+                        <div className="text-[10px] text-slate-400 truncate">{item.sub}</div>
+                      </div>
+                    </div>
+                    {item.distanceKm != null && (
+                      <span className="text-[10px] font-mono text-slate-400 flex-shrink-0">
+                        {item.distanceKm} กม.
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Swap Direction Button */}
           <div className="flex items-center justify-center -my-1.5 relative z-10">
             <button
+              type="button"
               onClick={handleSwapRoute}
               title="สลับต้นทาง-ปลายทาง (ขาไป - ขากลับ)"
               className="px-3.5 py-1 rounded-full bg-slate-800 hover:bg-emerald-500 hover:text-slate-950 text-emerald-300 border border-slate-700 text-[11px] font-bold shadow-md flex items-center gap-1.5 transition-all active:scale-95"
@@ -546,24 +684,90 @@ export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 
             </button>
           </div>
 
-          {/* Destination Box */}
-          <div className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800/90">
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-[11px] text-amber-400 font-bold flex items-center gap-1.5">
+          {/* ================= DESTINATION INPUT BOX (GOOGLE MAPS STYLE) ================= */}
+          <div className="p-3 rounded-2xl bg-slate-950/90 border border-slate-800/90 relative">
+            <div className="flex items-center justify-between mb-1.5 gap-2">
+              <span className="text-[11px] text-amber-400 font-bold flex items-center gap-1.5 flex-shrink-0">
                 <span className="w-2.5 h-2.5 rounded-full bg-amber-400 shadow-[0_0_8px_#fbbf24]" />
                 <span>จุดหมายปลายทาง (Destination)</span>
               </span>
-              <span className="text-[11px] text-amber-300 font-semibold truncate max-w-[180px]">
-                {routeCalculation.destLoc.name}
+              <span className="text-[11px] text-amber-300/90 font-medium truncate">
+                {resolvedDest.sub || `${resolvedDest.lat.toFixed(4)}, ${resolvedDest.lng.toFixed(4)}`}
               </span>
             </div>
-            <input
-              type="text"
-              value={destText}
-              onChange={(e) => setDestText(e.target.value)}
-              placeholder="พิมพ์ปลายทาง (เช่น หัวหิน, พัทยา, โคราช, เชียงใหม่)..."
-              className="w-full bg-slate-900/90 border border-slate-700/80 rounded-xl px-3 py-2 text-xs sm:text-sm text-white focus:outline-none focus:border-emerald-500 font-semibold"
-            />
+
+            <div className="relative flex items-center">
+              <Search size={15} className="absolute left-3 text-amber-400 pointer-events-none" />
+              <input
+                type="text"
+                value={destText}
+                onFocus={() => setActiveField('dest')}
+                onChange={(e) => {
+                  setDestText(e.target.value);
+                  setActiveField('dest');
+                }}
+                placeholder="พิมพ์ค้นหาปลายทางทุกที่ในไทย (เช่น หัวหิน, เขาค้อ, วัดร่องขุ่น, บางแสน)..."
+                className="w-full bg-slate-900/95 border border-slate-700/90 rounded-xl pl-9 pr-10 py-2.5 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 font-semibold"
+              />
+              {destText && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDestText('');
+                    setActiveField('dest');
+                  }}
+                  title="ล้างข้อความเพื่อพิมพ์สถานที่ใหม่"
+                  className="absolute right-2.5 p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+
+            {/* GOOGLE MAPS AUTOCOMPLETE DROPDOWN FOR DESTINATION */}
+            {activeField === 'dest' && (
+              <div className="mt-2 rounded-2xl bg-[#0e1525] border border-amber-500/50 shadow-2xl overflow-hidden z-30 max-h-64 overflow-y-auto divide-y divide-slate-800/80">
+                <div className="px-3 py-1.5 bg-slate-900/90 flex items-center justify-between text-[10px] text-slate-400">
+                  <span>เลือกสถานที่ปลายทาง (ค้นหาสดทั่วไทยเหมือน Google Maps)</span>
+                  <button
+                    type="button"
+                    onClick={() => setActiveField(null)}
+                    className="text-amber-400 font-bold hover:underline"
+                  >
+                    ปิดรายการ
+                  </button>
+                </div>
+
+                {isSearchingOnline && (
+                  <div className="px-3.5 py-2 text-xs text-amber-300 flex items-center gap-2 bg-slate-900/40">
+                    <Loader2 size={13} className="animate-spin text-amber-400" />
+                    <span>กำลังค้นหาสถานที่จริงบนแผนที่ประเทศไทย...</span>
+                  </div>
+                )}
+
+                {combinedSuggestions.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => handleSelectSuggestion('dest', item)}
+                    className="w-full px-3.5 py-2.5 text-left hover:bg-slate-800/80 flex items-center justify-between gap-2 transition"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <MapPin size={14} className={item.source === 'online' ? "text-cyan-400 flex-shrink-0" : "text-amber-400 flex-shrink-0"} />
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold text-white truncate">{item.name}</div>
+                        <div className="text-[10px] text-slate-400 truncate">{item.sub}</div>
+                      </div>
+                    </div>
+                    {item.distanceKm != null && (
+                      <span className="text-[10px] font-mono text-slate-400 flex-shrink-0">
+                        {item.distanceKm} กม.
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -588,18 +792,24 @@ export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 
           </div>
           <div className="text-[11px] text-slate-400 flex items-center justify-between">
             <span className="truncate">{routeCalculation.highwayName}</span>
+            {isCalculatingRoute && (
+              <span className="text-[10px] text-cyan-400 flex items-center gap-1 flex-shrink-0">
+                <Loader2 size={10} className="animate-spin" />
+                <span>คำนวณถนนจริง...</span>
+              </span>
+            )}
           </div>
         </div>
 
         {/* Dynamic Calculation Stats Box */}
         <div className="grid grid-cols-3 gap-2 text-xs">
           <div className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800/80 text-center">
-            <span className="text-slate-400 block text-[10px]">ระยะทางรวม</span>
+            <span className="text-slate-400 block text-[10px]">ระยะทางถนนจริง</span>
             <span className="text-white font-extrabold text-base sm:text-lg font-mono">{routeCalculation.drivingDistanceKm} กม.</span>
           </div>
 
           <div className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800/80 text-center">
-            <span className="text-slate-400 block text-[10px]">เวลาเดินทาง</span>
+            <span className="text-slate-400 block text-[10px]">เวลาขับขี่จริง</span>
             <span className="text-white font-extrabold text-base sm:text-lg font-mono">{routeCalculation.driveTimeText}</span>
           </div>
 
@@ -635,7 +845,7 @@ export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 
         <div className="flex items-center justify-between px-1">
           <h3 className="text-xs sm:text-sm font-extrabold text-white flex items-center gap-1.5">
             <ShieldCheck size={16} className="text-emerald-400" />
-            <span>2. จุดแวะชาร์จตามเส้นทาง ({routeCalculation.smartStops.length} จุดหลัก)</span>
+            <span>จุดแวะชาร์จตามเส้นทาง ({routeCalculation.smartStops.length} จุดหลัก)</span>
           </h3>
           <span className="text-[11px] text-emerald-400 font-semibold">
             แจ้งสถานะคิวจองทุกจุด
