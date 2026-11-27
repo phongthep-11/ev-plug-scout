@@ -1,7 +1,7 @@
 // Smart Occupancy, Booking Policy & Real-Time Tariff Analyzer for Thai EV Charging Networks
 
-export const APP_VERSION = 'v2.7.0';
-export const APP_BUILD_LABEL = 'JAECOO 5 EV Cockpit • 119 สถานีทั่วไทย';
+export const APP_VERSION = 'v2.8.0';
+export const APP_BUILD_LABEL = 'Clean Cockpit • 119 สถานีทั่วไทย';
 
 const WALK_IN_PURE_PROVIDERS = [
   'PEA VOLTA',
