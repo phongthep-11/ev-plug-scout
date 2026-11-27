@@ -36,7 +36,7 @@ import { RoutePlannerTab } from './components/RoutePlannerTab';
 import { MyCarTab } from './components/MyCarTab';
 import { ChargingCalculatorTab } from './components/ChargingCalculatorTab';
 import { InteractiveRadarMap } from './components/InteractiveRadarMap';
-import { getStationAccessInfo } from './utils/stationStatus';
+import { getStationAccessInfo, syncStationPlugs } from './utils/stationStatus';
 import {
   searchLocalThailandPlaces,
   searchOnlineThailandPlaces,
@@ -97,7 +97,6 @@ export function App() {
   const [onlyAvailableFilter, setOnlyAvailableFilter] = useState(false);
   const [emptyOnlyFilter, setEmptyOnlyFilter] = useState(false);
   const [walkInOnlyFilter, setWalkInOnlyFilter] = useState(false);
-  const [ccs2OnlyFilter, setCcs2OnlyFilter] = useState(false);
   const [fastOnlyFilter, setFastOnlyFilter] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [driveAlertToast, setDriveAlertToast] = useState(null);
@@ -176,6 +175,12 @@ export function App() {
 
   // Set calibrated location manually
   const handleSetCustomLocation = (lat, lng, name) => {
+    // Stop live GPS watch so background pings do not overwrite manual location
+    if (geoWatchIdRef.current !== null && typeof navigator !== 'undefined' && navigator.geolocation) {
+      navigator.geolocation.clearWatch(geoWatchIdRef.current);
+      geoWatchIdRef.current = null;
+    }
+
     const coords = { lat, lng, areaName: name, isManual: true };
     setUserLocation(coords);
     setGpsAccuracy(5);
@@ -236,7 +241,10 @@ export function App() {
       (pos) => {
         const { latitude, longitude, accuracy } = pos.coords;
         const coords = { lat: latitude, lng: longitude };
-        setUserLocation(coords);
+        setUserLocation(prev => {
+          if (prev?.isManual) return prev;
+          return { ...coords, areaName: prev?.areaName };
+        });
         setGpsAccuracy(Math.round(accuracy));
         setIsRealGpsActive(true);
         setIsLocating(false);
@@ -339,15 +347,21 @@ export function App() {
         if (!shouldTweak) return s;
 
         const isFull = s.availablePlugs === 0;
-        const newAvailable = isFull ? 1 : Math.max(0, s.availablePlugs + (Math.random() > 0.5 ? 1 : -1));
-        return {
-          ...s,
-          availablePlugs: newAvailable,
-          waitingQueue: newAvailable === 0 ? 1 : 0
-        };
+        const maxPlugs = Math.max(1, s.totalPlugs || s.plugs?.length || 4);
+        const newAvailable = isFull
+          ? 1
+          : Math.min(maxPlugs, Math.max(0, s.availablePlugs + (Math.random() > 0.5 ? 1 : -1)));
+        return syncStationPlugs(s, newAvailable);
       }));
       setIsRefreshing(false);
     }, 600);
+  };
+
+  const openExternalUrl = (url) => {
+    const opened = window.open(url, '_blank');
+    if (!opened) {
+      window.location.href = url;
+    }
   };
 
   const handleNavigate = (station) => {
@@ -355,7 +369,7 @@ export function App() {
     const placeQuery = station.googleMapsQuery || `${station.name} ${station.province || ''}`.trim();
     const url = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(placeQuery)}&travelmode=driving`;
 
-    window.open(url, '_blank') || (window.location.href = url);
+    openExternalUrl(url);
 
     if (voiceEnabled) {
       const access = getStationAccessInfo(station);
@@ -369,7 +383,7 @@ export function App() {
     const area = userLocation?.areaName || '';
     const q = area ? `สถานีชาร์จรถยนต์ไฟฟ้า EV Charging Station ${area}` : `สถานีชาร์จรถยนต์ไฟฟ้า EV Charging Station ใกล้ฉัน`;
     const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
-    window.open(url, '_blank') || (window.location.href = url);
+    openExternalUrl(url);
   };
 
   const handleStationAlert = ({ station, message }) => {
@@ -383,15 +397,20 @@ export function App() {
   };
 
   const handleReportStatus = (stationId, reportType) => {
-    setStations(prev => prev.map(s => {
+    const applyReport = (s) => {
       if (s.id !== stationId) return s;
       if (reportType === 'full') {
-        return { ...s, availablePlugs: 0, waitingQueue: 1 };
+        return syncStationPlugs(s, 0);
       } else if (reportType === 'available') {
-        return { ...s, availablePlugs: Math.max(1, s.availablePlugs), waitingQueue: 0 };
+        return syncStationPlugs(s, Math.max(1, s.availablePlugs || 1));
+      } else if (reportType === 'broken') {
+        return syncStationPlugs(s, Math.max(0, (s.availablePlugs || 1) - 1));
       }
       return s;
-    }));
+    };
+
+    setStations(prev => prev.map(applyReport));
+    setSelectedStation(prev => (prev && prev.id === stationId ? applyReport(prev) : prev));
   };
 
   const filteredStations = stations
@@ -401,7 +420,6 @@ export function App() {
       if (onlyAvailableFilter && s.availablePlugs === 0) return false;
       if (emptyOnlyFilter && access.occupancyState !== 'EMPTY_ALL_FREE') return false;
       if (walkInOnlyFilter && !access.isPureWalkIn) return false;
-      if (ccs2OnlyFilter && !s.plugs?.some(p => p.type.includes('CCS2') && p.status === 'available')) return false;
       if (fastOnlyFilter && (s.powerKw || 0) < 150) return false;
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
@@ -972,7 +990,7 @@ export function App() {
                     const area = userLocation?.areaName || 'ใกล้ฉัน';
                     const q = `สถานีชาร์จรถไฟฟ้า ${providerFilter} ${area}`;
                     const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
-                    window.open(url, '_blank') || (window.location.href = url);
+                    openExternalUrl(url);
                   }}
                   className="w-full py-2 px-3 rounded-xl bg-emerald-950/70 hover:bg-emerald-900/70 border border-emerald-500/40 text-xs font-bold text-emerald-300 flex items-center justify-center gap-1.5 transition active:scale-95"
                 >

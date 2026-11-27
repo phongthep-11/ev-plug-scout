@@ -80,7 +80,7 @@ class SpeechService {
     if (this.recognition) {
       try {
         this.recognition.abort();
-      } catch (e) {
+      } catch {
         // ignore
       }
     }

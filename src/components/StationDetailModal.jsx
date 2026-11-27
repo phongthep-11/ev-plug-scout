@@ -274,7 +274,7 @@ export function StationDetailModal({ station, carData, batteryPct = 80, onClose,
               <span className="text-[10px] text-emerald-300 font-bold block">ค่าไฟโดยประมาณ</span>
               <span className="text-sm sm:text-base font-extrabold text-emerald-300 font-mono">~{estSessionCostBaht} บ.</span>
               <span className="text-[10px] text-emerald-400 block">
-                {access.isOffPeak ? 'ราคา Off-Peak' : 'ราคา On-Peak'}
+                {access.offPeakNow ? 'ราคา Off-Peak' : 'ราคา On-Peak'}
               </span>
             </div>
           </div>

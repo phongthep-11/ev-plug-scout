@@ -1,7 +1,7 @@
 import React from 'react';
 import { Mic, Volume2 } from 'lucide-react';
 
-export function VoiceAssistantCard({ onOpenVoice, isSpeaking, lastVoiceText }) {
+export function VoiceAssistantCard({ onOpenVoice, isSpeaking }) {
   return (
     <div 
       onClick={onOpenVoice}

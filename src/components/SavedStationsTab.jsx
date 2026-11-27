@@ -3,7 +3,6 @@ import {
   Bookmark,
   Star,
   Navigation,
-  Zap,
   Plus,
   Trash2,
   CheckCircle2,

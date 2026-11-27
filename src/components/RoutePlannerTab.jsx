@@ -58,7 +58,7 @@ function resolveBestLocalPlace(queryText, userLocation, fallback) {
   return fallback;
 }
 
-export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 80, onSelect, onNavigate }) {
+export function RoutePlannerTab({ userLocation, carData, batteryPct = 80, onSelect, onNavigate }) {
   // Locked coordinate objects (like Google Maps Place Selection)
   const [originPlace, setOriginPlace] = useState(() => {
     if (userLocation && userLocation.lat && userLocation.lng) {
@@ -292,39 +292,64 @@ export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 
       highwayName = "ถ.บรมราชชนนี / มอเตอร์เวย์ M81 -> ถ.แสงชูโต ทล.323";
     }
 
-    const dLat = destLoc.lat - originLoc.lat;
-    const dLng = destLoc.lng - originLoc.lng;
-    const L2 = dLat * dLat + dLng * dLng || 0.00001;
-    const maxPerpKm = drivingDistanceKm > 400 ? 80 : 50;
+    const maxPerpKm = oneWayDistanceKm > 400 ? 80 : 50;
 
+    // Build 1 or 2 route segments so Waypoint detours find stations along BOTH legs!
+    const routeLegs = [];
+    if (hasWaypoint && waypointPlace?.lat) {
+      const leg1Straight = calculateHaversineKm(originLoc.lat, originLoc.lng, waypointPlace.lat, waypointPlace.lng) || 1;
+      const leg2Straight = calculateHaversineKm(waypointPlace.lat, waypointPlace.lng, destLoc.lat, destLoc.lng) || 1;
+      const totalStraight = leg1Straight + leg2Straight;
+      const leg1Km = Math.max(5, Math.round((leg1Straight / totalStraight) * oneWayDistanceKm));
+      const leg2Km = Math.max(5, oneWayDistanceKm - leg1Km);
+      routeLegs.push({ start: originLoc, end: waypointPlace, offsetKm: 0, lengthKm: leg1Km });
+      routeLegs.push({ start: waypointPlace, end: destLoc, offsetKm: leg1Km, lengthKm: leg2Km });
+    } else {
+      routeLegs.push({ start: originLoc, end: destLoc, offsetKm: 0, lengthKm: oneWayDistanceKm });
+    }
+
+    const dLng = destLoc.lng - originLoc.lng;
     const allCorridorStops = [];
     for (const st of NATIONWIDE_STATIONS) {
-      if (drivingDistanceKm > 60 && (st.id.includes("siamparagon") || st.id.includes("iconsiam"))) {
+      if (oneWayDistanceKm > 60 && (st.id.includes("siamparagon") || st.id.includes("iconsiam"))) {
         continue;
       }
 
       if (dLng > 0 && st.id === "east-pluz-motorway-inbound") continue;
       if (dLng < 0 && st.id === "east-pluz-motorway-outbound") continue;
 
-      if (destCorridor === "south" && st.coordinates.lat > originLoc.lat + 0.03) {
+      if (!hasWaypoint && destCorridor === "south" && st.coordinates.lat > originLoc.lat + 0.03) {
         continue;
       }
 
-      const vLat = st.coordinates.lat - originLoc.lat;
-      const vLng = st.coordinates.lng - originLoc.lng;
-      const t = (vLat * dLat + vLng * dLng) / L2;
-      const perpDist = (Math.abs(dLat * vLng - dLng * vLat) / Math.sqrt(L2)) * 111.0;
+      let bestMatch = null;
+      for (const leg of routeLegs) {
+        const legDLat = leg.end.lat - leg.start.lat;
+        const legDLng = leg.end.lng - leg.start.lng;
+        const legL2 = legDLat * legDLat + legDLng * legDLng || 0.00001;
+        const vLat = st.coordinates.lat - leg.start.lat;
+        const vLng = st.coordinates.lng - leg.start.lng;
+        const t = (vLat * legDLat + vLng * legDLng) / legL2;
+        const perpDist = (Math.abs(legDLat * vLng - legDLng * vLat) / Math.sqrt(legL2)) * 111.0;
 
-      if (t >= 0.08 && t <= 1.08 && perpDist <= maxPerpKm) {
-        const kmAlongRoute = Math.max(5, Math.min(drivingDistanceKm, Math.round(t * drivingDistanceKm)));
-        if (drivingDistanceKm <= 45 || kmAlongRoute >= 15) {
-          allCorridorStops.push({
-            ...st,
-            t,
-            distFromOrigin: kmAlongRoute,
-            perpDist: Math.round(perpDist * 10) / 10
-          });
+        if (t >= 0.06 && t <= 1.08 && perpDist <= maxPerpKm) {
+          const kmAlongRoute = Math.max(
+            5,
+            Math.min(oneWayDistanceKm, Math.round(leg.offsetKm + t * leg.lengthKm))
+          );
+          if (!bestMatch || perpDist < bestMatch.perpDist) {
+            bestMatch = { t, kmAlongRoute, perpDist };
+          }
         }
+      }
+
+      if (bestMatch && (oneWayDistanceKm <= 45 || bestMatch.kmAlongRoute >= 15)) {
+        allCorridorStops.push({
+          ...st,
+          t: bestMatch.t,
+          distFromOrigin: bestMatch.kmAlongRoute,
+          perpDist: Math.round(bestMatch.perpDist * 10) / 10
+        });
       }
     }
 
@@ -349,14 +374,14 @@ export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 
     const curatedStops = [];
     let primaryStop = allCorridorStops[0];
 
-    if (drivingDistanceKm > 400) {
+    if (oneWayDistanceKm > 400) {
       const stop1 =
         allCorridorStops.find(st => st.distFromOrigin >= 180 && st.distFromOrigin <= 330 && st.powerKw >= 120) ||
         allCorridorStops.find(st => st.distFromOrigin >= 140 && st.distFromOrigin <= 350);
       const stop2 =
         allCorridorStops.find(st => st.distFromOrigin >= 360 && st.distFromOrigin <= 580 && st.id !== stop1?.id && st.powerKw >= 120) ||
         allCorridorStops.find(st => st.distFromOrigin >= 350 && st.distFromOrigin <= 600 && st.id !== stop1?.id);
-      const destStop = allCorridorStops.find(st => st.distFromOrigin >= drivingDistanceKm - 40 && st.id !== stop1?.id && st.id !== stop2?.id);
+      const destStop = allCorridorStops.find(st => st.distFromOrigin >= oneWayDistanceKm - 40 && st.id !== stop1?.id && st.id !== stop2?.id);
 
       primaryStop = stop1 || stop2 || allCorridorStops[0];
       if (stop1) {
@@ -386,7 +411,7 @@ export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 
     } else {
       let maxPower = 0;
       allCorridorStops.forEach(st => {
-        const ratio = st.distFromOrigin / (drivingDistanceKm || 1);
+        const ratio = st.distFromOrigin / (oneWayDistanceKm || 1);
         if (ratio >= 0.25 && ratio <= 0.85 && st.powerKw >= maxPower) {
           maxPower = st.powerKw;
           primaryStop = st;
@@ -394,12 +419,12 @@ export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 
       });
 
       const backupStop = allCorridorStops.find(st => {
-        const ratio = st.distFromOrigin / (drivingDistanceKm || 1);
+        const ratio = st.distFromOrigin / (oneWayDistanceKm || 1);
         return ratio >= 0.15 && ratio <= 0.45 && st.id !== primaryStop?.id && st.distFromOrigin < (primaryStop?.distFromOrigin || 999);
       });
 
       const destinationStop = allCorridorStops.find(st => {
-        return st.distFromOrigin >= drivingDistanceKm - 30 && st.id !== primaryStop?.id && st.id !== backupStop?.id;
+        return st.distFromOrigin >= oneWayDistanceKm - 30 && st.id !== primaryStop?.id && st.id !== backupStop?.id;
       });
 
       if (backupStop) {
@@ -431,7 +456,10 @@ export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 
     curatedStops.sort((a, b) => a.distFromOrigin - b.distFromOrigin);
 
     const arrivalBatteryAtPrimary = Math.max(15, Math.round(batteryPct - ((primaryStop?.distFromOrigin || 50) / 6.0 / batteryCapacityKwh * 100)));
-    const adviceText = `เดินทางจาก ${originLoc.name.split(' (')[0]} ไป ${destLoc.name.split(' (')[0]} (${drivingDistanceKm} กม.) แนะนำแวะชาร์จที่ "${primaryStop ? primaryStop.name : "สถานีระหว่างทาง"}" (กม.ที่ ${primaryStop?.distFromOrigin || "-"}) เสียบชาร์จด่วน 130-360 kW เพียง ~20 นาที แบตจะขึ้นมาถึง 80% ถึงที่หมายได้อย่างสบายใจครับ`;
+    const tripDistSummary = isRoundTrip
+      ? `รวมไป-กลับ ${drivingDistanceKm} กม. / ขาไป ${oneWayDistanceKm} กม.`
+      : `${oneWayDistanceKm} กม.`;
+    const adviceText = `เดินทางจาก ${originLoc.name.split(' (')[0]} ไป ${destLoc.name.split(' (')[0]} (${tripDistSummary}) แนะนำแวะชาร์จที่ "${primaryStop ? primaryStop.name : "สถานีระหว่างทาง"}" (กม.ที่ ${primaryStop?.distFromOrigin || "-"} ขาไป) เสียบชาร์จด่วน 130-360 kW เพียง ~20 นาที แบตจะขึ้นมาถึง 80% ถึงที่หมายได้อย่างสบายใจครับ`;
 
     return {
       originLoc,
@@ -482,7 +510,10 @@ export function RoutePlannerTab({ stations, userLocation, carData, batteryPct = 
     if (waypointsList.length > 0) {
       url += `&waypoints=${encodeURIComponent(waypointsList.join('|'))}`;
     }
-    window.open(url, '_blank') || (window.location.href = url);
+    const opened = window.open(url, '_blank');
+    if (!opened) {
+      window.location.href = url;
+    }
   };
 
   const QUICK_DESTINATIONS = [

@@ -9,7 +9,6 @@ import {
   BatteryCharging,
   CheckCircle2,
   CalendarCheck,
-  Users,
   AlertCircle
 } from 'lucide-react';
 import { getStationAccessInfo } from '../utils/stationStatus';

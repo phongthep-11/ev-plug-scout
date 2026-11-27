@@ -1,4 +1,5 @@
 import { NATIONWIDE_STATIONS as RAW_STATIONS, REGIONS } from './thailandStations.js';
+import { syncStationPlugs } from '../utils/stationStatus.js';
 
 // Verified Official Google Maps Place Queries for 100% Pinpoint Navigation
 // Prevents raw lat/lng coordinate drift into nearby temples, canals, or wrong highway sides
@@ -55,10 +56,12 @@ const VERIFIED_GOOGLE_MAPS_QUERIES = {
   "pea-kanchanaburi-kaengsian": "PEA VOLTA ปตท. สี่แยกแก่งเสี้ยน เมืองกาญจนบุรี"
 };
 
-export const NATIONWIDE_STATIONS = RAW_STATIONS.map(st => ({
-  ...st,
-  googleMapsQuery: st.googleMapsQuery || VERIFIED_GOOGLE_MAPS_QUERIES[st.id] || `${st.name} ${st.province || ''}`.trim()
-}));
+export const NATIONWIDE_STATIONS = RAW_STATIONS.map(st =>
+  syncStationPlugs({
+    ...st,
+    googleMapsQuery: st.googleMapsQuery || VERIFIED_GOOGLE_MAPS_QUERIES[st.id] || `${st.name} ${st.province || ''}`.trim()
+  })
+);
 
 export { REGIONS };
 

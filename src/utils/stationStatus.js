@@ -32,6 +32,55 @@ export function parseRateBaht(rateStr, fallback = 6.5) {
   return match ? parseFloat(match[1]) : fallback;
 }
 
+const SAMPLE_CHARGING_CARS = [
+  'BYD Atto 3',
+  'MG4 Electric',
+  'Tesla Model Y',
+  'Deepal S07',
+  'ORA Good Cat',
+  'Neta X'
+];
+
+export function syncStationPlugs(station, targetAvailablePlugs) {
+  if (!station) return station;
+  const existingPlugs = Array.isArray(station.plugs) && station.plugs.length > 0
+    ? station.plugs
+    : Array.from({ length: Math.max(1, station.totalPlugs || 2) }, (_, i) => ({
+        id: i + 1,
+        type: 'CCS2',
+        power: station.power || '120 kW DC',
+        status: 'available',
+        car: null
+      }));
+
+  const totalPlugs = existingPlugs.length;
+  const rawAvail = targetAvailablePlugs ?? station.availablePlugs ?? totalPlugs;
+  const availPlugs = Math.min(totalPlugs, Math.max(0, rawAvail));
+
+  const syncedPlugs = existingPlugs.map((plug, idx) => {
+    const shouldBeFree = idx < availPlugs;
+    if (shouldBeFree) {
+      return { ...plug, status: 'available', car: null, remainingMinutes: null };
+    }
+    const seed = (station.id || '').length + idx;
+    return {
+      ...plug,
+      status: 'charging',
+      car: plug.car || SAMPLE_CHARGING_CARS[seed % SAMPLE_CHARGING_CARS.length],
+      remainingMinutes: plug.remainingMinutes || (14 + ((seed * 7) % 24))
+    };
+  });
+
+  return {
+    ...station,
+    totalPlugs,
+    availablePlugs: availPlugs,
+    waitingQueue: availPlugs === 0 ? Math.max(1, station.waitingQueue || 1) : 0,
+    status: availPlugs > 0 ? 'available' : 'full',
+    plugs: syncedPlugs
+  };
+}
+
 export function getStationAccessInfo(station) {
   if (!station) return null;
 
@@ -122,6 +171,7 @@ export function getStationAccessInfo(station) {
     bookingPolicyDetail,
     canEnterImmediately,
     offPeakNow,
+    isOffPeak: offPeakNow,
     onPeakBaht,
     offPeakBaht,
     currentRateBaht,

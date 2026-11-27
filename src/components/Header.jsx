@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Volume2, VolumeX, Navigation, MapPin, Sun, RefreshCw, Zap } from 'lucide-react';
+import { Volume2, VolumeX, Gauge, MapPin, Sun, RefreshCw, Zap } from 'lucide-react';
 
 export function Header({ 
   voiceEnabled, 
@@ -80,6 +80,19 @@ export function Header({
           >
             <MapPin size={13} className="flex-shrink-0" />
             <span>GPS</span>
+          </button>
+
+          {/* Drive Simulator Toggle */}
+          <button
+            onClick={() => setIsSimulating && setIsSimulating(!isSimulating)}
+            title={isSimulating ? "ปิดโหมดจำลองขับขี่" : "เปิดโหมดจำลองขับขี่แจ้งเตือนตู้ชาร์จล่วงหน้า"}
+            className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all active:scale-95 ${
+              isSimulating
+                ? "bg-amber-400 text-slate-950 border border-amber-300 shadow-[0_0_12px_rgba(251,191,36,0.4)]"
+                : "bg-slate-900 text-slate-400 border border-slate-800 hover:text-amber-300"
+            }`}
+          >
+            <Gauge size={15} />
           </button>
 
           {/* Wake Lock */}

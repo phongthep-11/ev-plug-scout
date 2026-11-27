@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Mic, X, Volume2, Sparkles, AlertCircle, ArrowRight, Navigation } from 'lucide-react';
 import { speechService } from '../services/speechService';
 
@@ -9,6 +9,11 @@ export function VoiceModal({ isOpen, onClose, stations, onSelectStation, onNavig
   const [answer, setAnswer] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [matchedStation, setMatchedStation] = useState(null);
+  const stationsRef = useRef(stations);
+
+  useEffect(() => {
+    stationsRef.current = stations;
+  }, [stations]);
 
   // Quick preset questions for driver safety
   const PRESET_QUESTIONS = [
@@ -19,16 +24,6 @@ export function VoiceModal({ isOpen, onClose, stations, onSelectStation, onNavig
     'หาตู้ว่างที่ไม่มีคน ใช้ได้เลยทันที',
     'ดึงสายชาร์จไม่ออก ทำยังไง?'
   ];
-
-  useEffect(() => {
-    if (isOpen) {
-      handleAskQuestion('ปั๊มข้างหน้าว่างไหม?');
-    } else {
-      speechService.stop();
-      setIsListening(false);
-      setIsSpeaking(false);
-    }
-  }, [isOpen]);
 
   const handleAskQuestion = (questionText) => {
     setErrorMsg('');
@@ -43,6 +38,30 @@ export function VoiceModal({ isOpen, onClose, stations, onSelectStation, onNavig
       () => setIsSpeaking(false)
     );
   };
+
+  useEffect(() => {
+    if (!isOpen) {
+      speechService.stop();
+      return;
+    }
+    const timer = setTimeout(() => {
+      const q = 'ปั๊มข้างหน้าว่างไหม?';
+      setErrorMsg('');
+      setTranscript(q);
+      const result = speechService.generateAnswer(q, stationsRef.current);
+      setAnswer(result.text);
+      setMatchedStation(result.targetStation);
+      speechService.speak(
+        result.text,
+        () => setIsSpeaking(true),
+        () => setIsSpeaking(false)
+      );
+    }, 0);
+    return () => {
+      clearTimeout(timer);
+      speechService.stop();
+    };
+  }, [isOpen]);
 
   const handleStartListening = () => {
     speechService.stop();

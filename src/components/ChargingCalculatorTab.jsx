@@ -11,7 +11,6 @@ import {
   BookOpen,
   TrendingDown,
   CreditCard,
-  Clock,
   CheckCircle2,
   Sun,
   Moon,
