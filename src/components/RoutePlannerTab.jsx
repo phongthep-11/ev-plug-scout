@@ -171,16 +171,17 @@ export function RoutePlannerTab({ userLocation, carData, batteryPct = 80, onSele
     return resolveBestLocalPlace(destText, userLocation, destPlace);
   }, [destText, destPlace, userLocation]);
 
-  // Fetch Real Highway Road Distance & Duration from OSRM Routing Engine
+  // Fetch Real Highway Road Distance & Duration from OSRM Routing Engine (including optional Waypoint)
   useEffect(() => {
     let active = true;
+    const activeWp = hasWaypoint && waypointPlace?.lat ? waypointPlace : null;
     if (resolvedOrigin?.lat && resolvedDest?.lat) {
-      setIsCalculatingRoute(true);
       fetchRealDrivingRoute(
         resolvedOrigin.lat,
         resolvedOrigin.lng,
         resolvedDest.lat,
-        resolvedDest.lng
+        resolvedDest.lng,
+        activeWp
       ).then(routeData => {
         if (active) {
           setRealRoadRoute(routeData);
@@ -189,7 +190,14 @@ export function RoutePlannerTab({ userLocation, carData, batteryPct = 80, onSele
       });
     }
     return () => { active = false; };
-  }, [resolvedOrigin?.lat, resolvedOrigin?.lng, resolvedDest?.lat, resolvedDest?.lng]);
+  }, [
+    resolvedOrigin?.lat,
+    resolvedOrigin?.lng,
+    resolvedDest?.lat,
+    resolvedDest?.lng,
+    hasWaypoint,
+    waypointPlace
+  ]);
 
   // Combine instant local places + live online Thailand places for the active input
   const combinedSuggestions = useMemo(() => {
@@ -260,9 +268,7 @@ export function RoutePlannerTab({ userLocation, carData, batteryPct = 80, onSele
       straightDist = leg1 + leg2;
     }
     const oneWayDistanceKm =
-      hasWaypoint && waypointPlace?.lat
-        ? Math.max(15, Math.round(straightDist * 1.25))
-        : realRoadRoute?.distanceKm || Math.max(10, Math.round(straightDist * 1.26));
+      realRoadRoute?.distanceKm || Math.max(10, Math.round(straightDist * 1.26));
     const drivingDistanceKm = isRoundTrip ? oneWayDistanceKm * 2 : oneWayDistanceKm;
 
     const oneWayMinutes = realRoadRoute?.durationMin || Math.round((oneWayDistanceKm / 75) * 60);

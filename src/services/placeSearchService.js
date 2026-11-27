@@ -237,11 +237,15 @@ export async function reverseGeocodeThailand(lat, lng) {
   }
 }
 
-// Live OSRM Road Routing API (Calculates exact highway road distance & driving time in Thailand)
-export async function fetchRealDrivingRoute(originLat, originLng, destLat, destLng) {
+// Live OSRM Road Routing API (Calculates exact highway road distance & driving time in Thailand, supports optional mid-trip Waypoint)
+export async function fetchRealDrivingRoute(originLat, originLng, destLat, destLng, waypoint = null) {
   if (!originLat || !originLng || !destLat || !destLng) return null;
   try {
-    const url = `https://router.project-osrm.org/route/v1/driving/${originLng},${originLat};${destLng},${destLat}?overview=false`;
+    const coordStr =
+      waypoint?.lat && waypoint?.lng
+        ? `${originLng},${originLat};${waypoint.lng},${waypoint.lat};${destLng},${destLat}`
+        : `${originLng},${originLat};${destLng},${destLat}`;
+    const url = `https://router.project-osrm.org/route/v1/driving/${coordStr}?overview=false`;
     const res = await fetch(url);
     if (!res.ok) return null;
     const data = await res.json();
@@ -249,9 +253,16 @@ export async function fetchRealDrivingRoute(originLat, originLng, destLat, destL
       const route = data.routes[0];
       const distanceKm = Math.max(1, Math.round(route.distance / 1000));
       const durationMin = Math.max(5, Math.round(route.duration / 60));
+      const legs = Array.isArray(route.legs)
+        ? route.legs.map((leg) => ({
+            distanceKm: Math.max(1, Math.round((leg.distance || 0) / 1000)),
+            durationMin: Math.max(1, Math.round((leg.duration || 0) / 60))
+          }))
+        : [];
       return {
         distanceKm,
-        durationMin
+        durationMin,
+        legs
       };
     }
     return null;

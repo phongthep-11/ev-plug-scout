@@ -1,5 +1,8 @@
 // Smart Occupancy, Booking Policy & Real-Time Tariff Analyzer for Thai EV Charging Networks
 
+export const APP_VERSION = 'v2.5.0';
+export const APP_BUILD_LABEL = 'JAECOO 5 EV Cockpit • 119 สถานีทั่วไทย';
+
 const WALK_IN_PURE_PROVIDERS = [
   'PEA VOLTA',
   'ELEXA',
@@ -18,12 +21,58 @@ const BOOKING_SUPPORTED_PROVIDERS = [
   'GWM HYPERCHARGE'
 ];
 
-export function isThailandOffPeakNow() {
-  const now = new Date();
-  const day = now.getDay();
-  const hour = now.getHours();
+export function isThailandOffPeakNow(nowDate = new Date()) {
+  const day = nowDate.getDay();
+  const hour = nowDate.getHours();
   const isWeekend = day === 0 || day === 6;
   return isWeekend || hour >= 22 || hour < 9;
+}
+
+export function getOffPeakCountdownInfo(nowDate = new Date()) {
+  const day = nowDate.getDay(); // 0=Sun, 6=Sat
+  const isWeekend = day === 0 || day === 6;
+  const hour = nowDate.getHours();
+  const isOffPeak = isWeekend || hour >= 22 || hour < 9;
+
+  const target = new Date(nowDate);
+  if (isOffPeak) {
+    // Find when Off-Peak ends (next weekday at 09:00)
+    if (!isWeekend && hour < 9) {
+      target.setHours(9, 0, 0, 0);
+    } else {
+      // Advance day by day until Monday-Friday at 09:00
+      do {
+        target.setDate(target.getDate() + 1);
+      } while (target.getDay() === 0 || target.getDay() === 6);
+      target.setHours(9, 0, 0, 0);
+    }
+  } else {
+    // Weekday 09:00 - 21:59 -> Off-Peak starts today at 22:00
+    target.setHours(22, 0, 0, 0);
+  }
+
+  const diffMs = Math.max(0, target.getTime() - nowDate.getTime());
+  const totalMins = Math.floor(diffMs / 60000);
+  const hoursLeft = Math.floor(totalMins / 60);
+  const minsLeft = totalMins % 60;
+
+  const timeStr = hoursLeft > 0 ? `${hoursLeft} ชม. ${minsLeft} นาที` : `${minsLeft} นาที`;
+
+  return {
+    isOffPeak,
+    isWeekend,
+    hoursLeft,
+    minsLeft,
+    timeStr,
+    headline: isOffPeak
+      ? `กำลังอยู่ในช่วง Off-Peak (ลดค่าไฟ ~40%)`
+      : `อีก ${timeStr} จะเข้าช่วง Off-Peak (22:00 น.)`,
+    subline: isOffPeak
+      ? isWeekend
+        ? `วันหยุดเสาร์-อาทิตย์ ค่าไฟถูกตลอดวัน (เหลืออีก ${timeStr})`
+        : `เรทประหยัด 4.50-4.70 บ./kWh ต่อเนื่องอีก ${timeStr} (ถึง 09:00 น.)`
+      : `รอชาร์จหลัง 22:00 น. จะลดจาก ~7.70 บ. เหลือ ~4.50-4.70 บ./kWh`
+  };
 }
 
 export function parseRateBaht(rateStr, fallback = 6.5) {

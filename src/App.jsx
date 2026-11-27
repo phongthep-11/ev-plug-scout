@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import {
   RotateCw,
   MapPin,
@@ -31,17 +31,41 @@ import { StationDetailModal } from './components/StationDetailModal';
 import { VoiceModal } from './components/VoiceModal';
 import { DriveSimulatorBar } from './components/DriveSimulatorBar';
 import { BottomNav } from './components/BottomNav';
-import { SavedStationsTab } from './components/SavedStationsTab';
-import { RoutePlannerTab } from './components/RoutePlannerTab';
-import { MyCarTab } from './components/MyCarTab';
-import { ChargingCalculatorTab } from './components/ChargingCalculatorTab';
-import { InteractiveRadarMap } from './components/InteractiveRadarMap';
 import { getStationAccessInfo, syncStationPlugs } from './utils/stationStatus';
 import {
   searchLocalThailandPlaces,
   searchOnlineThailandPlaces,
   reverseGeocodeThailand
 } from './services/placeSearchService';
+
+// Code-Split Secondary Tabs & Modals for Faster Mobile Startup
+const SavedStationsTab = lazy(() =>
+  import('./components/SavedStationsTab').then((m) => ({ default: m.SavedStationsTab }))
+);
+const RoutePlannerTab = lazy(() =>
+  import('./components/RoutePlannerTab').then((m) => ({ default: m.RoutePlannerTab }))
+);
+const MyCarTab = lazy(() =>
+  import('./components/MyCarTab').then((m) => ({ default: m.MyCarTab }))
+);
+const ChargingCalculatorTab = lazy(() =>
+  import('./components/ChargingCalculatorTab').then((m) => ({ default: m.ChargingCalculatorTab }))
+);
+const InteractiveRadarMap = lazy(() =>
+  import('./components/InteractiveRadarMap').then((m) => ({ default: m.InteractiveRadarMap }))
+);
+const DrivingHudModal = lazy(() =>
+  import('./components/DrivingHudModal').then((m) => ({ default: m.DrivingHudModal }))
+);
+
+function TabLoadingFallback() {
+  return (
+    <div className="py-16 flex flex-col items-center justify-center gap-2 text-slate-400 text-xs">
+      <span className="w-7 h-7 rounded-full border-2 border-emerald-500/30 border-t-emerald-400 animate-spin" />
+      <span>กำลังโหลดหน้าจอ...</span>
+    </div>
+  );
+}
 
 // Haversine distance calculator
 function calculateDistance(lat1, lon1, lat2, lon2) {
@@ -86,6 +110,7 @@ export function App() {
   const [stations, setStations] = useState(INITIAL_STATIONS);
   const [selectedStation, setSelectedStation] = useState(null);
   const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
+  const [isDrivingHudOpen, setIsDrivingHudOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [isSimulating, setIsSimulating] = useState(false);
@@ -458,6 +483,7 @@ export function App() {
         onToggleRealGps={handleToggleRealGps}
         isWakeLocked={isWakeLocked}
         onToggleWakeLock={handleToggleWakeLock}
+        onOpenHud={() => setIsDrivingHudOpen(true)}
       />
 
       {/* Main Content Area */}
@@ -1070,12 +1096,14 @@ export function App() {
 
             {/* Interactive Radar Map View OR Station Cards List */}
             {viewMode === 'map' ? (
-              <InteractiveRadarMap
-                stations={filteredStations}
-                userLocation={userLocation}
-                onSelectStation={(s) => setSelectedStation(s)}
-                onNavigate={(s) => handleNavigate(s)}
-              />
+              <Suspense fallback={<TabLoadingFallback />}>
+                <InteractiveRadarMap
+                  stations={filteredStations}
+                  userLocation={userLocation}
+                  onSelectStation={(s) => setSelectedStation(s)}
+                  onNavigate={(s) => handleNavigate(s)}
+                />
+              </Suspense>
             ) : (
               <div className="space-y-4 pt-1">
                 {filteredStations.map((station) => (
@@ -1112,44 +1140,69 @@ export function App() {
 
         {/* Tab 2: Route Planner */}
         {activeTab === 'plan' && (
-          <RoutePlannerTab
-            stations={stations}
-            userLocation={userLocation}
-            carData={carData}
-            batteryPct={batteryPct}
-            onSelect={(s) => setSelectedStation(s)}
-            onNavigate={(s) => handleNavigate(s)}
-          />
+          <Suspense fallback={<TabLoadingFallback />}>
+            <RoutePlannerTab
+              userLocation={userLocation}
+              carData={carData}
+              batteryPct={batteryPct}
+              onSelect={(s) => setSelectedStation(s)}
+              onNavigate={(s) => handleNavigate(s)}
+            />
+          </Suspense>
         )}
 
         {/* Tab 3: Dedicated Charging Calculator, Timer & Expense Tracker */}
         {activeTab === 'calc' && (
-          <ChargingCalculatorTab
-            car={carData}
-            batteryPct={batteryPct}
-            onSaveCarSettings={handleSaveCarSettings}
-          />
+          <Suspense fallback={<TabLoadingFallback />}>
+            <ChargingCalculatorTab
+              car={carData}
+              batteryPct={batteryPct}
+              onSaveCarSettings={handleSaveCarSettings}
+            />
+          </Suspense>
         )}
 
         {/* Tab 4: My EV Car (Battery, Speed Simulator, Parking Memo, V2L & Pre-Trip Checklist) */}
         {activeTab === 'car' && (
-          <MyCarTab 
-            car={carData}
-            batteryPct={batteryPct}
-            onSaveCarSettings={handleSaveCarSettings}
-          />
+          <Suspense fallback={<TabLoadingFallback />}>
+            <MyCarTab
+              car={carData}
+              batteryPct={batteryPct}
+              onSaveCarSettings={handleSaveCarSettings}
+            />
+          </Suspense>
         )}
 
         {/* Tab 5: Emergency Hotlines, Favorites & Cloud OTA */}
         {activeTab === 'saved' && (
-          <SavedStationsTab
-            stations={stations}
-            userLocation={userLocation}
-            onSelect={(s) => setSelectedStation(s)}
-            onNavigate={(s) => handleNavigate(s)}
-          />
+          <Suspense fallback={<TabLoadingFallback />}>
+            <SavedStationsTab
+              stations={stations}
+              userLocation={userLocation}
+              onSelect={(s) => setSelectedStation(s)}
+              onNavigate={(s) => handleNavigate(s)}
+            />
+          </Suspense>
         )}
       </main>
+
+      {/* Full-Screen Driving HUD Mode */}
+      {isDrivingHudOpen && (
+        <Suspense fallback={null}>
+          <DrivingHudModal
+            isOpen={isDrivingHudOpen}
+            onClose={() => setIsDrivingHudOpen(false)}
+            carData={carData}
+            batteryPct={batteryPct}
+            onChangeBattery={handleSaveCarSettings}
+            stations={stations}
+            userLocation={userLocation}
+            onNavigate={handleNavigate}
+            onOpenVoice={() => setIsVoiceModalOpen(true)}
+            onSelectStation={(s) => setSelectedStation(s)}
+          />
+        </Suspense>
+      )}
 
       {/* Station Details Bottom Sheet / Modal */}
       <StationDetailModal

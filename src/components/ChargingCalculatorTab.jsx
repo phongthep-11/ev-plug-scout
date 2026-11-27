@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { speechService } from '../services/speechService';
 import { soundEffects } from '../services/soundEffects';
+import { getOffPeakCountdownInfo } from '../utils/stationStatus';
 
 const INITIAL_CHARGE_LOGS = [
   {
@@ -63,12 +64,17 @@ export function ChargingCalculatorTab({ car, batteryPct, onSaveCarSettings }) {
   });
   const [logBrandInput, setLogBrandInput] = useState('EV Station PluZ (ปตท.)');
 
-  // Check Thailand Time for On-Peak vs Off-Peak
-  const now = new Date();
-  const day = now.getDay();
-  const hour = now.getHours();
-  const isWeekend = day === 0 || day === 6;
-  const isOffPeakNow = isWeekend || hour >= 22 || hour < 9;
+  // Live Thailand Time Off-Peak / On-Peak Countdown (updates every 30s cleanly)
+  const [offPeakCountdown, setOffPeakCountdown] = useState(() => getOffPeakCountdownInfo(new Date()));
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setOffPeakCountdown(getOffPeakCountdownInfo(new Date()));
+    }, 30000);
+    return () => clearInterval(id);
+  }, []);
+
+  const isOffPeakNow = offPeakCountdown.isOffPeak;
 
   const onPeakRate = selectedTariff === 'home' ? 5.79 : 7.70;
   const offPeakRate = selectedTariff === 'home' ? 2.63 : 4.70;
@@ -197,6 +203,30 @@ export function ChargingCalculatorTab({ car, batteryPct, onSaveCarSettings }) {
         >
           {isOffPeakNow ? <Moon size={12} /> : <Sun size={12} />}
           <span>{isOffPeakNow ? `Off-Peak (${offPeakRate} บาท)` : `On-Peak (${onPeakRate} บาท)`}</span>
+        </span>
+      </div>
+
+      {/* Live Off-Peak / On-Peak Countdown Banner */}
+      <div
+        className={`p-3 rounded-2xl border flex items-center justify-between gap-2 text-xs ${
+          isOffPeakNow
+            ? 'bg-emerald-950/45 border-emerald-500/40 text-emerald-200'
+            : 'bg-amber-950/35 border-amber-500/40 text-amber-200'
+        }`}
+      >
+        <div className="min-w-0">
+          <div className="font-extrabold flex items-center gap-1.5">
+            {isOffPeakNow ? <Moon size={14} className="text-emerald-400 flex-shrink-0" /> : <Sun size={14} className="text-amber-400 flex-shrink-0" />}
+            <span className="truncate">{offPeakCountdown.headline}</span>
+          </div>
+          <p className="text-[11px] text-slate-300 mt-0.5 truncate">{offPeakCountdown.subline}</p>
+        </div>
+        <span
+          className={`px-2.5 py-1 rounded-xl font-mono text-[11px] font-extrabold whitespace-nowrap flex-shrink-0 ${
+            isOffPeakNow ? 'bg-emerald-500 text-slate-950' : 'bg-amber-400 text-slate-950'
+          }`}
+        >
+          {offPeakCountdown.timeStr}
         </span>
       </div>
 

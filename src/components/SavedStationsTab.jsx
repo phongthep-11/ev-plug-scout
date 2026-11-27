@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { speechService } from '../services/speechService';
 import { soundEffects } from '../services/soundEffects';
-import { getStationAccessInfo } from '../utils/stationStatus';
+import { getStationAccessInfo, APP_VERSION, APP_BUILD_LABEL } from '../utils/stationStatus';
 import {
   searchLocalThailandPlaces,
   searchOnlineThailandPlaces,
@@ -597,9 +597,22 @@ export function SavedStationsTab({ stations, userLocation, onSelect, onNavigate 
                   เชื่อมต่อเซิร์ฟเวอร์อัปเดตสดเรียบร้อยแล้ว ทุกครั้งที่มีการพัฒนาฟีเจอร์ใหม่ สามารถกดซิงค์อัปเดตด้านล่างได้ทันทีโดยไม่ต้องติดตั้งไฟล์ APK ใหม่
                 </p>
               </div>
-              <span className="px-2.5 py-1 rounded-xl bg-cyan-500/15 border border-cyan-500/40 text-cyan-300 text-[10px] font-extrabold whitespace-nowrap">
-                OTA ONLINE
+              <span className="px-2.5 py-1 rounded-xl bg-cyan-500/15 border border-cyan-500/40 text-cyan-300 text-[10px] font-mono font-extrabold whitespace-nowrap">
+                {APP_VERSION} • OTA ONLINE
               </span>
+            </div>
+
+            {/* Version & Latest Changelog Info */}
+            <div className="p-3 rounded-2xl bg-slate-950/85 border border-slate-800 space-y-1.5 text-[11px]">
+              <div className="flex items-center justify-between">
+                <span className="font-extrabold text-emerald-400">เวอร์ชันที่ติดตั้งอยู่บนเครื่องนี้: {APP_VERSION}</span>
+                <span className="text-slate-400 font-semibold">{APP_BUILD_LABEL}</span>
+              </div>
+              <ul className="text-slate-300 space-y-0.5 list-disc list-inside text-[11px]">
+                <li>ขยายฐานข้อมูลครบ 119 สถานีทั่วไทย (ครบ 11 ค่าย + มอเตอร์เวย์ M81 / M6)</li>
+                <li>เพิ่มโหมดขับขี่เต็มจอ (Driving HUD) ตัวอักษรใหญ่พิเศษสำหรับวางในรถ</li>
+                <li>นับถอยหลังเวลา Off-Peak สด และคำนวณถนนจริง OSRM ครบทุกช่วงจุดแวะพัก</li>
+              </ul>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
