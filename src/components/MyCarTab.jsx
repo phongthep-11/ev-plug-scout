@@ -83,6 +83,48 @@ export function MyCarTab({ car: initialCar, batteryPct: initialBattery, onSaveCa
     }
   });
 
+  // LFP 100% Monthly BMS Calibration Tracker (Critical for JAECOO 5 EV 67 kWh LFP)
+  const [lastLfpCalDate, setLastLfpCalDate] = useState(() => {
+    try {
+      const saved = localStorage.getItem('ev_plug_scout_lfp_cal_date');
+      if (saved) return saved;
+      const defaultDate = new Date(Date.now() - 12 * 86400000).toISOString().slice(0, 10);
+      return defaultDate;
+    } catch {
+      return '2026-11-15';
+    }
+  });
+
+  const [todayMs, setTodayMs] = useState(() => Date.now());
+  const daysSinceLfpCal = (() => {
+    const parsed = new Date(lastLfpCalDate);
+    if (Number.isNaN(parsed.getTime())) return 0;
+    return Math.max(0, Math.floor((todayMs - parsed.getTime()) / 86400000));
+  })();
+  const daysUntilNextLfpCal = Math.max(0, 30 - daysSinceLfpCal);
+  const lfpCalProgressPct = Math.min(100, Math.round((daysSinceLfpCal / 30) * 100));
+
+  const handleMarkLfpCalibratedToday = () => {
+    const nowTime = Date.now();
+    const todayIso = new Date(nowTime).toISOString().slice(0, 10);
+    setTodayMs(nowTime);
+    setLastLfpCalDate(todayIso);
+    try {
+      localStorage.setItem('ev_plug_scout_lfp_cal_date', todayIso);
+    } catch {}
+    setSaveSuccessMsg('บันทึกการชาร์จแบต LFP เต็ม 100% เพื่อปรับเทียบ BMS เรียบร้อยแล้ว (รอบถัดไปอีก 30 วัน)');
+    setTimeout(() => setSaveSuccessMsg(''), 3500);
+  };
+
+  const DC_CHARGE_CURVE = [
+    { band: '10-30%', kw: 130, pctMin: 0, pctMax: 30, note: 'เร็วสุด' },
+    { band: '30-50%', kw: 125, pctMin: 30, pctMax: 50, note: 'แรงต่อเนื่อง' },
+    { band: '50-70%', kw: 110, pctMin: 50, pctMax: 70, note: 'ชาร์จไว' },
+    { band: '70-80%', kw: 88, pctMin: 70, pctMax: 80, note: 'จุดคุ้มสุด' },
+    { band: '80-90%', kw: 52, pctMin: 80, pctMax: 90, note: 'เริ่มชะลอ' },
+    { band: '90-100%', kw: 24, pctMin: 90, pctMax: 100, note: 'ถนอมเซลล์' }
+  ];
+
   // Pre-Trip EV Inspection Checklist (New Feature)
   const [checkedItems, setCheckedItems] = useState(['tire', 'ccs2', 'apps']);
 
@@ -568,6 +610,111 @@ export function MyCarTab({ car: initialCar, batteryPct: initialBattery, onSaveCa
                 <div className="text-base font-extrabold text-white font-mono mt-0.5">หน้า 35 / หลัง 36 PSI</div>
                 <span className="text-[10px] text-slate-400 block mt-0.5">240-250 kPa • ประหยัดไฟ +4%</span>
               </div>
+            </div>
+          </div>
+
+          {/* Card 3: LFP 100% Monthly BMS Calibration Tracker + DC Fast-Charge Curve */}
+          <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-br from-[#132234] to-[#0a111d] border border-cyan-500/35 space-y-4 shadow-xl">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <h3 className="text-sm font-extrabold text-white flex items-center gap-2">
+                  <BatteryCharging size={17} className="text-cyan-400" />
+                  <span>แจ้งเตือนชาร์จ LFP 100% (คาลิเบรต BMS)</span>
+                </h3>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  แบต LFP 67 kWh ของ JAECOO 5 EV ควรชาร์จ AC เต็ม 100% เดือนละ 1 ครั้งเพื่อให้ตัวเลข % แม่นยำ
+                </p>
+              </div>
+              <span
+                className={`px-2.5 py-1 rounded-xl text-[10px] font-extrabold border whitespace-nowrap ${
+                  daysSinceLfpCal >= 30
+                    ? 'bg-amber-500/20 border-amber-500/45 text-amber-300'
+                    : 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300'
+                }`}
+              >
+                {daysSinceLfpCal >= 30 ? 'ถึงรอบชาร์จ 100% แล้ว' : `อีก ${daysUntilNextLfpCal} วันครบกำหนด`}
+              </span>
+            </div>
+
+            <div className="p-3 rounded-2xl bg-slate-950/90 border border-slate-800 space-y-2.5 text-xs">
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="text-slate-300">
+                  ชาร์จเต็ม 100% ล่าสุด: <b className="text-white font-mono">{lastLfpCalDate}</b> ({daysSinceLfpCal} วันที่แล้ว)
+                </span>
+                <span className="font-mono font-bold text-cyan-300">{lfpCalProgressPct}% ของรอบ 30 วัน</span>
+              </div>
+
+              <div className="h-2.5 w-full rounded-full bg-slate-900 overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all ${
+                    daysSinceLfpCal >= 30
+                      ? 'bg-gradient-to-r from-amber-500 to-rose-400'
+                      : 'bg-gradient-to-r from-cyan-400 to-emerald-400'
+                  }`}
+                  style={{ width: `${Math.max(8, lfpCalProgressPct)}%` }}
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={handleMarkLfpCalibratedToday}
+                className="w-full min-h-[40px] py-2 px-3 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-extrabold text-xs flex items-center justify-center gap-1.5 active:scale-95 transition"
+              >
+                <CheckCircle2 size={14} className="stroke-[2.5]" />
+                <span>บันทึกว่าวันนี้ชาร์จเต็ม 100% แล้ว (เริ่มนับ 30 วันใหม่)</span>
+              </button>
+            </div>
+
+            {/* JAECOO 5 EV DC Fast-Charge Speed Curve Visualizer */}
+            <div className="p-3.5 rounded-2xl bg-slate-950/90 border border-slate-800 space-y-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-extrabold text-white flex items-center gap-1.5">
+                  <Zap size={14} className="text-amber-400" />
+                  <span>กราฟความเร็วชาร์จ DC ของ JAECOO 5 EV (สูงสุด 130 kW)</span>
+                </span>
+                <span className="text-[10px] font-bold text-emerald-400 whitespace-nowrap">
+                  แนะนำถอดสายที่ 80%
+                </span>
+              </div>
+
+              <div className="grid grid-cols-6 gap-1.5 items-end h-28 pt-2">
+                {DC_CHARGE_CURVE.map((step) => {
+                  const heightPct = Math.round((step.kw / 130) * 100);
+                  const isCurrentBand = batteryPct >= step.pctMin && batteryPct <= step.pctMax;
+                  const isSlowZone = step.pctMin >= 80;
+                  return (
+                    <div key={step.band} className="flex flex-col items-center justify-end h-full gap-1">
+                      <span
+                        className={`text-[10px] font-mono font-extrabold ${
+                          isCurrentBand ? 'text-white' : isSlowZone ? 'text-amber-300' : 'text-emerald-300'
+                        }`}
+                      >
+                        {step.kw}
+                      </span>
+                      <div className="w-full flex-1 flex items-end">
+                        <div
+                          className={`w-full rounded-t-lg transition-all ${
+                            isCurrentBand
+                              ? 'bg-white ring-2 ring-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.7)]'
+                              : isSlowZone
+                              ? 'bg-amber-500/60'
+                              : 'bg-gradient-to-t from-emerald-600 to-teal-400'
+                          }`}
+                          style={{ height: `${heightPct}%` }}
+                        />
+                      </div>
+                      <span className="text-[9px] font-mono text-slate-400 whitespace-nowrap">{step.band}</span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <p className="text-[11px] text-slate-300 leading-relaxed pt-1 border-t border-slate-800/80">
+                <b className="text-emerald-400">เคล็ดลับเดินทางไกล:</b> แบตเตอรี่ของคุณตอนนี้อยู่ที่{' '}
+                <b className="text-white font-mono">{batteryPct}%</b> — ช่วง <b className="text-emerald-300">10-80%</b>{' '}
+                รถรับไฟได้เต็มสเปก (88-130 kW) ใช้เวลาเพียง ~28 นาที แต่หลัง <b className="text-amber-300">80% ขึ้นไป</b>{' '}
+                กำลังไฟจะลดลงเหลือ 24-52 kW เพื่อถนอมเซลล์แบต แนะนำถอดสายที่ 80% จะประหยัดเวลาเดินทางที่สุด
+              </p>
             </div>
           </div>
         </div>

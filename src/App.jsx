@@ -232,8 +232,13 @@ export function App() {
     setIsLocating(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        const { latitude, longitude, accuracy } = pos.coords;
-        const coords = { lat: latitude, lng: longitude };
+        const { latitude, longitude, accuracy, speed, heading } = pos.coords;
+        const coords = {
+          lat: latitude,
+          lng: longitude,
+          speedKmh: speed != null && speed >= 0 ? Math.round(speed * 3.6) : 0,
+          headingDeg: heading != null && !Number.isNaN(heading) ? Math.round(heading) : null
+        };
         setUserLocation(coords);
         setGpsAccuracy(Math.round(accuracy));
         setIsRealGpsActive(true);
@@ -264,11 +269,20 @@ export function App() {
 
     geoWatchIdRef.current = navigator.geolocation.watchPosition(
       (pos) => {
-        const { latitude, longitude, accuracy } = pos.coords;
-        const coords = { lat: latitude, lng: longitude };
+        const { latitude, longitude, accuracy, speed, heading } = pos.coords;
+        const coords = {
+          lat: latitude,
+          lng: longitude,
+          speedKmh: speed != null && speed >= 0 ? Math.round(speed * 3.6) : 0,
+          headingDeg: heading != null && !Number.isNaN(heading) ? Math.round(heading) : null
+        };
         setUserLocation(prev => {
           if (prev?.isManual) return prev;
-          return { ...coords, areaName: prev?.areaName };
+          return {
+            ...coords,
+            areaName: prev?.areaName,
+            headingDeg: coords.headingDeg != null ? coords.headingDeg : prev?.headingDeg ?? null
+          };
         });
         setGpsAccuracy(Math.round(accuracy));
         setIsRealGpsActive(true);

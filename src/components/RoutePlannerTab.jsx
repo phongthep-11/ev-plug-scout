@@ -20,10 +20,12 @@ import {
   CalendarCheck,
   Search,
   X,
-  Loader2
+  Loader2,
+  Share2
 } from 'lucide-react';
 import { NATIONWIDE_STATIONS } from '../data/stations';
 import { getStationAccessInfo } from '../utils/stationStatus';
+import { shareTextOrCopy } from '../utils/shareUtils';
 import {
   THAILAND_PLACES_DB,
   calculateHaversineKm,
@@ -96,6 +98,7 @@ export function RoutePlannerTab({ userLocation, carData, batteryPct = 80, onSele
   const [isCalculatingRoute, setIsCalculatingRoute] = useState(false);
   const [gpsAddressName, setGpsAddressName] = useState('');
   const [showAllCorridorStops, setShowAllCorridorStops] = useState(false);
+  const [shareTripFeedback, setShareTripFeedback] = useState('');
   const searchTimeoutRef = useRef(null);
 
   // Reverse-geocode real GPS coordinates into actual street/district name like Google Maps
@@ -497,9 +500,9 @@ export function RoutePlannerTab({ userLocation, carData, batteryPct = 80, onSele
     setActiveField(null);
   };
 
-  const handleOpenFullTripGoogleMaps = () => {
+  const buildFullTripGoogleMapsUrl = () => {
     const { originLoc, destLoc, primaryStop } = routeCalculation;
-    if (!destLoc) return;
+    if (!destLoc) return '';
     const originParam = originLoc.isCurrentGps
       ? ''
       : `&origin=${encodeURIComponent(originLoc.name || `${originLoc.lat},${originLoc.lng}`)}`;
@@ -516,9 +519,36 @@ export function RoutePlannerTab({ userLocation, carData, batteryPct = 80, onSele
     if (waypointsList.length > 0) {
       url += `&waypoints=${encodeURIComponent(waypointsList.join('|'))}`;
     }
+    return url;
+  };
+
+  const handleOpenFullTripGoogleMaps = () => {
+    const url = buildFullTripGoogleMapsUrl();
+    if (!url) return;
     const opened = window.open(url, '_blank');
     if (!opened) {
       window.location.href = url;
+    }
+  };
+
+  const handleShareTripPlan = async () => {
+    const { originLoc, destLoc, drivingDistanceKm, driveTimeText, estTripEvCostBaht, estTripSavingsBaht, primaryStop } =
+      routeCalculation;
+    const mapsUrl = buildFullTripGoogleMapsUrl();
+    const wpLine = hasWaypoint && waypointText.trim() ? `\nจุดแวะระหว่างทาง: ${waypointText.trim()}` : '';
+    const stopLine = primaryStop
+      ? `\nจุดแวะชาร์จหลัก: ${primaryStop.name} (กม.ที่ ${primaryStop.distFromOrigin} • ${primaryStop.power})`
+      : '';
+    const text = `แผนเดินทาง EV (JAECOO 5 EV)\nต้นทาง: ${originLoc.name}${wpLine}\nปลายทาง: ${destLoc.name}\nระยะทาง: ${drivingDistanceKm} กม. (${isRoundTrip ? 'รวมไป-กลับ' : 'ขาไปเที่ยวเดียว'}) • ${driveTimeText}\nงบค่าไฟประมาณ ${estTripEvCostBaht} บ. (ประหยัดน้ำมัน ${estTripSavingsBaht} บ.)${stopLine}\nเปิดเส้นทางใน Google Maps:`;
+
+    const res = await shareTextOrCopy({
+      title: `แผนทริป EV: ${originLoc.name} -> ${destLoc.name}`,
+      text,
+      url: mapsUrl
+    });
+    if (res.message) {
+      setShareTripFeedback(res.message);
+      setTimeout(() => setShareTripFeedback(''), 3500);
     }
   };
 
@@ -1041,14 +1071,32 @@ export function RoutePlannerTab({ userLocation, carData, batteryPct = 80, onSele
           </div>
         </div>
 
-        {/* Full Route in Google Maps Button */}
-        <button
-          onClick={handleOpenFullTripGoogleMaps}
-          className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-emerald-500 via-emerald-400 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 font-extrabold text-xs sm:text-sm shadow-[0_6px_25px_rgba(16,185,129,0.35)] flex items-center justify-center gap-2 transition-all active:scale-95"
-        >
-          <Navigation size={17} className="stroke-[2.5]" />
-          <span>เริ่มนำทางทั้งทริป + แวะจุดชาร์จหลักใน Google Maps</span>
-        </button>
+        {/* Full Route in Google Maps + 1-Tap Share Trip Plan Buttons */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <button
+            onClick={handleOpenFullTripGoogleMaps}
+            className="sm:col-span-2 py-3.5 px-4 rounded-2xl bg-gradient-to-r from-emerald-500 via-emerald-400 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 font-extrabold text-xs sm:text-sm shadow-[0_6px_25px_rgba(16,185,129,0.35)] flex items-center justify-center gap-2 transition-all active:scale-95"
+          >
+            <Navigation size={17} className="stroke-[2.5]" />
+            <span>เริ่มนำทางทั้งทริปใน Google Maps</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleShareTripPlan}
+            className="py-3.5 px-4 rounded-2xl bg-slate-900 hover:bg-slate-800 border border-cyan-500/45 text-cyan-300 font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all active:scale-95"
+          >
+            <Share2 size={16} />
+            <span>แชร์แผนทริป</span>
+          </button>
+        </div>
+
+        {shareTripFeedback && (
+          <div className="p-2.5 rounded-2xl bg-cyan-950/80 border border-cyan-500/45 text-cyan-200 text-xs font-bold flex items-center gap-2">
+            <CheckCircle2 size={15} className="text-cyan-400 flex-shrink-0" />
+            <span>{shareTripFeedback}</span>
+          </div>
+        )}
       </div>
 
       {/* SMART CURATED STOPS */}

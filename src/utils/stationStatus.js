@@ -1,6 +1,6 @@
 // Smart Occupancy, Booking Policy & Real-Time Tariff Analyzer for Thai EV Charging Networks
 
-export const APP_VERSION = 'v2.5.0';
+export const APP_VERSION = 'v2.6.0';
 export const APP_BUILD_LABEL = 'JAECOO 5 EV Cockpit • 119 สถานีทั่วไทย';
 
 const WALK_IN_PURE_PROVIDERS = [
@@ -226,4 +226,41 @@ export function getStationAccessInfo(station) {
     currentRateBaht,
     estCost30To80Baht
   };
+}
+
+export function calculateBearingDeg(lat1, lng1, lat2, lng2) {
+  if (lat1 == null || lng1 == null || lat2 == null || lng2 == null) return null;
+  const toRad = (d) => (d * Math.PI) / 180;
+  const toDeg = (r) => (r * 180) / Math.PI;
+  const dLng = toRad(lng2 - lng1);
+  const y = Math.sin(dLng) * Math.cos(toRad(lat2));
+  const x =
+    Math.cos(toRad(lat1)) * Math.sin(toRad(lat2)) -
+    Math.sin(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.cos(dLng);
+  return (toDeg(Math.atan2(y, x)) + 360) % 360;
+}
+
+export function getCompassDirectionTh(deg) {
+  if (deg == null || Number.isNaN(deg)) return 'รอสัญญาณทิศทาง';
+  const normalized = ((deg % 360) + 360) % 360;
+  const dirs = [
+    'ทิศเหนือ (N)',
+    'ทิศตะวันออกเฉียงเหนือ (NE)',
+    'ทิศตะวันออก (E)',
+    'ทิศตะวันออกเฉียงใต้ (SE)',
+    'ทิศใต้ (S)',
+    'ทิศตะวันตกเฉียงใต้ (SW)',
+    'ทิศตะวันตก (W)',
+    'ทิศตะวันตกเฉียงเหนือ (NW)'
+  ];
+  return dirs[Math.round(normalized / 45) % 8];
+}
+
+export function isStationAheadOnHeading(userLat, userLng, headingDeg, stLat, stLng, maxAngleDeg = 75) {
+  if (headingDeg == null || Number.isNaN(headingDeg)) return true;
+  const bearing = calculateBearingDeg(userLat, userLng, stLat, stLng);
+  if (bearing == null) return true;
+  let diff = Math.abs(bearing - headingDeg) % 360;
+  if (diff > 180) diff = 360 - diff;
+  return diff <= maxAngleDeg;
 }

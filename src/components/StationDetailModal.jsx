@@ -19,11 +19,13 @@ import {
   Star,
   FileText,
   Save,
-  Car
+  Car,
+  Share2
 } from 'lucide-react';
 import { speechService } from '../services/speechService';
 import { soundEffects } from '../services/soundEffects';
 import { getStationAccessInfo } from '../utils/stationStatus';
+import { shareTextOrCopy } from '../utils/shareUtils';
 
 const PROVIDER_HOTLINES = {
   'EV STATION PLUZ': { phone: '021143350', display: '02-114-3350 (หรือ 1365)', name: 'EV Station PluZ Call Center' },
@@ -60,6 +62,7 @@ export function StationDetailModal({ station, carData, batteryPct = 80, onClose,
   const [isFavorite, setIsFavorite] = useState(false);
   const [stationMemo, setStationMemo] = useState('');
   const [memoSavedBanner, setMemoSavedBanner] = useState('');
+  const [shareFeedback, setShareFeedback] = useState('');
 
   useEffect(() => {
     if (!station) return;
@@ -124,6 +127,22 @@ export function StationDetailModal({ station, carData, batteryPct = 80, onClose,
     } catch {}
   };
 
+  const handleShareStation = async () => {
+    const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+      station.googleMapsQuery || `${station.name} ${station.province || ''}`.trim()
+    )}`;
+    const shareText = `จุดชาร์จ EV: ${station.name}\nค่าย: ${station.provider} (${station.power})\nสถานะตอนนี้: ${access.occupancyBadgeText}\nเงื่อนไข: ${access.bookingShortBadge}\nเรทค่าไฟตอนนี้: ${access.currentRateBaht.toFixed(2)} บาท/kWh\nพิกัด Google Maps:`;
+    const res = await shareTextOrCopy({
+      title: `EV Plug Scout - ${station.name}`,
+      text: shareText,
+      url: mapsUrl
+    });
+    if (res.message) {
+      setShareFeedback(res.message);
+      setTimeout(() => setShareFeedback(''), 3500);
+    }
+  };
+
   const handleSpeakStation = () => {
     soundEffects.playListening();
     const bookingSpeech =
@@ -173,6 +192,13 @@ export function StationDetailModal({ station, carData, batteryPct = 80, onClose,
 
           <div className="flex items-center gap-1.5 flex-shrink-0">
             <button
+              onClick={handleShareStation}
+              title="แชร์พิกัดสถานีนี้เข้า LINE / แชท"
+              className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-cyan-400 transition-colors"
+            >
+              <Share2 size={17} />
+            </button>
+            <button
               onClick={handleToggleFavorite}
               title={isFavorite ? 'นำออกจากสถานีโปรด' : 'บันทึกเป็นสถานีโปรด'}
               className={`p-2 rounded-xl border transition-colors ${
@@ -198,6 +224,13 @@ export function StationDetailModal({ station, carData, batteryPct = 80, onClose,
             </button>
           </div>
         </div>
+
+        {shareFeedback && (
+          <div className="mt-3 p-2.5 rounded-2xl bg-cyan-950/80 border border-cyan-500/45 text-cyan-200 text-xs font-bold flex items-center gap-2">
+            <CheckCircle2 size={15} className="text-cyan-400 flex-shrink-0" />
+            <span>{shareFeedback}</span>
+          </div>
+        )}
 
         {/* Walk-in vs Booking Policy & Live Occupancy Banner */}
         <div

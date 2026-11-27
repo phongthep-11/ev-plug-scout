@@ -16,7 +16,9 @@ import {
   Moon,
   Home,
   Building2,
-  Award
+  Award,
+  Download,
+  BarChart3
 } from 'lucide-react';
 import { speechService } from '../services/speechService';
 import { soundEffects } from '../services/soundEffects';
@@ -180,6 +182,47 @@ export function ChargingCalculatorTab({ car, batteryPct, onSaveCarSettings }) {
   const totalDrivenKmFromLogs = Math.round(totalLoggedKwh * 6.3);
   const equivalentGasolineBaht = Math.round(totalDrivenKmFromLogs * 3.0);
   const totalSavedVsGasBaht = Math.max(0, equivalentGasolineBaht - totalLoggedBaht);
+  const evCostBarPct = equivalentGasolineBaht > 0 ? Math.min(100, Math.max(8, Math.round((totalLoggedBaht / equivalentGasolineBaht) * 100))) : 25;
+
+  // Group expenses by charging network / home for breakdown chart
+  const networkBreakdown = Object.values(
+    chargeLogs.reduce((acc, item) => {
+      const label = (item.station || 'อื่นๆ').split(' - ')[0].trim();
+      if (!acc[label]) acc[label] = { label, baht: 0, kwh: 0, count: 0 };
+      acc[label].baht += Number(item.costBaht) || 0;
+      acc[label].kwh = Math.round((acc[label].kwh + (Number(item.kwh) || 0)) * 10) / 10;
+      acc[label].count += 1;
+      return acc;
+    }, {})
+  ).sort((a, b) => b.baht - a.baht);
+
+  const handleExportCsv = () => {
+    const headers = ['วันที่', 'สถานี / เครือข่าย', 'ประเภทเรทค่าไฟ', 'พลังงาน (kWh)', 'ค่าใช้จ่าย (บาท)'];
+    const rows = chargeLogs.map((item) => [
+      `"${(item.date || '').replace(/"/g, '""')}"`,
+      `"${(item.station || '').replace(/"/g, '""')}"`,
+      `"${(item.rateType || '').replace(/"/g, '""')}"`,
+      item.kwh,
+      item.costBaht
+    ]);
+    const csvContent = '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    try {
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `EV-Plug-Scout-Charging-Log-${new Date().toISOString().slice(0, 10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      setFeedbackMsg('ส่งออกไฟล์สมุดค่าไฟ CSV (เปิดใน Excel / Google Sheets ได้ทันที) เรียบร้อยแล้ว');
+      setTimeout(() => setFeedbackMsg(''), 3500);
+    } catch {
+      setFeedbackMsg('ไม่สามารถดาวน์โหลดไฟล์ CSV บนอุปกรณ์นี้ได้');
+      setTimeout(() => setFeedbackMsg(''), 3500);
+    }
+  };
 
   return (
     <div className="space-y-4 pb-24 animate-fade-in text-slate-100">
@@ -545,6 +588,73 @@ export function ChargingCalculatorTab({ car, batteryPct, onSaveCarSettings }) {
               </span>
               <span className="text-[10px] text-emerald-400 font-extrabold block mt-0.5">ประหยัดกว่า 4 เท่า</span>
             </div>
+          </div>
+
+          {/* Visual EV vs Gasoline Bar Comparison & Network Breakdown Chart */}
+          <div className="p-3.5 rounded-2xl bg-slate-950/85 border border-slate-800 space-y-3 text-xs">
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-extrabold text-white flex items-center gap-1.5">
+                <BarChart3 size={14} className="text-emerald-400" />
+                <span>กราฟเปรียบเทียบค่าไฟ EV vs ค่าน้ำมัน SUV</span>
+              </span>
+              <button
+                type="button"
+                onClick={handleExportCsv}
+                className="px-2.5 py-1 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-cyan-300 text-[11px] font-extrabold flex items-center gap-1 active:scale-95 transition whitespace-nowrap"
+              >
+                <Download size={12} />
+                <span>ส่งออก Excel (CSV)</span>
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              <div className="space-y-1">
+                <div className="flex justify-between text-[11px]">
+                  <span className="text-emerald-300 font-bold">ค่าไฟ JAECOO 5 EV จริง</span>
+                  <span className="font-mono font-extrabold text-emerald-400">{totalLoggedBaht.toLocaleString()} บาท</span>
+                </div>
+                <div className="h-2.5 w-full rounded-full bg-slate-900 overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-400 transition-all duration-500"
+                    style={{ width: `${evCostBarPct}%` }}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <div className="flex justify-between text-[11px]">
+                  <span className="text-rose-300 font-semibold">ค่าน้ำมันรถ SUV ระยะเท่ากัน</span>
+                  <span className="font-mono font-bold text-rose-300">{equivalentGasolineBaht.toLocaleString()} บาท</span>
+                </div>
+                <div className="h-2.5 w-full rounded-full bg-slate-900 overflow-hidden">
+                  <div className="h-full rounded-full bg-gradient-to-r from-rose-500/80 to-amber-500/80 w-full" />
+                </div>
+              </div>
+            </div>
+
+            {networkBreakdown.length > 0 && (
+              <div className="pt-2.5 border-t border-slate-800/90 space-y-1.5">
+                <span className="text-[10px] font-bold text-slate-400 block">สัดส่วนค่าไฟแยกตามเครือข่าย / ไฟบ้าน:</span>
+                {networkBreakdown.slice(0, 4).map((net) => {
+                  const pct = totalLoggedBaht > 0 ? Math.max(8, Math.round((net.baht / totalLoggedBaht) * 100)) : 50;
+                  return (
+                    <div key={net.label} className="space-y-1">
+                      <div className="flex items-center justify-between text-[11px] gap-2">
+                        <span className="text-slate-200 font-semibold truncate">
+                          {net.label} ({net.count} ครั้ง • {net.kwh} kWh)
+                        </span>
+                        <span className="font-mono font-extrabold text-cyan-300 whitespace-nowrap">
+                          {net.baht.toLocaleString()} บ. ({pct}%)
+                        </span>
+                      </div>
+                      <div className="h-1.5 w-full rounded-full bg-slate-900 overflow-hidden">
+                        <div className="h-full rounded-full bg-cyan-400" style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* Add Log Row */}

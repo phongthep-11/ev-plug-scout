@@ -205,7 +205,8 @@ export function SavedStationsTab({ stations, userLocation, onSelect, onNavigate 
         memos: JSON.parse(localStorage.getItem('ev_plug_scout_station_memos') || '{}'),
         logs: JSON.parse(localStorage.getItem('ev_plug_scout_charge_logs') || '[]'),
         parking: JSON.parse(localStorage.getItem('ev_plug_scout_parking_memo') || '{}'),
-        odometer: localStorage.getItem('ev_plug_scout_odometer_km') || '3850'
+        odometer: localStorage.getItem('ev_plug_scout_odometer_km') || '3850',
+        lfpCalDate: localStorage.getItem('ev_plug_scout_lfp_cal_date') || ''
       };
       const jsonStr = JSON.stringify(payload);
       setBackupCodeText(jsonStr);
@@ -241,6 +242,9 @@ export function SavedStationsTab({ stations, userLocation, onSelect, onNavigate 
       }
       if (parsed.odometer) {
         localStorage.setItem('ev_plug_scout_odometer_km', String(parsed.odometer));
+      }
+      if (parsed.lfpCalDate) {
+        localStorage.setItem('ev_plug_scout_lfp_cal_date', String(parsed.lfpCalDate));
       }
       setFeedbackMsg('กู้คืนข้อมูลสถานีโปรด สมุดค่าไฟ และจุดจอดรถเรียบร้อยแล้ว');
       setTimeout(() => setFeedbackMsg(''), 3500);
@@ -609,9 +613,10 @@ export function SavedStationsTab({ stations, userLocation, onSelect, onNavigate 
                 <span className="text-slate-400 font-semibold">{APP_BUILD_LABEL}</span>
               </div>
               <ul className="text-slate-300 space-y-0.5 list-disc list-inside text-[11px]">
-                <li>ขยายฐานข้อมูลครบ 119 สถานีทั่วไทย (ครบ 11 ค่าย + มอเตอร์เวย์ M81 / M6)</li>
-                <li>เพิ่มโหมดขับขี่เต็มจอ (Driving HUD) ตัวอักษรใหญ่พิเศษสำหรับวางในรถ</li>
-                <li>นับถอยหลังเวลา Off-Peak สด และคำนวณถนนจริง OSRM ครบทุกช่วงจุดแวะพัก</li>
+                <li>มาตรวัดความเร็ว GPS สด + เข็มทิศ + คัดเฉพาะตู้ชาร์จด้านหน้าในโหมด HUD</li>
+                <li>ปุ่มแชร์พิกัดสถานีและแผนทริปเข้า LINE / แชทในคลิกเดียว (1-Tap Share)</li>
+                <li>กราฟเทียบค่าไฟ EV vs น้ำมัน แยกสัดส่วนตามค่าย และส่งออกไฟล์ Excel (CSV)</li>
+                <li>ตัวแจ้งเตือนชาร์จ LFP 100% คาลิเบรต BMS และกราฟความเร็วชาร์จ DC 130 kW</li>
               </ul>
             </div>
 
