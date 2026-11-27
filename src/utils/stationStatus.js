@@ -1,7 +1,7 @@
 // Smart Occupancy, Booking Policy & Real-Time Tariff Analyzer for Thai EV Charging Networks
 
-export const APP_VERSION = 'v2.8.0';
-export const APP_BUILD_LABEL = 'Clean Cockpit • 119 สถานีทั่วไทย';
+export const APP_VERSION = 'v2.9.0';
+export const APP_BUILD_LABEL = 'Smart Weather & Trip Cockpit • 119 สถานี';
 
 const WALK_IN_PURE_PROVIDERS = [
   'PEA VOLTA',
@@ -303,4 +303,21 @@ export function getProviderAppLink(provider = '', fallbackUrl = 'https://www.goo
     openUrl: isAndroid ? playStoreUrl : playStoreUrl,
     webUrl: found.webUrl
   };
+}
+
+// Pump & Mall Amenity Filter Matcher (Coffee / 7-Eleven & Food / Roofed & Mall)
+export function stationMatchesAmenity(station, amenityFilter) {
+  if (!amenityFilter || amenityFilter === 'ALL') return true;
+  const text = `${station?.name || ''} ${station?.address || ''} ${(station?.amenities || []).join(' ')}`.toLowerCase();
+
+  if (amenityFilter === 'coffee') {
+    return /amazon|starbucks|coffee|café|cafe|กาแฟ|พันธุ์ไทย|คาเฟ่|punthai|deli|truecoffee/.test(text);
+  }
+  if (amenityFilter === 'food') {
+    return /7-eleven|ร้านอาหาร|ศูนย์อาหาร|food|kfc|mcdonald|max mart|select|top|gourmet|ร้านของฝาก/.test(text);
+  }
+  if (amenityFilter === 'roofed') {
+    return /ห้าง|central|เซ็นทรัล|lotus|โลตัส|big c|บิ๊กซี|makro|แม็คโคร|robinson|โรบินสัน|mall|มอลล์|terminal|อาคารจอด|หลังคา|siam|iconsiam|bluport|maya|bitec|the circle|ในร่ม/.test(text);
+  }
+  return true;
 }

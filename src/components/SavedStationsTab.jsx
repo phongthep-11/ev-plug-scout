@@ -210,7 +210,8 @@ export function SavedStationsTab({ stations, userLocation, onSelect, onNavigate,
         parking: JSON.parse(localStorage.getItem('ev_plug_scout_parking_memo') || '{}'),
         odometer: localStorage.getItem('ev_plug_scout_odometer_km') || '3850',
         lfpCalDate: localStorage.getItem('ev_plug_scout_lfp_cal_date') || '',
-        carDocs: JSON.parse(localStorage.getItem('ev_plug_scout_car_docs') || '{}')
+        carDocs: JSON.parse(localStorage.getItem('ev_plug_scout_car_docs') || '{}'),
+        savedTrips: JSON.parse(localStorage.getItem('ev_plug_scout_saved_trips') || '[]')
       };
       const jsonStr = JSON.stringify(payload);
       setBackupCodeText(jsonStr);
@@ -252,6 +253,9 @@ export function SavedStationsTab({ stations, userLocation, onSelect, onNavigate,
       }
       if (parsed.carDocs && typeof parsed.carDocs === 'object') {
         localStorage.setItem('ev_plug_scout_car_docs', JSON.stringify(parsed.carDocs));
+      }
+      if (Array.isArray(parsed.savedTrips)) {
+        localStorage.setItem('ev_plug_scout_saved_trips', JSON.stringify(parsed.savedTrips));
       }
       setFeedbackMsg('กู้คืนข้อมูลสถานีโปรด สมุดค่าไฟ และจุดจอดรถเรียบร้อยแล้ว');
       setTimeout(() => setFeedbackMsg(''), 3500);
@@ -620,10 +624,10 @@ export function SavedStationsTab({ stations, userLocation, onSelect, onNavigate,
                 <span className="text-slate-400 font-semibold">{APP_BUILD_LABEL}</span>
               </div>
               <ul className="text-slate-300 space-y-0.5 list-disc list-inside text-[11px]">
-                <li>จัดระเบียบหน้าแรกและแถบ Header ใหม่ทั้งหมดให้โล่ง สบายตา อ่านง่ายใน 1 วินาที</li>
-                <li>รวบปุ่มตั้งค่าด่วน (GPS / เสียง / จอสว่างค้าง / จำลองขับ / อัปเดต) ไว้ในปุ่ม "เมนู"</li>
-                <li>รวบตัวกรองภูมิภาค 11 ค่าย และการเรียงลำดับไว้ในลิ้นชัก "ตัวกรอง" ไม่ให้รกหน้าจอ</li>
-                <li>ย่อการ์ดสถานีให้กระชับ เหลือเฉพาะข้อมูลจำเป็นพร้อมปุ่มนำทางขนาดใหญ่</li>
+                <li>เช็กสภาพอากาศจริง ณ ปลายทางอัตโนมัติ (Open-Meteo) พร้อมคำแนะนำชาร์จ EV</li>
+                <li>ปรับความเร็วขับจริง (90 / 110 / 120+ กม./ชม.) ในหน้าวางแผนทริป + เตือนแบตไม่พอ</li>
+                <li>บันทึกทริปประจำ (Saved Trips) และจัดหน้าวางแผนทริปใหม่ให้โล่ง สะอาด อ่านง่าย</li>
+                <li>ตัวกรองสิ่งอำนวยความสะดวกในปั๊ม (มีร้านกาแฟ / 7-Eleven / ในห้างมีหลังคา)</li>
               </ul>
             </div>
 

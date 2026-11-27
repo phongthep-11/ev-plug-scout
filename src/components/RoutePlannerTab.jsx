@@ -3,28 +3,30 @@ import {
   Route,
   MapPin,
   Zap,
-  Compass,
   Navigation,
-  Car,
   ChevronDown,
   ChevronUp,
   ShieldCheck,
   ArrowUpDown,
-  Flag,
-  Building2,
-  Home,
   Crosshair,
-  Award,
   List,
   CheckCircle2,
   CalendarCheck,
   Search,
   X,
   Loader2,
-  Share2
+  Share2,
+  Bookmark,
+  Trash2,
+  Sun,
+  Cloud,
+  CloudRain,
+  CloudLightning,
+  AlertTriangle,
+  Gauge
 } from 'lucide-react';
 import { NATIONWIDE_STATIONS } from '../data/stations';
-import { getStationAccessInfo } from '../utils/stationStatus';
+import { getStationAccessInfo, stationMatchesAmenity } from '../utils/stationStatus';
 import { shareTextOrCopy } from '../utils/shareUtils';
 import {
   THAILAND_PLACES_DB,
@@ -33,17 +35,42 @@ import {
   searchLocalThailandPlaces,
   searchOnlineThailandPlaces,
   reverseGeocodeThailand,
-  fetchRealDrivingRoute
+  fetchRealDrivingRoute,
+  fetchDestinationWeather
 } from '../services/placeSearchService';
+
+const DEFAULT_SAVED_TRIPS = [
+  {
+    id: 'trip-huahin',
+    label: 'บางใหญ่ -> หัวหิน',
+    origin: THAILAND_PLACES_DB[0],
+    dest: THAILAND_PLACES_DB.find((p) => p.name.includes('หัวหิน')) || THAILAND_PLACES_DB[20],
+    isRoundTrip: false
+  },
+  {
+    id: 'trip-pattaya',
+    label: 'บางใหญ่ -> พัทยา',
+    origin: THAILAND_PLACES_DB[0],
+    dest: THAILAND_PLACES_DB.find((p) => p.name.includes('พัทยา')) || THAILAND_PLACES_DB[36],
+    isRoundTrip: false
+  },
+  {
+    id: 'trip-khaoyai',
+    label: 'บางใหญ่ -> เขาใหญ่',
+    origin: THAILAND_PLACES_DB[0],
+    dest: THAILAND_PLACES_DB.find((p) => p.name.includes('เขาใหญ่')) || THAILAND_PLACES_DB[44],
+    isRoundTrip: false
+  }
+];
 
 function resolveBestLocalPlace(queryText, userLocation, fallback) {
   if (!queryText) return fallback;
   const q = queryText.trim().toLowerCase();
 
-  if (q.includes("ตำแหน่งปัจจุบัน") || q.includes("พิกัดรถ") || q.includes("gps")) {
+  if (q.includes('ตำแหน่งปัจจุบัน') || q.includes('พิกัดรถ') || q.includes('gps')) {
     if (userLocation && userLocation.lat && userLocation.lng) {
       return {
-        name: userLocation.areaName || "ตำแหน่งปัจจุบันของรถ (GPS)",
+        name: userLocation.areaName || 'ตำแหน่งปัจจุบันของรถ (GPS)',
         sub: `พิกัด ${userLocation.lat.toFixed(4)}, ${userLocation.lng.toFixed(4)}`,
         lat: userLocation.lat,
         lng: userLocation.lng,
@@ -61,94 +88,82 @@ function resolveBestLocalPlace(queryText, userLocation, fallback) {
 }
 
 export function RoutePlannerTab({ userLocation, carData, batteryPct = 80, onSelect, onNavigate }) {
-  // Locked coordinate objects (like Google Maps Place Selection)
   const [originPlace, setOriginPlace] = useState(() => {
     if (userLocation && userLocation.lat && userLocation.lng) {
       return {
-        name: userLocation.areaName || "ตำแหน่งปัจจุบันของฉัน (GPS)",
-        sub: "พิกัดดาวเทียมปัจจุบันของรถ",
+        name: userLocation.areaName || 'ตำแหน่งปัจจุบันของฉัน (GPS)',
+        sub: 'พิกัดดาวเทียมปัจจุบันของรถ',
         lat: userLocation.lat,
         lng: userLocation.lng,
         corridor: inferCorridorFromCoords(userLocation.lat, userLocation.lng),
         isCurrentGps: true
       };
     }
-    return THAILAND_PLACES_DB[0]; // เซ็นทรัล เวสต์เกต (บางใหญ่)
+    return THAILAND_PLACES_DB[0];
   });
 
   const [destPlace, setDestPlace] = useState(() => {
-    return THAILAND_PLACES_DB.find(p => p.name.includes("หัวหิน")) || THAILAND_PLACES_DB[20];
+    return THAILAND_PLACES_DB.find((p) => p.name.includes('หัวหิน')) || THAILAND_PLACES_DB[20];
   });
 
-  // Text shown in the search inputs
   const [originText, setOriginText] = useState(() => originPlace.name);
   const [destText, setDestText] = useState(() => destPlace.name);
 
-  // Optional Mid-Trip Waypoint (จุดแวะระหว่างทาง)
+  // Optional Mid-Trip Waypoint
   const [hasWaypoint, setHasWaypoint] = useState(false);
   const [waypointPlace, setWaypointPlace] = useState(null);
   const [waypointText, setWaypointText] = useState('');
 
-  // Google Maps-style Autocomplete Dropdown state
+  // Speed, Round-Trip & Saved Trips
+  const [cruiseSpeedKmh, setCruiseSpeedKmh] = useState(110); // 90 | 110 | 120
+  const [isRoundTrip, setIsRoundTrip] = useState(false);
+  const [savedTrips, setSavedTrips] = useState(() => {
+    try {
+      const saved = localStorage.getItem('ev_plug_scout_saved_trips');
+      return saved ? JSON.parse(saved) : DEFAULT_SAVED_TRIPS;
+    } catch {
+      return DEFAULT_SAVED_TRIPS;
+    }
+  });
+
+  // Live Autocomplete, OSRM Routing & Destination Weather
   const [activeField, setActiveField] = useState(null); // 'origin' | 'waypoint' | 'dest' | null
-  const [isRoundTrip, setIsRoundTrip] = useState(false); // One-way vs Round-trip
   const [onlineSuggestions, setOnlineSuggestions] = useState([]);
   const [isSearchingOnline, setIsSearchingOnline] = useState(false);
   const [realRoadRoute, setRealRoadRoute] = useState(null);
-  const [isCalculatingRoute, setIsCalculatingRoute] = useState(false);
+  const [destWeather, setDestWeather] = useState(null);
   const [gpsAddressName, setGpsAddressName] = useState('');
   const [showAllCorridorStops, setShowAllCorridorStops] = useState(false);
-  const [shareTripFeedback, setShareTripFeedback] = useState('');
+  const [feedbackBanner, setFeedbackBanner] = useState('');
   const searchTimeoutRef = useRef(null);
 
-  // Reverse-geocode real GPS coordinates into actual street/district name like Google Maps
+  // Reverse-geocode GPS coords cleanly
   useEffect(() => {
     let active = true;
     if (userLocation?.lat && userLocation?.lng) {
-      if (userLocation.areaName) {
-        setGpsAddressName(userLocation.areaName);
-      }
-      reverseGeocodeThailand(userLocation.lat, userLocation.lng).then(addr => {
+      reverseGeocodeThailand(userLocation.lat, userLocation.lng).then((addr) => {
         if (active && addr) {
           setGpsAddressName(addr);
-          if (originPlace.isCurrentGps) {
-            const label = `ตำแหน่งปัจจุบัน (${addr})`;
-            setOriginPlace(prev => ({
-              ...prev,
-              name: label,
-              sub: addr,
-              lat: userLocation.lat,
-              lng: userLocation.lng
-            }));
-            setOriginText(label);
-          }
         }
       });
     }
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, [userLocation?.lat, userLocation?.lng]);
 
-  // Live Online Thailand Place Search (Nominatim OSM Thailand) when typing
+  // Live Online Thailand Place Search (Nominatim OSM Thailand)
   useEffect(() => {
-    if (!activeField) {
-      setOnlineSuggestions([]);
-      return;
-    }
-
+    if (!activeField) return;
     const query =
       activeField === 'origin' ? originText : activeField === 'waypoint' ? waypointText : destText;
     const cleanQ = (query || '').replace(/ตำแหน่งปัจจุบัน.*/, '').trim();
 
     if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    if (cleanQ.length < 2) return;
 
-    if (cleanQ.length < 2) {
-      setOnlineSuggestions([]);
-      setIsSearchingOnline(false);
-      return;
-    }
-
-    setIsSearchingOnline(true);
     searchTimeoutRef.current = setTimeout(async () => {
+      setIsSearchingOnline(true);
       const results = await searchOnlineThailandPlaces(cleanQ, userLocation);
       setOnlineSuggestions(results);
       setIsSearchingOnline(false);
@@ -159,22 +174,17 @@ export function RoutePlannerTab({ userLocation, carData, batteryPct = 80, onSele
     };
   }, [originText, waypointText, destText, activeField, userLocation]);
 
-  // Resolve active Origin & Destination coordinates
   const resolvedOrigin = useMemo(() => {
-    if (originPlace && originText.trim() === originPlace.name.trim()) {
-      return originPlace;
-    }
+    if (originPlace && originText.trim() === originPlace.name.trim()) return originPlace;
     return resolveBestLocalPlace(originText, userLocation, originPlace);
   }, [originText, originPlace, userLocation]);
 
   const resolvedDest = useMemo(() => {
-    if (destPlace && destText.trim() === destPlace.name.trim()) {
-      return destPlace;
-    }
+    if (destPlace && destText.trim() === destPlace.name.trim()) return destPlace;
     return resolveBestLocalPlace(destText, userLocation, destPlace);
   }, [destText, destPlace, userLocation]);
 
-  // Fetch Real Highway Road Distance & Duration from OSRM Routing Engine (including optional Waypoint)
+  // Fetch Real 2-Point or 3-Point OSRM Highway Route
   useEffect(() => {
     let active = true;
     const activeWp = hasWaypoint && waypointPlace?.lat ? waypointPlace : null;
@@ -185,24 +195,28 @@ export function RoutePlannerTab({ userLocation, carData, batteryPct = 80, onSele
         resolvedDest.lat,
         resolvedDest.lng,
         activeWp
-      ).then(routeData => {
-        if (active) {
-          setRealRoadRoute(routeData);
-          setIsCalculatingRoute(false);
-        }
+      ).then((routeData) => {
+        if (active) setRealRoadRoute(routeData);
       });
     }
-    return () => { active = false; };
-  }, [
-    resolvedOrigin?.lat,
-    resolvedOrigin?.lng,
-    resolvedDest?.lat,
-    resolvedDest?.lng,
-    hasWaypoint,
-    waypointPlace
-  ]);
+    return () => {
+      active = false;
+    };
+  }, [resolvedOrigin, resolvedDest, hasWaypoint, waypointPlace]);
 
-  // Combine instant local places + live online Thailand places for the active input
+  // Fetch Live Destination Weather via Open-Meteo API
+  useEffect(() => {
+    let active = true;
+    if (resolvedDest?.lat && resolvedDest?.lng) {
+      fetchDestinationWeather(resolvedDest.lat, resolvedDest.lng).then((w) => {
+        if (active) setDestWeather(w);
+      });
+    }
+    return () => {
+      active = false;
+    };
+  }, [resolvedDest]);
+
   const combinedSuggestions = useMemo(() => {
     if (!activeField) return [];
     const query =
@@ -210,17 +224,18 @@ export function RoutePlannerTab({ userLocation, carData, batteryPct = 80, onSele
     const cleanQ = (query || '').replace(/ตำแหน่งปัจจุบัน.*/, '').trim();
     const localList = searchLocalThailandPlaces(cleanQ, userLocation, NATIONWIDE_STATIONS);
 
-    // Deduplicate by name
-    const seen = new Set(localList.map(i => i.name.toLowerCase()));
+    const seen = new Set(localList.map((i) => i.name.toLowerCase()));
     const merged = [...localList];
-    for (const onl of onlineSuggestions) {
-      const key = onl.name.toLowerCase();
-      if (!seen.has(key)) {
-        seen.add(key);
-        merged.push(onl);
+    if (cleanQ.length >= 2) {
+      for (const onl of onlineSuggestions) {
+        const key = onl.name.toLowerCase();
+        if (!seen.has(key)) {
+          seen.add(key);
+          merged.push(onl);
+        }
       }
     }
-    return merged.slice(0, 12);
+    return merged.slice(0, 10);
   }, [activeField, originText, waypointText, destText, onlineSuggestions, userLocation]);
 
   const handleSelectSuggestion = (field, place) => {
@@ -239,7 +254,10 @@ export function RoutePlannerTab({ userLocation, carData, batteryPct = 80, onSele
 
   const handleUseCurrentGpsAsOrigin = () => {
     if (userLocation?.lat && userLocation?.lng) {
-      const addr = gpsAddressName || userLocation.areaName || `พิกัด ${userLocation.lat.toFixed(4)}, ${userLocation.lng.toFixed(4)}`;
+      const addr =
+        gpsAddressName ||
+        userLocation.areaName ||
+        `พิกัด ${userLocation.lat.toFixed(4)}, ${userLocation.lng.toFixed(4)}`;
       const gpsPlace = {
         name: `ตำแหน่งปัจจุบัน (${addr})`,
         sub: addr,
@@ -259,7 +277,7 @@ export function RoutePlannerTab({ userLocation, carData, batteryPct = 80, onSele
     }
   };
 
-  // Dynamic Route & Highway Charging Stop Calculation
+  // Dynamic Route, Real Speed Efficiency, Weather Adjustment & Highway Charging Stop Calculation
   const routeCalculation = useMemo(() => {
     const originLoc = resolvedOrigin;
     const destLoc = resolvedDest;
@@ -270,49 +288,50 @@ export function RoutePlannerTab({ userLocation, carData, batteryPct = 80, onSele
       const leg2 = calculateHaversineKm(waypointPlace.lat, waypointPlace.lng, destLoc.lat, destLoc.lng) || 80;
       straightDist = leg1 + leg2;
     }
-    const oneWayDistanceKm =
-      realRoadRoute?.distanceKm || Math.max(10, Math.round(straightDist * 1.26));
+
+    const oneWayDistanceKm = realRoadRoute?.distanceKm || Math.max(10, Math.round(straightDist * 1.26));
     const drivingDistanceKm = isRoundTrip ? oneWayDistanceKm * 2 : oneWayDistanceKm;
 
-    const oneWayMinutes = realRoadRoute?.durationMin || Math.round((oneWayDistanceKm / 75) * 60);
+    const speedAdjustFactor = cruiseSpeedKmh === 90 ? 1.12 : cruiseSpeedKmh === 120 ? 0.9 : 1.0;
+    const baseOneWayMinutes = realRoadRoute?.durationMin || Math.round((oneWayDistanceKm / 78) * 60);
+    const oneWayMinutes = Math.max(5, Math.round(baseOneWayMinutes * speedAdjustFactor));
     const minutes = isRoundTrip ? oneWayMinutes * 2 : oneWayMinutes;
     const hoursPart = Math.floor(minutes / 60);
     const minsPart = minutes % 60;
     const driveTimeText = hoursPart > 0 ? `~${hoursPart} ชม. ${minsPart} นาที` : `~${minsPart} นาที`;
 
+    // Real Speed & Live Weather Consumption for JAECOO 5 EV Ultra
+    const baseKmPerKwh = cruiseSpeedKmh === 90 ? 6.4 : cruiseSpeedKmh === 110 ? 5.6 : 4.8;
+    const weatherFactor = destWeather?.efficiencyFactor || 1.0;
+    const effectiveKmPerKwh = Math.round(baseKmPerKwh * weatherFactor * 100) / 100;
+
     const batteryCapacityKwh = carData?.batterySizeKwh || 67.0;
-    const batteryUsedKwh = Math.round((drivingDistanceKm / 6.0) * 10) / 10;
+    const batteryUsedKwh = Math.round((drivingDistanceKm / effectiveKmPerKwh) * 10) / 10;
     const batteryUsedPct = Math.round((batteryUsedKwh / batteryCapacityKwh) * 100);
+    const oneWayUsedPct = Math.round(((oneWayDistanceKm / effectiveKmPerKwh) / batteryCapacityKwh) * 100);
+    const directArrivalPct = Math.round(batteryPct - oneWayUsedPct);
+
     const estTripEvCostBaht = Math.round(batteryUsedKwh * 5.2);
     const estTripGasCostBaht = Math.round(drivingDistanceKm * 3.1);
     const estTripSavingsBaht = Math.max(0, estTripGasCostBaht - estTripEvCostBaht);
 
     const destCorridor = destLoc.corridor || inferCorridorFromCoords(destLoc.lat, destLoc.lng);
-    let highwayName = "เส้นทางหลวงหลักตามพิกัด Google Maps";
-    if (destCorridor === "south") {
-      highwayName = "ถ.กาญจนาภิเษก ทล.9 -> ถ.พระราม 2 ทล.35 -> ถ.เพชรเกษม ทล.4";
-    } else if (destCorridor === "east") {
-      highwayName = "ถ.กาญจนาภิเษก ทล.9 -> มอเตอร์เวย์ สาย 7 -> ถ.สุขุมวิท ทล.3";
-    } else if (destCorridor === "northeast") {
-      highwayName = "ถ.กาญจนาภิเษก ทล.9 -> ถ.พหลโยธิน -> ถ.มิตรภาพ ทล.2";
-    } else if (destCorridor === "north") {
-      highwayName = "ถ.กาญจนาภิเษก ทล.9 -> ถ.สายเอเชีย ทล.32 -> ถ.พหลโยธิน ทล.1";
-    } else if (destCorridor === "west") {
-      highwayName = "ถ.บรมราชชนนี / มอเตอร์เวย์ M81 -> ถ.แสงชูโต ทล.323";
-    }
+    let highwayName = 'เส้นทางหลวงหลักตามพิกัด Google Maps';
+    if (destCorridor === 'south') highwayName = 'ถ.กาญจนาภิเษก ทล.9 -> ถ.พระราม 2 -> ถ.เพชรเกษม ทล.4';
+    else if (destCorridor === 'east') highwayName = 'ถ.กาญจนาภิเษก ทล.9 -> มอเตอร์เวย์ สาย 7 -> ถ.สุขุมวิท';
+    else if (destCorridor === 'northeast') highwayName = 'ถ.พหลโยธิน -> มอเตอร์เวย์ M6 / ถ.มิตรภาพ ทล.2';
+    else if (destCorridor === 'north') highwayName = 'ถ.สายเอเชีย ทล.32 -> ถ.พหลโยธิน ทล.1';
+    else if (destCorridor === 'west') highwayName = 'มอเตอร์เวย์ M81 (บางใหญ่-กาญจนบุรี) -> ถ.แสงชูโต';
 
     const maxPerpKm = oneWayDistanceKm > 400 ? 80 : 50;
-
-    // Build 1 or 2 route segments so Waypoint detours find stations along BOTH legs!
     const routeLegs = [];
     if (hasWaypoint && waypointPlace?.lat) {
-      const leg1Straight = calculateHaversineKm(originLoc.lat, originLoc.lng, waypointPlace.lat, waypointPlace.lng) || 1;
-      const leg2Straight = calculateHaversineKm(waypointPlace.lat, waypointPlace.lng, destLoc.lat, destLoc.lng) || 1;
-      const totalStraight = leg1Straight + leg2Straight;
-      const leg1Km = Math.max(5, Math.round((leg1Straight / totalStraight) * oneWayDistanceKm));
-      const leg2Km = Math.max(5, oneWayDistanceKm - leg1Km);
+      const l1 = calculateHaversineKm(originLoc.lat, originLoc.lng, waypointPlace.lat, waypointPlace.lng) || 1;
+      const l2 = calculateHaversineKm(waypointPlace.lat, waypointPlace.lng, destLoc.lat, destLoc.lng) || 1;
+      const tot = l1 + l2;
+      const leg1Km = Math.max(5, Math.round((l1 / tot) * oneWayDistanceKm));
       routeLegs.push({ start: originLoc, end: waypointPlace, offsetKm: 0, lengthKm: leg1Km });
-      routeLegs.push({ start: waypointPlace, end: destLoc, offsetKm: leg1Km, lengthKm: leg2Km });
+      routeLegs.push({ start: waypointPlace, end: destLoc, offsetKm: leg1Km, lengthKm: Math.max(5, oneWayDistanceKm - leg1Km) });
     } else {
       routeLegs.push({ start: originLoc, end: destLoc, offsetKm: 0, lengthKm: oneWayDistanceKm });
     }
@@ -320,16 +339,10 @@ export function RoutePlannerTab({ userLocation, carData, batteryPct = 80, onSele
     const dLng = destLoc.lng - originLoc.lng;
     const allCorridorStops = [];
     for (const st of NATIONWIDE_STATIONS) {
-      if (oneWayDistanceKm > 60 && (st.id.includes("siamparagon") || st.id.includes("iconsiam"))) {
-        continue;
-      }
-
-      if (dLng > 0 && st.id === "east-pluz-motorway-inbound") continue;
-      if (dLng < 0 && st.id === "east-pluz-motorway-outbound") continue;
-
-      if (!hasWaypoint && destCorridor === "south" && st.coordinates.lat > originLoc.lat + 0.03) {
-        continue;
-      }
+      if (oneWayDistanceKm > 60 && (st.id.includes('siamparagon') || st.id.includes('iconsiam'))) continue;
+      if (dLng > 0 && st.id === 'east-pluz-motorway-inbound') continue;
+      if (dLng < 0 && st.id === 'east-pluz-motorway-outbound') continue;
+      if (!hasWaypoint && destCorridor === 'south' && st.coordinates.lat > originLoc.lat + 0.03) continue;
 
       let bestMatch = null;
       for (const leg of routeLegs) {
@@ -357,24 +370,25 @@ export function RoutePlannerTab({ userLocation, carData, batteryPct = 80, onSele
           ...st,
           t: bestMatch.t,
           distFromOrigin: bestMatch.kmAlongRoute,
-          perpDist: Math.round(bestMatch.perpDist * 10) / 10
+          perpDist: Math.round(bestMatch.perpDist * 10) / 10,
+          isRoofed: stationMatchesAmenity(st, 'roofed')
         });
       }
     }
 
-    // Fallback: if route is a custom cross-region route with few corridor hits, find stations closest to midpoint & destination
     if (allCorridorStops.length === 0) {
       const midLat = (originLoc.lat + destLoc.lat) / 2;
       const midLng = (originLoc.lng + destLoc.lng) / 2;
-      const fallbackList = NATIONWIDE_STATIONS.map(st => {
-        const distFromStart = Math.round((calculateHaversineKm(originLoc.lat, originLoc.lng, st.coordinates.lat, st.coordinates.lng) || 20) * 1.2);
+      const fallbackList = NATIONWIDE_STATIONS.map((st) => {
+        const distFromStart = Math.round(
+          (calculateHaversineKm(originLoc.lat, originLoc.lng, st.coordinates.lat, st.coordinates.lng) || 20) * 1.2
+        );
         const distToMid = calculateHaversineKm(midLat, midLng, st.coordinates.lat, st.coordinates.lng) || 999;
-        return { ...st, distFromOrigin: distFromStart, distToMid };
+        return { ...st, distFromOrigin: distFromStart, distToMid, isRoofed: stationMatchesAmenity(st, 'roofed') };
       })
         .sort((a, b) => a.distToMid - b.distToMid)
         .slice(0, 5)
         .sort((a, b) => a.distFromOrigin - b.distFromOrigin);
-
       allCorridorStops.push(...fallbackList);
     } else {
       allCorridorStops.sort((a, b) => a.distFromOrigin - b.distFromOrigin);
@@ -385,90 +399,52 @@ export function RoutePlannerTab({ userLocation, carData, batteryPct = 80, onSele
 
     if (oneWayDistanceKm > 400) {
       const stop1 =
-        allCorridorStops.find(st => st.distFromOrigin >= 180 && st.distFromOrigin <= 330 && st.powerKw >= 120) ||
-        allCorridorStops.find(st => st.distFromOrigin >= 140 && st.distFromOrigin <= 350);
+        allCorridorStops.find((st) => st.distFromOrigin >= 160 && st.distFromOrigin <= 310 && st.powerKw >= 120) ||
+        allCorridorStops.find((st) => st.distFromOrigin >= 120 && st.distFromOrigin <= 340);
       const stop2 =
-        allCorridorStops.find(st => st.distFromOrigin >= 360 && st.distFromOrigin <= 580 && st.id !== stop1?.id && st.powerKw >= 120) ||
-        allCorridorStops.find(st => st.distFromOrigin >= 350 && st.distFromOrigin <= 600 && st.id !== stop1?.id);
-      const destStop = allCorridorStops.find(st => st.distFromOrigin >= oneWayDistanceKm - 40 && st.id !== stop1?.id && st.id !== stop2?.id);
+        allCorridorStops.find((st) => st.distFromOrigin >= 350 && st.distFromOrigin <= 580 && st.id !== stop1?.id && st.powerKw >= 120) ||
+        allCorridorStops.find((st) => st.distFromOrigin >= 340 && st.distFromOrigin <= 600 && st.id !== stop1?.id);
+      const destStop = allCorridorStops.find(
+        (st) => st.distFromOrigin >= oneWayDistanceKm - 40 && st.id !== stop1?.id && st.id !== stop2?.id
+      );
 
       primaryStop = stop1 || stop2 || allCorridorStops[0];
-      if (stop1) {
-        curatedStops.push({
-          ...stop1,
-          stopRole: "จุดแวะชาร์จหลักที่ 1",
-          roleBadge: "bg-emerald-500 text-slate-950 font-bold shadow-md",
-          isRecommended: true
-        });
-      }
-      if (stop2) {
-        curatedStops.push({
-          ...stop2,
-          stopRole: "จุดแวะชาร์จหลักที่ 2",
-          roleBadge: "bg-emerald-500 text-slate-950 font-bold shadow-md",
-          isRecommended: true
-        });
-      }
-      if (destStop) {
-        curatedStops.push({
-          ...destStop,
-          stopRole: "จุดชาร์จปลายทาง",
-          roleBadge: "bg-cyan-950 text-cyan-300 border-cyan-500/40",
-          isRecommended: false
-        });
-      }
+      if (stop1) curatedStops.push({ ...stop1, stopRole: 'จุดแวะหลักที่ 1', isRecommended: true });
+      if (stop2) curatedStops.push({ ...stop2, stopRole: 'จุดแวะหลักที่ 2', isRecommended: true });
+      if (destStop) curatedStops.push({ ...destStop, stopRole: 'จุดชาร์จปลายทาง', isRecommended: false });
     } else {
-      let maxPower = 0;
-      allCorridorStops.forEach(st => {
+      let bestScore = -1;
+      allCorridorStops.forEach((st) => {
         const ratio = st.distFromOrigin / (oneWayDistanceKm || 1);
-        if (ratio >= 0.25 && ratio <= 0.85 && st.powerKw >= maxPower) {
-          maxPower = st.powerKw;
-          primaryStop = st;
+        if (ratio >= 0.22 && ratio <= 0.85) {
+          // If raining at destination, prefer roofed/mall chargers slightly!
+          const score = (st.powerKw || 120) + (destWeather?.isRainy && st.isRoofed ? 40 : 0);
+          if (score > bestScore) {
+            bestScore = score;
+            primaryStop = st;
+          }
         }
       });
 
-      const backupStop = allCorridorStops.find(st => {
+      const backupStop = allCorridorStops.find((st) => {
         const ratio = st.distFromOrigin / (oneWayDistanceKm || 1);
-        return ratio >= 0.15 && ratio <= 0.45 && st.id !== primaryStop?.id && st.distFromOrigin < (primaryStop?.distFromOrigin || 999);
+        return ratio >= 0.14 && ratio <= 0.45 && st.id !== primaryStop?.id && st.distFromOrigin < (primaryStop?.distFromOrigin || 999);
       });
+      const destinationStop = allCorridorStops.find(
+        (st) => st.distFromOrigin >= oneWayDistanceKm - 30 && st.id !== primaryStop?.id && st.id !== backupStop?.id
+      );
 
-      const destinationStop = allCorridorStops.find(st => {
-        return st.distFromOrigin >= oneWayDistanceKm - 30 && st.id !== primaryStop?.id && st.id !== backupStop?.id;
-      });
-
-      if (backupStop) {
-        curatedStops.push({
-          ...backupStop,
-          stopRole: "จุดสำรองกลางทาง",
-          roleBadge: "bg-slate-800 text-slate-300 border-slate-700",
-          isRecommended: false
-        });
-      }
-      if (primaryStop) {
-        curatedStops.push({
-          ...primaryStop,
-          stopRole: "จุดแวะชาร์จหลักที่แนะนำ",
-          roleBadge: "bg-emerald-500 text-slate-950 font-bold shadow-md",
-          isRecommended: true
-        });
-      }
-      if (destinationStop) {
-        curatedStops.push({
-          ...destinationStop,
-          stopRole: "จุดชาร์จปลายทาง",
-          roleBadge: "bg-cyan-950 text-cyan-300 border-cyan-500/40",
-          isRecommended: false
-        });
-      }
+      if (backupStop) curatedStops.push({ ...backupStop, stopRole: 'จุดสำรองต้นทาง', isRecommended: false });
+      if (primaryStop) curatedStops.push({ ...primaryStop, stopRole: 'จุดแวะหลักที่แนะนำ', isRecommended: true });
+      if (destinationStop) curatedStops.push({ ...destinationStop, stopRole: 'จุดชาร์จปลายทาง', isRecommended: false });
     }
 
     curatedStops.sort((a, b) => a.distFromOrigin - b.distFromOrigin);
 
-    const arrivalBatteryAtPrimary = Math.max(15, Math.round(batteryPct - ((primaryStop?.distFromOrigin || 50) / 6.0 / batteryCapacityKwh * 100)));
-    const tripDistSummary = isRoundTrip
-      ? `รวมไป-กลับ ${drivingDistanceKm} กม. / ขาไป ${oneWayDistanceKm} กม.`
-      : `${oneWayDistanceKm} กม.`;
-    const adviceText = `เดินทางจาก ${originLoc.name.split(' (')[0]} ไป ${destLoc.name.split(' (')[0]} (${tripDistSummary}) แนะนำแวะชาร์จที่ "${primaryStop ? primaryStop.name : "สถานีระหว่างทาง"}" (กม.ที่ ${primaryStop?.distFromOrigin || "-"} ขาไป) เสียบชาร์จด่วน 130-360 kW เพียง ~20 นาที แบตจะขึ้นมาถึง 80% ถึงที่หมายได้อย่างสบายใจครับ`;
+    const firstStopDist = primaryStop?.distFromOrigin || oneWayDistanceKm;
+    const pctUsedToFirstStop = Math.round(((firstStopDist / effectiveKmPerKwh) / batteryCapacityKwh) * 100);
+    const arrivalBatteryAtPrimary = Math.round(batteryPct - pctUsedToFirstStop);
+    const isBatteryRiskToFirstStop = arrivalBatteryAtPrimary < 15;
 
     return {
       originLoc,
@@ -477,18 +453,20 @@ export function RoutePlannerTab({ userLocation, carData, batteryPct = 80, onSele
       drivingDistanceKm,
       driveTimeText,
       highwayName,
+      effectiveKmPerKwh,
       batteryUsedKwh,
       batteryUsedPct,
+      directArrivalPct,
       estTripEvCostBaht,
       estTripGasCostBaht,
       estTripSavingsBaht,
       arrivalBatteryAtPrimary,
+      isBatteryRiskToFirstStop,
       primaryStop,
       smartStops: curatedStops.length > 0 ? curatedStops : allCorridorStops.slice(0, 3),
-      allCorridorStops,
-      adviceText
+      allCorridorStops
     };
-  }, [resolvedOrigin, resolvedDest, realRoadRoute, carData, batteryPct, isRoundTrip, hasWaypoint, waypointPlace]);
+  }, [resolvedOrigin, resolvedDest, realRoadRoute, carData, batteryPct, isRoundTrip, hasWaypoint, waypointPlace, cruiseSpeedKmh, destWeather]);
 
   const handleSwapRoute = () => {
     const tempPlace = resolvedOrigin;
@@ -500,6 +478,57 @@ export function RoutePlannerTab({ userLocation, carData, batteryPct = 80, onSele
     setActiveField(null);
   };
 
+  const handleSaveCurrentTrip = () => {
+    const shortOrigin = resolvedOrigin.name.split(' (')[0].replace('ตำแหน่งปัจจุบัน', 'จุดปัจจุบัน');
+    const shortDest = resolvedDest.name.split(' (')[0];
+    const label = `${shortOrigin} -> ${shortDest}`;
+    const newTrip = {
+      id: `trip-${Date.now()}`,
+      label,
+      origin: resolvedOrigin,
+      dest: resolvedDest,
+      waypoint: hasWaypoint && waypointPlace ? waypointPlace : null,
+      isRoundTrip
+    };
+    const updated = [newTrip, ...savedTrips.filter((t) => t.label !== label)].slice(0, 8);
+    setSavedTrips(updated);
+    try {
+      localStorage.setItem('ev_plug_scout_saved_trips', JSON.stringify(updated));
+    } catch {}
+    setFeedbackBanner(`บันทึกทริปประจำ "${label}" เรียบร้อยแล้ว`);
+    setTimeout(() => setFeedbackBanner(''), 3200);
+  };
+
+  const handleLoadSavedTrip = (trip) => {
+    if (trip.origin) {
+      setOriginPlace(trip.origin);
+      setOriginText(trip.origin.name);
+    }
+    if (trip.dest) {
+      setDestPlace(trip.dest);
+      setDestText(trip.dest.name);
+    }
+    if (trip.waypoint) {
+      setHasWaypoint(true);
+      setWaypointPlace(trip.waypoint);
+      setWaypointText(trip.waypoint.name);
+    } else {
+      setHasWaypoint(false);
+      setWaypointPlace(null);
+      setWaypointText('');
+    }
+    setIsRoundTrip(Boolean(trip.isRoundTrip));
+    setActiveField(null);
+  };
+
+  const handleDeleteSavedTrip = (id) => {
+    const updated = savedTrips.filter((t) => t.id !== id);
+    setSavedTrips(updated);
+    try {
+      localStorage.setItem('ev_plug_scout_saved_trips', JSON.stringify(updated));
+    } catch {}
+  };
+
   const buildFullTripGoogleMapsUrl = () => {
     const { originLoc, destLoc, primaryStop } = routeCalculation;
     if (!destLoc) return '';
@@ -509,16 +538,11 @@ export function RoutePlannerTab({ userLocation, carData, batteryPct = 80, onSele
     const destPlaceStr = destLoc.name || `${destLoc.lat},${destLoc.lng}`;
     let url = `https://www.google.com/maps/dir/?api=1${originParam}&destination=${encodeURIComponent(destPlaceStr)}&travelmode=driving`;
     const waypointsList = [];
-    if (hasWaypoint && waypointText.trim()) {
-      waypointsList.push(waypointText.trim());
-    }
+    if (hasWaypoint && waypointText.trim()) waypointsList.push(waypointText.trim());
     if (primaryStop) {
-      const stopPlace = primaryStop.googleMapsQuery || `${primaryStop.name} ${primaryStop.province || ''}`.trim();
-      waypointsList.push(stopPlace);
+      waypointsList.push(primaryStop.googleMapsQuery || `${primaryStop.name} ${primaryStop.province || ''}`.trim());
     }
-    if (waypointsList.length > 0) {
-      url += `&waypoints=${encodeURIComponent(waypointsList.join('|'))}`;
-    }
+    if (waypointsList.length > 0) url += `&waypoints=${encodeURIComponent(waypointsList.join('|'))}`;
     return url;
   };
 
@@ -526,9 +550,7 @@ export function RoutePlannerTab({ userLocation, carData, batteryPct = 80, onSele
     const url = buildFullTripGoogleMapsUrl();
     if (!url) return;
     const opened = window.open(url, '_blank');
-    if (!opened) {
-      window.location.href = url;
-    }
+    if (!opened) window.location.href = url;
   };
 
   const handleShareTripPlan = async () => {
@@ -536,10 +558,11 @@ export function RoutePlannerTab({ userLocation, carData, batteryPct = 80, onSele
       routeCalculation;
     const mapsUrl = buildFullTripGoogleMapsUrl();
     const wpLine = hasWaypoint && waypointText.trim() ? `\nจุดแวะระหว่างทาง: ${waypointText.trim()}` : '';
+    const weatherLine = destWeather ? `\nอากาศปลายทาง: ${destWeather.label} ${destWeather.tempC}°C` : '';
     const stopLine = primaryStop
       ? `\nจุดแวะชาร์จหลัก: ${primaryStop.name} (กม.ที่ ${primaryStop.distFromOrigin} • ${primaryStop.power})`
       : '';
-    const text = `แผนเดินทาง EV (JAECOO 5 EV)\nต้นทาง: ${originLoc.name}${wpLine}\nปลายทาง: ${destLoc.name}\nระยะทาง: ${drivingDistanceKm} กม. (${isRoundTrip ? 'รวมไป-กลับ' : 'ขาไปเที่ยวเดียว'}) • ${driveTimeText}\nงบค่าไฟประมาณ ${estTripEvCostBaht} บ. (ประหยัดน้ำมัน ${estTripSavingsBaht} บ.)${stopLine}\nเปิดเส้นทางใน Google Maps:`;
+    const text = `แผนเดินทาง EV (JAECOO 5 EV • ความเร็ว ${cruiseSpeedKmh} กม./ชม.)\nต้นทาง: ${originLoc.name}${wpLine}\nปลายทาง: ${destLoc.name}${weatherLine}\nระยะทาง: ${drivingDistanceKm} กม. (${isRoundTrip ? 'รวมไป-กลับ' : 'ขาไปเที่ยวเดียว'}) • ${driveTimeText}\nงบค่าไฟ ~${estTripEvCostBaht} บ. (ประหยัดน้ำมัน ${estTripSavingsBaht} บ.)${stopLine}\nเปิดเส้นทางใน Google Maps:`;
 
     const res = await shareTextOrCopy({
       title: `แผนทริป EV: ${originLoc.name} -> ${destLoc.name}`,
@@ -547,641 +570,524 @@ export function RoutePlannerTab({ userLocation, carData, batteryPct = 80, onSele
       url: mapsUrl
     });
     if (res.message) {
-      setShareTripFeedback(res.message);
-      setTimeout(() => setShareTripFeedback(''), 3500);
+      setFeedbackBanner(res.message);
+      setTimeout(() => setFeedbackBanner(''), 3500);
     }
   };
 
-  const QUICK_DESTINATIONS = [
-    { label: "หัวหิน", place: THAILAND_PLACES_DB.find(p => p.name.includes("หัวหิน")) },
-    { label: "พัทยา", place: THAILAND_PLACES_DB.find(p => p.name.includes("พัทยา")) },
-    { label: "เขาใหญ่/โคราช", place: THAILAND_PLACES_DB.find(p => p.name.includes("เขาใหญ่")) },
-    { label: "เชียงใหม่", place: THAILAND_PLACES_DB.find(p => p.name.includes("เชียงใหม่")) },
-    { label: "กาญจนบุรี", place: THAILAND_PLACES_DB.find(p => p.name.includes("กาญจนบุรี")) },
-    { label: "ระยอง/จันท์", place: THAILAND_PLACES_DB.find(p => p.name.includes("ระยอง")) },
-  ];
+  const WeatherIcon =
+    destWeather?.condition === 'storm'
+      ? CloudLightning
+      : destWeather?.isRainy
+      ? CloudRain
+      : destWeather?.condition === 'cloudy'
+      ? Cloud
+      : Sun;
 
   return (
     <div className="space-y-4 pb-24 animate-fade-in text-slate-100">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+      {/* Clean Page Title + Save Current Trip Button */}
+      <div className="flex items-center justify-between gap-2">
         <div>
-          <h2 className="text-lg font-extrabold text-white flex items-center gap-2">
-            <Route className="text-emerald-400" size={22} />
-            <span>ค้นหาเส้นทางเหมือน Google Maps</span>
+          <h2 className="text-base sm:text-lg font-extrabold text-white flex items-center gap-2 tracking-tight">
+            <Route className="text-emerald-400" size={20} />
+            <span>วางแผนทริปทางไกล</span>
           </h2>
           <p className="text-xs text-slate-400 mt-0.5">
-            พิมพ์ชื่อสถานที่ ห้าง วัด อำเภอ หรือจังหวัดทั่วไทยได้ทั้งต้นทางและปลายทาง
+            เช็กจุดชาร์จ สภาพอากาศปลายทาง และคำนวณแบตตามความเร็วจริง
           </p>
         </div>
+
+        <button
+          type="button"
+          onClick={handleSaveCurrentTrip}
+          className="px-3 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-300 text-xs font-extrabold flex items-center gap-1 whitespace-nowrap active:scale-95 transition"
+        >
+          <Bookmark size={13} />
+          <span>บันทึกทริปนี้</span>
+        </button>
       </div>
 
-      {/* 1-Tap Visual Destination Grid */}
-      <div className="space-y-2">
-        <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-          <Compass size={13} className="text-emerald-400" />
-          <span>แตะเลือกปลายทางยอดฮิต หรือพิมพ์ค้นหาเองด้านล่าง:</span>
-        </span>
-        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-          {QUICK_DESTINATIONS.map((d) => {
-            if (!d.place) return null;
-            const isSelected = destText.includes(d.label.split('/')[0]);
-            return (
-              <button
-                key={d.label}
-                onClick={() => handleSelectSuggestion('dest', d.place)}
-                className={`p-2.5 rounded-2xl border text-left transition-all active:scale-95 ${
-                  isSelected
-                    ? "bg-gradient-to-br from-emerald-500 to-teal-500 text-slate-950 font-extrabold border-emerald-400 shadow-[0_4px_15px_rgba(16,185,129,0.35)]"
-                    : "bg-[#131b2e] border-slate-800 text-slate-200 hover:border-slate-700"
-                }`}
-              >
-                <div className="text-xs sm:text-sm font-bold truncate flex items-center gap-1">
-                  <MapPin size={12} className={isSelected ? "text-slate-950 flex-shrink-0" : "text-emerald-400 flex-shrink-0"} />
-                  <span>{d.label}</span>
-                </div>
-                <div className={`text-[10px] truncate mt-0.5 ${isSelected ? "text-slate-900 font-semibold" : "text-slate-400"}`}>
-                  {d.place.sub}
-                </div>
-              </button>
-            );
-          })}
+      {feedbackBanner && (
+        <div className="p-3 rounded-2xl bg-emerald-950/85 border border-emerald-500/45 text-emerald-200 text-xs font-bold flex items-center gap-2">
+          <CheckCircle2 size={15} className="text-emerald-400 flex-shrink-0" />
+          <span>{feedbackBanner}</span>
         </div>
-      </div>
+      )}
 
-      {/* GOOGLE MAPS-STYLE ORIGIN & DESTINATION SEARCH CARD */}
-      <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-br from-[#131d31] via-[#101726] to-[#0b101b] border border-slate-800/90 space-y-4 shadow-xl">
-        <div className="relative space-y-3">
-          {/* ================= ORIGIN INPUT BOX (GOOGLE MAPS STYLE) ================= */}
-          <div className="p-3 rounded-2xl bg-slate-950/90 border border-slate-800/90 relative">
-            <div className="flex items-center justify-between mb-1.5 gap-2">
-              <span className="text-[11px] text-emerald-400 font-bold flex items-center gap-1.5 flex-shrink-0">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]" />
-                <span>จุดเริ่มต้นออกเดินทาง (Origin)</span>
-              </span>
-              <span className="text-[11px] text-slate-400 font-medium truncate">
-                {resolvedOrigin.sub || `${resolvedOrigin.lat.toFixed(4)}, ${resolvedOrigin.lng.toFixed(4)}`}
-              </span>
-            </div>
-
-            <div className="relative flex items-center">
-              <Search size={15} className="absolute left-3 text-emerald-400 pointer-events-none" />
-              <input
-                type="text"
-                value={originText}
-                onFocus={() => setActiveField('origin')}
-                onChange={(e) => {
-                  setOriginText(e.target.value);
-                  setActiveField('origin');
-                }}
-                placeholder="พิมพ์ค้นหาจุดเริ่มต้นเหมือน Google Maps (เช่น บางใหญ่, สยาม, อยุธยา)..."
-                className="w-full bg-slate-900/95 border border-slate-700/90 rounded-xl pl-9 pr-16 py-2.5 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 font-semibold"
-              />
-              <div className="absolute right-2 flex items-center gap-1">
-                {originText && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setOriginText('');
-                      setActiveField('origin');
-                    }}
-                    title="ล้างข้อความเพื่อพิมพ์ใหม่"
-                    className="p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition"
-                  >
-                    <X size={14} />
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={handleUseCurrentGpsAsOrigin}
-                  title="ใช้ตำแหน่ง GPS ปัจจุบันของรถ"
-                  className="p-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 transition"
-                >
-                  <Crosshair size={14} />
-                </button>
-              </div>
-            </div>
-
-            {/* Quick Origin Pills */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pt-2 text-[11px] no-scrollbar">
-              <span className="text-slate-500 text-[10px] font-semibold flex-shrink-0">ต้นทางด่วน:</span>
+      {/* Compact Horizontal Saved Favorite Trips Strip */}
+      {savedTrips.length > 0 && (
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5 text-xs">
+          <span className="text-[11px] font-bold text-slate-400 flex-shrink-0">ทริปประจำ:</span>
+          {savedTrips.map((trip) => (
+            <div
+              key={trip.id}
+              className="flex items-center rounded-xl bg-slate-900 border border-slate-800 overflow-hidden flex-shrink-0"
+            >
               <button
                 type="button"
-                onClick={handleUseCurrentGpsAsOrigin}
-                className={`px-2.5 py-1 rounded-lg font-semibold flex-shrink-0 border transition flex items-center gap-1 ${
-                  originText.includes("ตำแหน่งปัจจุบัน")
-                    ? "bg-emerald-500 text-slate-950 border-emerald-400 font-bold"
-                    : "bg-slate-900 text-emerald-300 border-emerald-500/40"
-                }`}
+                onClick={() => handleLoadSavedTrip(trip)}
+                className="px-2.5 py-1.5 text-[11px] font-bold text-slate-200 hover:text-emerald-300 whitespace-nowrap"
               >
-                <Crosshair size={11} />
-                <span>พิกัดรถปัจจุบัน (GPS)</span>
+                {trip.label}
               </button>
               <button
                 type="button"
-                onClick={() => handleSelectSuggestion('origin', THAILAND_PLACES_DB[1])}
-                className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-white flex-shrink-0 flex items-center gap-1"
+                onClick={() => handleDeleteSavedTrip(trip.id)}
+                title="ลบทริปนี้"
+                className="px-1.5 py-1.5 text-slate-500 hover:text-rose-400 border-l border-slate-800"
               >
-                <Building2 size={11} />
-                <span>บางใหญ่ / พระปิ่น 3</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSelectSuggestion('origin', THAILAND_PLACES_DB[2])}
-                className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-white flex-shrink-0 flex items-center gap-1"
-              >
-                <Home size={11} />
-                <span>ไทรน้อย</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSelectSuggestion('origin', THAILAND_PLACES_DB[9])}
-                className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-white flex-shrink-0 flex items-center gap-1"
-              >
-                <Car size={11} />
-                <span>พระราม 2</span>
+                <Trash2 size={11} />
               </button>
             </div>
+          ))}
+        </div>
+      )}
 
-            {/* GOOGLE MAPS AUTOCOMPLETE DROPDOWN FOR ORIGIN */}
-            {activeField === 'origin' && (
-              <div className="mt-2 rounded-2xl bg-[#0e1525] border border-emerald-500/50 shadow-2xl overflow-hidden z-30 max-h-64 overflow-y-auto divide-y divide-slate-800/80">
-                <div className="px-3 py-1.5 bg-slate-900/90 flex items-center justify-between text-[10px] text-slate-400">
-                  <span>เลือกสถานที่ต้นทาง (ค้นหาสดทั่วไทยเหมือน Google Maps)</span>
-                  <button
-                    type="button"
-                    onClick={() => setActiveField(null)}
-                    className="text-emerald-400 font-bold hover:underline"
-                  >
-                    ปิดรายการ
-                  </button>
-                </div>
-
-                {/* Option 0: Current Real GPS */}
-                <button
-                  type="button"
-                  onClick={handleUseCurrentGpsAsOrigin}
-                  className="w-full px-3.5 py-2.5 text-left hover:bg-emerald-950/40 flex items-center justify-between gap-2 transition"
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="p-1.5 rounded-lg bg-emerald-500/20 text-emerald-400 flex-shrink-0">
-                      <Crosshair size={14} />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="text-xs font-bold text-emerald-300 truncate">
-                        ใช้ตำแหน่งปัจจุบันของรถ (GPS สด)
-                      </div>
-                      <div className="text-[10px] text-slate-400 truncate">
-                        {gpsAddressName || userLocation?.areaName || "จับพิกัดดาวเทียมปัจจุบันอัตโนมัติ"}
-                      </div>
-                    </div>
-                  </div>
-                  <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold flex-shrink-0">
-                    GPS
-                  </span>
-                </button>
-
-                {isSearchingOnline && (
-                  <div className="px-3.5 py-2 text-xs text-cyan-300 flex items-center gap-2 bg-slate-900/40">
-                    <Loader2 size={13} className="animate-spin text-cyan-400" />
-                    <span>กำลังค้นหาสถานที่จริงบนแผนที่ประเทศไทย...</span>
-                  </div>
-                )}
-
-                {combinedSuggestions.map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => handleSelectSuggestion('origin', item)}
-                    className="w-full px-3.5 py-2.5 text-left hover:bg-slate-800/80 flex items-center justify-between gap-2 transition"
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <MapPin size={14} className={item.source === 'online' ? "text-cyan-400 flex-shrink-0" : "text-emerald-400 flex-shrink-0"} />
-                      <div className="min-w-0">
-                        <div className="text-xs font-bold text-white truncate">{item.name}</div>
-                        <div className="text-[10px] text-slate-400 truncate">{item.sub}</div>
-                      </div>
-                    </div>
-                    {item.distanceKm != null && (
-                      <span className="text-[10px] font-mono text-slate-400 flex-shrink-0">
-                        {item.distanceKm} กม.
-                      </span>
-                    )}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Swap Direction + Add Waypoint Controls */}
-          <div className="flex items-center justify-center gap-2 -my-1.5 relative z-10">
+      {/* UNIFIED CLEAN ROUTE INPUT CARD (Origin / Optional Waypoint / Destination) */}
+      <div className="p-4 rounded-3xl bg-[#121826] border border-slate-800 space-y-3 shadow-lg">
+        {/* Origin Input */}
+        <div className="relative">
+          <div className="flex items-center justify-between text-[11px] mb-1">
+            <span className="text-emerald-400 font-bold flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-400" />
+              <span>จุดเริ่มต้น</span>
+            </span>
             <button
               type="button"
-              onClick={handleSwapRoute}
-              title="สลับต้นทาง-ปลายทาง (ขาไป - ขากลับ)"
-              className="px-3.5 py-1 rounded-full bg-slate-800 hover:bg-emerald-500 hover:text-slate-950 text-emerald-300 border border-slate-700 text-[11px] font-bold shadow-md flex items-center gap-1.5 transition-all active:scale-95"
+              onClick={handleUseCurrentGpsAsOrigin}
+              className="text-cyan-400 font-bold flex items-center gap-1 hover:underline"
             >
-              <ArrowUpDown size={12} />
-              <span>สลับขาไป - ขากลับ</span>
+              <Crosshair size={11} />
+              <span>ใช้พิกัดรถตอนนี้</span>
             </button>
-
-            {!hasWaypoint ? (
+          </div>
+          <div className="relative flex items-center">
+            <Search size={14} className="absolute left-3 text-emerald-400 pointer-events-none" />
+            <input
+              type="text"
+              value={originText}
+              onFocus={() => setActiveField('origin')}
+              onChange={(e) => {
+                setOriginText(e.target.value);
+                setActiveField('origin');
+              }}
+              placeholder="พิมพ์จุดเริ่มต้น (เช่น บางใหญ่, ไทรน้อย, สยาม)..."
+              className="w-full bg-slate-950 border border-slate-700/80 rounded-xl pl-9 pr-8 py-2.5 text-xs sm:text-sm text-white font-semibold focus:outline-none focus:border-emerald-500"
+            />
+            {originText && (
               <button
                 type="button"
                 onClick={() => {
-                  setHasWaypoint(true);
-                  setActiveField('waypoint');
+                  setOriginText('');
+                  setActiveField('origin');
                 }}
-                className="px-3.5 py-1 rounded-full bg-slate-800 hover:bg-cyan-500 hover:text-slate-950 text-cyan-300 border border-slate-700 text-[11px] font-bold shadow-md flex items-center gap-1 transition-all active:scale-95"
+                className="absolute right-2.5 text-slate-400 hover:text-white"
               >
-                <span>+ เพิ่มจุดแวะระหว่างทาง</span>
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => {
-                  setHasWaypoint(false);
-                  setWaypointPlace(null);
-                  setWaypointText('');
-                  if (activeField === 'waypoint') setActiveField(null);
-                }}
-                className="px-3 py-1 rounded-full bg-rose-950/70 hover:bg-rose-500 hover:text-white text-rose-300 border border-rose-500/40 text-[11px] font-bold shadow-md flex items-center gap-1 transition-all active:scale-95"
-              >
-                <X size={12} />
-                <span>ลบจุดแวะ</span>
+                <X size={14} />
               </button>
             )}
           </div>
 
-          {/* ================= OPTIONAL WAYPOINT INPUT BOX ================= */}
-          {hasWaypoint && (
-            <div className="p-3 rounded-2xl bg-slate-950/90 border border-cyan-500/40 relative animate-fade-in">
-              <div className="flex items-center justify-between mb-1.5 gap-2">
-                <span className="text-[11px] text-cyan-400 font-bold flex items-center gap-1.5 flex-shrink-0">
-                  <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 shadow-[0_0_8px_#22d3ee]" />
-                  <span>จุดแวะระหว่างทาง (Waypoint)</span>
-                </span>
-                <span className="text-[11px] text-cyan-300/90 font-medium truncate">
-                  {waypointPlace?.sub || 'แวะพัก / ทานข้าว / เที่ยวระหว่างทาง'}
-                </span>
+          {activeField === 'origin' && (
+            <div className="mt-1.5 rounded-2xl bg-[#0b1322] border border-emerald-500/45 shadow-2xl max-h-56 overflow-y-auto divide-y divide-slate-800/80">
+              <div className="px-3 py-1.5 bg-slate-900 flex items-center justify-between text-[10px] text-slate-400">
+                <span>ค้นหาสถานที่ทั่วไทย</span>
+                <button type="button" onClick={() => setActiveField(null)} className="text-emerald-400 font-bold">
+                  ปิด
+                </button>
               </div>
-
-              <div className="relative flex items-center">
-                <Search size={15} className="absolute left-3 text-cyan-400 pointer-events-none" />
-                <input
-                  type="text"
-                  value={waypointText}
-                  onFocus={() => setActiveField('waypoint')}
-                  onChange={(e) => {
-                    setWaypointText(e.target.value);
-                    setActiveField('waypoint');
-                  }}
-                  placeholder="พิมพ์จุดแวะระหว่างทาง (เช่น นครปฐม, แม่กลอง, ชะอำ, ปากช่อง)..."
-                  className="w-full bg-slate-900/95 border border-slate-700/90 rounded-xl pl-9 pr-10 py-2.5 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400 font-semibold"
-                />
-                {waypointText && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setWaypointText('');
-                      setWaypointPlace(null);
-                      setActiveField('waypoint');
-                    }}
-                    className="absolute right-2.5 p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition"
-                  >
-                    <X size={14} />
-                  </button>
-                )}
-              </div>
-
-              {activeField === 'waypoint' && (
-                <div className="mt-2 rounded-2xl bg-[#0e1525] border border-cyan-500/50 shadow-2xl overflow-hidden z-30 max-h-56 overflow-y-auto divide-y divide-slate-800/80">
-                  <div className="px-3 py-1.5 bg-slate-900/90 flex items-center justify-between text-[10px] text-slate-400">
-                    <span>เลือกจุดแวะระหว่างทาง (ค้นหาสดทั่วไทย)</span>
-                    <button
-                      type="button"
-                      onClick={() => setActiveField(null)}
-                      className="text-cyan-400 font-bold hover:underline"
-                    >
-                      ปิดรายการ
-                    </button>
-                  </div>
-
-                  {combinedSuggestions.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => handleSelectSuggestion('waypoint', item)}
-                      className="w-full px-3.5 py-2.5 text-left hover:bg-slate-800/80 flex items-center justify-between gap-2 transition"
-                    >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <MapPin size={14} className="text-cyan-400 flex-shrink-0" />
-                        <div className="min-w-0">
-                          <div className="text-xs font-bold text-white truncate">{item.name}</div>
-                          <div className="text-[10px] text-slate-400 truncate">{item.sub}</div>
-                        </div>
-                      </div>
-                      {item.distanceKm != null && (
-                        <span className="text-[10px] font-mono text-slate-400 flex-shrink-0">
-                          {item.distanceKm} กม.
-                        </span>
-                      )}
-                    </button>
-                  ))}
+              {isSearchingOnline && (
+                <div className="px-3 py-2 text-xs text-cyan-300 flex items-center gap-1.5">
+                  <Loader2 size={12} className="animate-spin" />
+                  <span>กำลังค้นหาบนแผนที่...</span>
                 </div>
               )}
+              {combinedSuggestions.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => handleSelectSuggestion('origin', item)}
+                  className="w-full px-3 py-2 text-left hover:bg-slate-800/80 flex items-center justify-between gap-2 text-xs"
+                >
+                  <div className="min-w-0">
+                    <div className="font-bold text-white truncate">{item.name}</div>
+                    <div className="text-[10px] text-slate-400 truncate">{item.sub}</div>
+                  </div>
+                  {item.distanceKm != null && (
+                    <span className="text-[10px] font-mono text-slate-400 flex-shrink-0">{item.distanceKm} กม.</span>
+                  )}
+                </button>
+              ))}
             </div>
           )}
+        </div>
 
-          {/* ================= DESTINATION INPUT BOX (GOOGLE MAPS STYLE) ================= */}
-          <div className="p-3 rounded-2xl bg-slate-950/90 border border-slate-800/90 relative">
-            <div className="flex items-center justify-between mb-1.5 gap-2">
-              <span className="text-[11px] text-amber-400 font-bold flex items-center gap-1.5 flex-shrink-0">
-                <span className="w-2.5 h-2.5 rounded-full bg-amber-400 shadow-[0_0_8px_#fbbf24]" />
-                <span>จุดหมายปลายทาง (Destination)</span>
-              </span>
-              <span className="text-[11px] text-amber-300/90 font-medium truncate">
-                {resolvedDest.sub || `${resolvedDest.lat.toFixed(4)}, ${resolvedDest.lng.toFixed(4)}`}
-              </span>
-            </div>
+        {/* Swap & Optional Waypoint Buttons */}
+        <div className="flex items-center justify-center gap-2">
+          <button
+            type="button"
+            onClick={handleSwapRoute}
+            className="px-3 py-1 rounded-full bg-slate-900 hover:bg-slate-800 border border-slate-700 text-emerald-300 text-[11px] font-bold flex items-center gap-1 active:scale-95 transition"
+          >
+            <ArrowUpDown size={12} />
+            <span>สลับไป-กลับ</span>
+          </button>
 
+          <button
+            type="button"
+            onClick={() => {
+              if (hasWaypoint) {
+                setHasWaypoint(false);
+                setWaypointPlace(null);
+                setWaypointText('');
+                if (activeField === 'waypoint') setActiveField(null);
+              } else {
+                setHasWaypoint(true);
+                setActiveField('waypoint');
+              }
+            }}
+            className={`px-3 py-1 rounded-full border text-[11px] font-bold flex items-center gap-1 active:scale-95 transition ${
+              hasWaypoint
+                ? 'bg-rose-950/60 text-rose-300 border-rose-500/40'
+                : 'bg-slate-900 text-cyan-300 border-slate-700'
+            }`}
+          >
+            <span>{hasWaypoint ? 'ลบจุดแวะ' : '+ เพิ่มจุดแวะระหว่างทาง'}</span>
+          </button>
+        </div>
+
+        {/* Optional Waypoint Input */}
+        {hasWaypoint && (
+          <div className="relative animate-fade-in">
+            <span className="text-[11px] text-cyan-400 font-bold flex items-center gap-1.5 mb-1">
+              <span className="w-2 h-2 rounded-full bg-cyan-400" />
+              <span>จุดแวะระหว่างทาง (Waypoint)</span>
+            </span>
             <div className="relative flex items-center">
-              <Search size={15} className="absolute left-3 text-amber-400 pointer-events-none" />
+              <Search size={14} className="absolute left-3 text-cyan-400 pointer-events-none" />
               <input
                 type="text"
-                value={destText}
-                onFocus={() => setActiveField('dest')}
+                value={waypointText}
+                onFocus={() => setActiveField('waypoint')}
                 onChange={(e) => {
-                  setDestText(e.target.value);
-                  setActiveField('dest');
+                  setWaypointText(e.target.value);
+                  setActiveField('waypoint');
                 }}
-                placeholder="พิมพ์ค้นหาปลายทางทุกที่ในไทย (เช่น หัวหิน, เขาค้อ, วัดร่องขุ่น, บางแสน)..."
-                className="w-full bg-slate-900/95 border border-slate-700/90 rounded-xl pl-9 pr-10 py-2.5 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 font-semibold"
+                placeholder="พิมพ์จุดแวะพัก (เช่น แม่กลอง, ชะอำ, นครปฐม)..."
+                className="w-full bg-slate-950 border border-cyan-500/45 rounded-xl pl-9 pr-8 py-2.5 text-xs sm:text-sm text-white font-semibold focus:outline-none focus:border-cyan-400"
               />
-              {destText && (
+              {waypointText && (
                 <button
                   type="button"
                   onClick={() => {
-                    setDestText('');
-                    setActiveField('dest');
+                    setWaypointText('');
+                    setWaypointPlace(null);
                   }}
-                  title="ล้างข้อความเพื่อพิมพ์สถานที่ใหม่"
-                  className="absolute right-2.5 p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition"
+                  className="absolute right-2.5 text-slate-400 hover:text-white"
                 >
                   <X size={14} />
                 </button>
               )}
             </div>
 
-            {/* GOOGLE MAPS AUTOCOMPLETE DROPDOWN FOR DESTINATION */}
-            {activeField === 'dest' && (
-              <div className="mt-2 rounded-2xl bg-[#0e1525] border border-amber-500/50 shadow-2xl overflow-hidden z-30 max-h-64 overflow-y-auto divide-y divide-slate-800/80">
-                <div className="px-3 py-1.5 bg-slate-900/90 flex items-center justify-between text-[10px] text-slate-400">
-                  <span>เลือกสถานที่ปลายทาง (ค้นหาสดทั่วไทยเหมือน Google Maps)</span>
-                  <button
-                    type="button"
-                    onClick={() => setActiveField(null)}
-                    className="text-amber-400 font-bold hover:underline"
-                  >
-                    ปิดรายการ
+            {activeField === 'waypoint' && (
+              <div className="mt-1.5 rounded-2xl bg-[#0b1322] border border-cyan-500/45 shadow-2xl max-h-52 overflow-y-auto divide-y divide-slate-800/80">
+                <div className="px-3 py-1.5 bg-slate-900 flex items-center justify-between text-[10px] text-slate-400">
+                  <span>เลือกจุดแวะระหว่างทาง</span>
+                  <button type="button" onClick={() => setActiveField(null)} className="text-cyan-400 font-bold">
+                    ปิด
                   </button>
                 </div>
-
-                {isSearchingOnline && (
-                  <div className="px-3.5 py-2 text-xs text-amber-300 flex items-center gap-2 bg-slate-900/40">
-                    <Loader2 size={13} className="animate-spin text-amber-400" />
-                    <span>กำลังค้นหาสถานที่จริงบนแผนที่ประเทศไทย...</span>
-                  </div>
-                )}
-
                 {combinedSuggestions.map((item) => (
                   <button
                     key={item.id}
                     type="button"
-                    onClick={() => handleSelectSuggestion('dest', item)}
-                    className="w-full px-3.5 py-2.5 text-left hover:bg-slate-800/80 flex items-center justify-between gap-2 transition"
+                    onClick={() => handleSelectSuggestion('waypoint', item)}
+                    className="w-full px-3 py-2 text-left hover:bg-slate-800/80 flex items-center justify-between gap-2 text-xs"
                   >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <MapPin size={14} className={item.source === 'online' ? "text-cyan-400 flex-shrink-0" : "text-amber-400 flex-shrink-0"} />
-                      <div className="min-w-0">
-                        <div className="text-xs font-bold text-white truncate">{item.name}</div>
-                        <div className="text-[10px] text-slate-400 truncate">{item.sub}</div>
-                      </div>
+                    <div className="min-w-0">
+                      <div className="font-bold text-white truncate">{item.name}</div>
+                      <div className="text-[10px] text-slate-400 truncate">{item.sub}</div>
                     </div>
-                    {item.distanceKm != null && (
-                      <span className="text-[10px] font-mono text-slate-400 flex-shrink-0">
-                        {item.distanceKm} กม.
-                      </span>
-                    )}
                   </button>
                 ))}
               </div>
             )}
           </div>
-        </div>
+        )}
 
-        {/* Visual Highway Journey Progress Bar */}
-        <div className="p-3.5 rounded-2xl bg-slate-950/90 border border-slate-800/90 space-y-2.5">
-          <div className="flex items-center justify-between text-[11px]">
-            <span className="text-emerald-400 font-bold flex items-center gap-1">
-              <Car size={12} />
-              <span>ต้นทาง ({batteryPct}%)</span>
-            </span>
-            <span className="text-amber-300 font-bold flex items-center gap-1">
-              <Zap size={12} />
-              <span>แวะชาร์จกม.ที่ {routeCalculation.primaryStop?.distFromOrigin || "-"}</span>
-            </span>
-            <span className="text-cyan-300 font-bold flex items-center gap-1">
-              <Flag size={12} />
-              <span>ปลายทาง ({routeCalculation.drivingDistanceKm} กม.)</span>
-            </span>
-          </div>
-          <div className="relative h-2.5 rounded-full bg-slate-800 overflow-hidden">
-            <div className="absolute inset-y-0 left-0 bg-gradient-to-r from-emerald-500 via-amber-400 to-cyan-400 w-full rounded-full" />
-          </div>
-          <div className="text-[11px] text-slate-400 flex items-center justify-between">
-            <span className="truncate">{routeCalculation.highwayName}</span>
-            {isCalculatingRoute && (
-              <span className="text-[10px] text-cyan-400 flex items-center gap-1 flex-shrink-0">
-                <Loader2 size={10} className="animate-spin" />
-                <span>คำนวณถนนจริง...</span>
-              </span>
+        {/* Destination Input */}
+        <div className="relative">
+          <span className="text-[11px] text-amber-400 font-bold flex items-center gap-1.5 mb-1">
+            <span className="w-2 h-2 rounded-full bg-amber-400" />
+            <span>จุดหมายปลายทาง</span>
+          </span>
+          <div className="relative flex items-center">
+            <Search size={14} className="absolute left-3 text-amber-400 pointer-events-none" />
+            <input
+              type="text"
+              value={destText}
+              onFocus={() => setActiveField('dest')}
+              onChange={(e) => {
+                setDestText(e.target.value);
+                setActiveField('dest');
+              }}
+              placeholder="พิมพ์ปลายทางทั่วไทย (เช่น หัวหิน, เขาค้อ, เชียงใหม่, พัทยา)..."
+              className="w-full bg-slate-950 border border-slate-700/80 rounded-xl pl-9 pr-8 py-2.5 text-xs sm:text-sm text-white font-semibold focus:outline-none focus:border-amber-400"
+            />
+            {destText && (
+              <button
+                type="button"
+                onClick={() => {
+                  setDestText('');
+                  setActiveField('dest');
+                }}
+                className="absolute right-2.5 text-slate-400 hover:text-white"
+              >
+                <X size={14} />
+              </button>
             )}
           </div>
+
+          {activeField === 'dest' && (
+            <div className="mt-1.5 rounded-2xl bg-[#0b1322] border border-amber-500/45 shadow-2xl max-h-56 overflow-y-auto divide-y divide-slate-800/80">
+              <div className="px-3 py-1.5 bg-slate-900 flex items-center justify-between text-[10px] text-slate-400">
+                <span>เลือกจุดหมายปลายทาง</span>
+                <button type="button" onClick={() => setActiveField(null)} className="text-amber-400 font-bold">
+                  ปิด
+                </button>
+              </div>
+              {isSearchingOnline && (
+                <div className="px-3 py-2 text-xs text-amber-300 flex items-center gap-1.5">
+                  <Loader2 size={12} className="animate-spin" />
+                  <span>กำลังค้นหาบนแผนที่...</span>
+                </div>
+              )}
+              {combinedSuggestions.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => handleSelectSuggestion('dest', item)}
+                  className="w-full px-3 py-2 text-left hover:bg-slate-800/80 flex items-center justify-between gap-2 text-xs"
+                >
+                  <div className="min-w-0">
+                    <div className="font-bold text-white truncate">{item.name}</div>
+                    <div className="text-[10px] text-slate-400 truncate">{item.sub}</div>
+                  </div>
+                  {item.distanceKm != null && (
+                    <span className="text-[10px] font-mono text-slate-400 flex-shrink-0">{item.distanceKm} กม.</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
-        {/* One-Way vs Round-Trip Switcher + Dynamic Calculation Stats Box */}
-        <div className="space-y-2.5">
-          <div className="grid grid-cols-2 gap-1.5 p-1 rounded-2xl bg-slate-950/90 border border-slate-800 text-xs">
-            <button
-              type="button"
-              onClick={() => setIsRoundTrip(false)}
-              className={`py-2 rounded-xl font-extrabold transition ${
-                !isRoundTrip
-                  ? 'bg-emerald-500 text-slate-950 shadow'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              ขาไปเที่ยวเดียว ({routeCalculation.oneWayDistanceKm} กม.)
-            </button>
-            <button
-              type="button"
-              onClick={() => setIsRoundTrip(true)}
-              className={`py-2 rounded-xl font-extrabold transition ${
-                isRoundTrip
-                  ? 'bg-emerald-500 text-slate-950 shadow'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              คำนวณรวมไป - กลับ ({routeCalculation.oneWayDistanceKm * 2} กม.)
-            </button>
+        {/* Speed Selector (90 / 110 / 120+) + One-Way/Round-Trip */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+          <div className="p-1.5 rounded-2xl bg-slate-950 border border-slate-800 space-y-1">
+            <span className="text-[10px] text-slate-400 font-bold px-1.5 flex items-center gap-1">
+              <Gauge size={11} className="text-cyan-400" />
+              <span>ความเร็วขับจริง ({routeCalculation.effectiveKmPerKwh} กม./kWh)</span>
+            </span>
+            <div className="grid grid-cols-3 gap-1 text-[11px]">
+              {[
+                { sp: 90, label: '90 ประหยัด' },
+                { sp: 110, label: '110 ปกติ' },
+                { sp: 120, label: '120+ เร็ว' }
+              ].map((opt) => (
+                <button
+                  key={opt.sp}
+                  type="button"
+                  onClick={() => setCruiseSpeedKmh(opt.sp)}
+                  className={`py-1.5 rounded-xl font-extrabold transition ${
+                    cruiseSpeedKmh === opt.sp
+                      ? 'bg-cyan-500 text-slate-950'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-2 text-xs">
-            <div className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800/80 text-center">
-              <span className="text-slate-400 block text-[10px]">ระยะทางถนนจริง</span>
-              <span className="text-white font-extrabold text-base sm:text-lg font-mono">{routeCalculation.drivingDistanceKm} กม.</span>
-              <span className="text-[10px] text-emerald-400 font-bold block mt-0.5">{routeCalculation.driveTimeText}</span>
+          <div className="p-1.5 rounded-2xl bg-slate-950 border border-slate-800 space-y-1">
+            <span className="text-[10px] text-slate-400 font-bold px-1.5 block">รูปแบบการคำนวณระยะ</span>
+            <div className="grid grid-cols-2 gap-1 text-[11px]">
+              <button
+                type="button"
+                onClick={() => setIsRoundTrip(false)}
+                className={`py-1.5 rounded-xl font-extrabold transition ${
+                  !isRoundTrip ? 'bg-emerald-500 text-slate-950' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                ขาไป ({routeCalculation.oneWayDistanceKm} กม.)
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsRoundTrip(true)}
+                className={`py-1.5 rounded-xl font-extrabold transition ${
+                  isRoundTrip ? 'bg-emerald-500 text-slate-950' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                ไป-กลับ ({routeCalculation.oneWayDistanceKm * 2} กม.)
+              </button>
             </div>
+          </div>
+        </div>
 
-            <div className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800/80 text-center">
-              <span className="text-slate-400 block text-[10px]">พลังงานที่ใช้รวม</span>
-              <span className="text-amber-300 font-extrabold text-base sm:text-lg font-mono">~{routeCalculation.batteryUsedKwh} kWh</span>
-              <span className="text-[10px] text-slate-400 block mt-0.5">คิดเป็น ~{routeCalculation.batteryUsedPct}% แบต</span>
+        {/* Live Destination Weather Card (Open-Meteo Real-Time) */}
+        {destWeather && (
+          <div
+            className={`p-3 rounded-2xl border flex items-start justify-between gap-2.5 text-xs ${
+              destWeather.isRainy
+                ? 'bg-cyan-950/45 border-cyan-500/45'
+                : destWeather.isHot
+                ? 'bg-amber-950/35 border-amber-500/40'
+                : 'bg-slate-950/90 border-slate-800'
+            }`}
+          >
+            <div className="flex items-start gap-2.5 min-w-0">
+              <div
+                className={`p-2 rounded-xl flex-shrink-0 ${
+                  destWeather.isRainy
+                    ? 'bg-cyan-500/20 text-cyan-300'
+                    : destWeather.isHot
+                    ? 'bg-amber-500/20 text-amber-300'
+                    : 'bg-emerald-500/15 text-emerald-400'
+                }`}
+              >
+                <WeatherIcon size={18} />
+              </div>
+              <div className="min-w-0">
+                <div className="font-extrabold text-white flex items-center gap-1.5 flex-wrap">
+                  <span>อากาศปลายทางตอนนี้: {destWeather.label}</span>
+                  <span className="font-mono text-emerald-400">{destWeather.tempC}°C</span>
+                </div>
+                <p className="text-[11px] text-slate-300 mt-0.5 leading-relaxed">{destWeather.evAdvice}</p>
+              </div>
             </div>
+          </div>
+        )}
 
-            <div className="p-3 rounded-2xl bg-emerald-950/50 border border-emerald-500/35 text-center">
-              <span className="text-emerald-300 font-bold block text-[10px]">งบค่าไฟทั้งทริป</span>
-              <span className="text-emerald-300 font-extrabold text-base sm:text-lg font-mono">~{routeCalculation.estTripEvCostBaht} บ.</span>
-              <span className="text-[10px] text-emerald-400 font-extrabold block mt-0.5">
-                ประหยัดน้ำมัน {routeCalculation.estTripSavingsBaht} บ.
+        {/* Low Battery Warning Alert (If Current Battery Cannot Reach First Stop Safely) */}
+        {routeCalculation.isBatteryRiskToFirstStop && (
+          <div className="p-3 rounded-2xl bg-rose-950/50 border border-rose-500/50 text-xs flex items-start gap-2 text-rose-200">
+            <AlertTriangle size={16} className="text-rose-400 flex-shrink-0 mt-0.5" />
+            <div className="leading-relaxed">
+              <b className="text-rose-300 block">
+                คำเตือน: แบตปัจจุบัน ({batteryPct}%) ที่ความเร็ว {cruiseSpeedKmh} กม./ชม. อาจไม่พอถึงจุดแวะแรก!
+              </b>
+              <span>
+                คาดว่าเหลือแบตเพียง {Math.max(0, routeCalculation.arrivalBatteryAtPrimary)}% — แนะนำลดความเร็วเป็น 90 กม./ชม. หรือแวะชาร์จใกล้ต้นทางก่อนออกเดินทางครับ
               </span>
             </div>
           </div>
+        )}
+
+        {/* Clean 3-Stat Trip Summary Row */}
+        <div className="grid grid-cols-3 gap-2 text-center text-xs">
+          <div className="p-2.5 rounded-2xl bg-slate-950 border border-slate-800">
+            <span className="text-[10px] text-slate-400 block">ระยะทางถนนจริง</span>
+            <span className="text-base font-extrabold text-white font-mono">
+              {routeCalculation.drivingDistanceKm} กม.
+            </span>
+            <span className="text-[10px] text-emerald-400 font-bold block">{routeCalculation.driveTimeText}</span>
+          </div>
+
+          <div className="p-2.5 rounded-2xl bg-slate-950 border border-slate-800">
+            <span className="text-[10px] text-slate-400 block">แบตถึงจุดแวะ / ปลายทาง</span>
+            <span
+              className={`text-base font-extrabold font-mono ${
+                routeCalculation.arrivalBatteryAtPrimary < 15 ? 'text-rose-400' : 'text-cyan-300'
+              }`}
+            >
+              {Math.max(0, routeCalculation.arrivalBatteryAtPrimary)}%
+            </span>
+            <span className="text-[10px] text-slate-400 block">
+              {routeCalculation.directArrivalPct >= 15
+                ? `วิ่งตรงถึงเหลือ ${routeCalculation.directArrivalPct}%`
+                : 'แนะนำแวะชาร์จ 1 ครั้ง'}
+            </span>
+          </div>
+
+          <div className="p-2.5 rounded-2xl bg-emerald-950/45 border border-emerald-500/35">
+            <span className="text-[10px] text-emerald-300 font-bold block">งบค่าไฟทั้งทริป</span>
+            <span className="text-base font-extrabold text-emerald-300 font-mono">
+              ~{routeCalculation.estTripEvCostBaht} บ.
+            </span>
+            <span className="text-[10px] text-emerald-400 font-bold block">
+              ประหยัด {routeCalculation.estTripSavingsBaht} บ.
+            </span>
+          </div>
         </div>
 
-        {/* JAECOO 5 EV Ultra Charging Strategy Card */}
-        <div className="p-3.5 rounded-2xl bg-gradient-to-r from-emerald-950/70 to-slate-900 border border-emerald-500/40 text-xs text-emerald-200 flex items-start gap-2.5">
-          <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-400 flex-shrink-0">
-            <Zap size={18} />
-          </div>
-          <div className="leading-relaxed">
-            <span className="font-bold text-white block mb-0.5">แผนการชาร์จแนะนำสำหรับพี่นิค (JAECOO 5 EV Ultra):</span>
-            <span className="text-slate-300 text-xs">{routeCalculation.adviceText}</span>
-          </div>
-        </div>
-
-        {/* Full Route in Google Maps + 1-Tap Share Trip Plan Buttons */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        {/* Action Buttons: Google Maps + Share to LINE */}
+        <div className="grid grid-cols-3 gap-2">
           <button
             onClick={handleOpenFullTripGoogleMaps}
-            className="sm:col-span-2 py-3.5 px-4 rounded-2xl bg-gradient-to-r from-emerald-500 via-emerald-400 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 font-extrabold text-xs sm:text-sm shadow-[0_6px_25px_rgba(16,185,129,0.35)] flex items-center justify-center gap-2 transition-all active:scale-95"
+            className="col-span-2 min-h-[44px] py-2.5 px-3 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow active:scale-95 transition"
           >
-            <Navigation size={17} className="stroke-[2.5]" />
-            <span>เริ่มนำทางทั้งทริปใน Google Maps</span>
+            <Navigation size={15} className="stroke-[2.5]" />
+            <span>นำทางทั้งทริป (Google Maps)</span>
           </button>
 
           <button
             type="button"
             onClick={handleShareTripPlan}
-            className="py-3.5 px-4 rounded-2xl bg-slate-900 hover:bg-slate-800 border border-cyan-500/45 text-cyan-300 font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all active:scale-95"
+            className="min-h-[44px] py-2.5 px-3 rounded-2xl bg-slate-900 hover:bg-slate-800 border border-cyan-500/40 text-cyan-300 font-extrabold text-xs flex items-center justify-center gap-1.5 active:scale-95 transition"
           >
-            <Share2 size={16} />
-            <span>แชร์แผนทริป</span>
+            <Share2 size={14} />
+            <span>แชร์ทริป</span>
           </button>
         </div>
-
-        {shareTripFeedback && (
-          <div className="p-2.5 rounded-2xl bg-cyan-950/80 border border-cyan-500/45 text-cyan-200 text-xs font-bold flex items-center gap-2">
-            <CheckCircle2 size={15} className="text-cyan-400 flex-shrink-0" />
-            <span>{shareTripFeedback}</span>
-          </div>
-        )}
       </div>
 
-      {/* SMART CURATED STOPS */}
+      {/* CURATED CHARGING STOPS ALONG ROUTE */}
       <div className="space-y-3">
         <div className="flex items-center justify-between px-1">
-          <h3 className="text-xs sm:text-sm font-extrabold text-white flex items-center gap-1.5">
+          <h3 className="text-sm font-extrabold text-white flex items-center gap-1.5">
             <ShieldCheck size={16} className="text-emerald-400" />
-            <span>จุดแวะชาร์จตามเส้นทาง ({routeCalculation.smartStops.length} จุดหลัก)</span>
+            <span>จุดแวะชาร์จแนะนำ ({routeCalculation.smartStops.length} จุด)</span>
           </h3>
-          <span className="text-[11px] text-emerald-400 font-semibold">
-            แจ้งสถานะคิวจองทุกจุด
-          </span>
+          <span className="text-[11px] text-slate-400 truncate max-w-[50%]">{routeCalculation.highwayName}</span>
         </div>
 
-        {routeCalculation.smartStops.map((st, idx) => {
+        {routeCalculation.smartStops.map((st) => {
           const access = getStationAccessInfo(st);
           const isFree = access.availPlugs > 0;
           return (
             <div
               key={st.id}
               onClick={() => onSelect(st)}
-              className={`p-4 rounded-3xl transition-all duration-200 border cursor-pointer ${
+              className={`p-4 rounded-3xl border cursor-pointer transition space-y-2.5 shadow-md ${
                 st.isRecommended
-                  ? "bg-gradient-to-r from-[#14253b] to-[#101c2e] border-2 border-emerald-500/90 shadow-[0_6px_25px_rgba(16,185,129,0.22)]"
-                  : "bg-[#121929] border-slate-800/90 hover:border-slate-700"
+                  ? 'bg-gradient-to-br from-[#132338] to-[#0c1422] border-emerald-500/55'
+                  : 'bg-[#121826] border-slate-800'
               }`}
             >
-              <div className="flex items-center justify-between mb-2.5">
-                <span className={`px-3 py-0.5 rounded-full text-[11px] font-bold border flex items-center gap-1 ${st.roleBadge || "bg-slate-800 text-slate-300"}`}>
-                  {st.isRecommended && <Award size={12} />}
-                  <span>{st.stopRole}</span>
-                </span>
-                <span className="text-xs text-emerald-300 font-mono font-bold bg-slate-950/70 px-2.5 py-0.5 rounded-lg border border-slate-800 flex items-center gap-1">
-                  <MapPin size={11} />
-                  <span>กม.ที่ {st.distFromOrigin}</span>
-                </span>
-              </div>
-
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-start gap-3 min-w-0 flex-1">
-                  <div className={`w-9 h-9 rounded-2xl flex items-center justify-center font-extrabold text-sm flex-shrink-0 mt-0.5 ${
-                    st.isRecommended
-                      ? "bg-emerald-500 text-slate-950 shadow-[0_0_12px_rgba(16,185,129,0.4)]"
-                      : "bg-slate-800 text-slate-300 border border-slate-700"
-                  }`}>
-                    {idx + 1}
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                    <span
+                      className={`px-2 py-0.5 rounded-lg text-[10px] font-extrabold ${
+                        st.isRecommended ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-cyan-300'
+                      }`}
+                    >
+                      {st.stopRole}
+                    </span>
+                    <span className="text-[11px] font-mono font-bold text-amber-300">
+                      กม.ที่ {st.distFromOrigin} • {st.powerKw || 120} kW
+                    </span>
+                    {destWeather?.isRainy && st.isRoofed && (
+                      <span className="px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 text-[10px] font-bold">
+                        มีหลังคากันฝน
+                      </span>
+                    )}
                   </div>
-
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-1.5 mb-1">
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${st.providerTheme?.bg || "bg-teal-950"} ${st.providerTheme?.text || "text-emerald-300"} ${st.providerTheme?.border || "border-emerald-600/40"}`}>
-                        {st.provider}
-                      </span>
-                      {st.province && (
-                        <span className="text-[11px] text-slate-400 font-medium">
-                          • จ.{st.province}
-                        </span>
-                      )}
-                    </div>
-
-                    <h4 className="font-bold text-sm sm:text-base text-white tracking-tight leading-snug">
-                      {st.name}
-                    </h4>
-
-                    <div className="flex flex-wrap items-center gap-2 text-xs mt-2">
-                      <span className={`inline-flex items-center gap-1 font-bold ${isFree ? "text-emerald-400" : "text-amber-400"}`}>
-                        <span className={`w-2 h-2 rounded-full ${isFree ? "bg-emerald-400 animate-pulse" : "bg-amber-400"}`} />
-                        <span>{access.occupancyBadgeText}</span>
-                      </span>
-                      <span className="text-amber-300 font-mono font-bold bg-amber-500/10 px-2 py-0.5 rounded text-[11px] border border-amber-500/30 flex items-center gap-1">
-                        <Zap size={11} className="fill-amber-300" />
-                        <span>{st.power}</span>
-                      </span>
-                    </div>
-
-                    {/* Booking vs Walk-in Badge on Route Stop */}
-                    <div className="mt-2 px-2.5 py-1 rounded-xl bg-slate-950/70 border border-slate-800 text-[11px] font-semibold text-emerald-300 flex items-center gap-1.5">
-                      {access.isPureWalkIn ? (
-                        <CheckCircle2 size={12} className="text-emerald-400 flex-shrink-0" />
-                      ) : (
-                        <CalendarCheck size={12} className="text-cyan-400 flex-shrink-0" />
-                      )}
-                      <span className="truncate">{access.bookingShortBadge}</span>
-                    </div>
-                  </div>
+                  <h4 className="font-extrabold text-white text-sm leading-snug">{st.name}</h4>
                 </div>
 
                 <button
@@ -1189,66 +1095,76 @@ export function RoutePlannerTab({ userLocation, carData, batteryPct = 80, onSele
                     e.stopPropagation();
                     onNavigate(st);
                   }}
-                  title="เริ่มนำทาง Google Maps มุ่งหน้าสถานีนี้"
-                  className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 text-xs font-extrabold transition flex items-center gap-1.5 shadow-md active:scale-95 flex-shrink-0"
+                  className="px-3 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs flex items-center gap-1 flex-shrink-0 active:scale-95 transition"
                 >
-                  <Navigation size={14} className="stroke-[2.5]" />
+                  <Navigation size={13} className="stroke-[2.5]" />
                   <span>นำทาง</span>
                 </button>
+              </div>
+
+              <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-800/80 text-[11px]">
+                <span className="text-emerald-300 font-bold flex items-center gap-1.5 truncate">
+                  <span className={`w-2 h-2 rounded-full ${isFree ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
+                  <span className="truncate">{access.occupancyBadgeText}</span>
+                </span>
+                <span className={`font-bold flex items-center gap-1 flex-shrink-0 ${access.isPureWalkIn ? 'text-emerald-400' : 'text-cyan-300'}`}>
+                  {access.isPureWalkIn ? <CheckCircle2 size={12} /> : <CalendarCheck size={12} />}
+                  <span>{access.isPureWalkIn ? 'ไม่ต้องจอง' : 'เข้าได้เลย / จองได้'}</span>
+                </span>
               </div>
             </div>
           );
         })}
 
-        {/* Collapsible Accordion for All Corridor Stations */}
-        <div className="pt-2">
-          <button
-            onClick={() => setShowAllCorridorStops(!showAllCorridorStops)}
-            className="w-full py-3 px-4 rounded-2xl bg-slate-900/70 hover:bg-slate-900 border border-slate-800 text-xs font-semibold text-slate-300 hover:text-white flex items-center justify-between transition"
-          >
-            <span className="flex items-center gap-1.5">
+        {/* Expandable All Corridor Stations */}
+        {routeCalculation.allCorridorStops.length > routeCalculation.smartStops.length && (
+          <div>
+            <button
+              type="button"
+              onClick={() => setShowAllCorridorStops(!showAllCorridorStops)}
+              className="w-full py-2.5 px-4 rounded-2xl bg-slate-900 border border-slate-800 text-xs font-bold text-slate-300 hover:text-white flex items-center justify-center gap-1.5"
+            >
               <List size={14} className="text-emerald-400" />
-              <span>ดูสถานีชาร์จสำรองทั้งหมดบนถนนสายนี้ ({routeCalculation.allCorridorStops.length} สถานี)</span>
-            </span>
-            {showAllCorridorStops ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
-          </button>
+              <span>
+                {showAllCorridorStops
+                  ? 'ซ่อนรายชื่อสถานีทั้งหมดตลอดเส้นทาง'
+                  : `ดูตู้ชาร์จทั้งหมดตามเส้นทางนี้ (${routeCalculation.allCorridorStops.length} แห่ง)`}
+              </span>
+              {showAllCorridorStops ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            </button>
 
-          {showAllCorridorStops && (
-            <div className="mt-2 space-y-2 pt-1 border-t border-slate-800/60">
-              {routeCalculation.allCorridorStops.map((st, i) => {
-                const access = getStationAccessInfo(st);
-                return (
-                  <div
-                    key={st.id}
-                    onClick={() => onSelect(st)}
-                    className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800/80 flex items-center justify-between gap-2 text-xs cursor-pointer hover:border-slate-700"
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <span className="w-6 h-6 rounded-lg bg-slate-800 text-slate-400 text-[10px] font-bold flex items-center justify-center flex-shrink-0">
-                        {i + 1}
-                      </span>
-                      <div className="min-w-0">
-                        <h5 className="font-semibold text-white text-xs truncate">{st.name}</h5>
-                        <span className="text-[10px] text-slate-400 font-mono block truncate">
-                          กม.ที่ {st.distFromOrigin} • {st.power} • {access.occupancyBadgeText} ({access.isPureWalkIn ? 'ไม่ต้องจอง' : 'เข้าได้เลย/จองได้'})
-                        </span>
-                      </div>
-                    </div>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onNavigate(st);
-                      }}
-                      className="px-3 py-1.5 rounded-xl bg-slate-800 text-emerald-400 hover:bg-slate-700 text-xs font-bold flex-shrink-0"
+            {showAllCorridorStops && (
+              <div className="mt-2 space-y-2 animate-fade-in">
+                {routeCalculation.allCorridorStops.map((st) => {
+                  const access = getStationAccessInfo(st);
+                  return (
+                    <div
+                      key={st.id}
+                      onClick={() => onSelect(st)}
+                      className="p-3 rounded-2xl bg-slate-950/90 border border-slate-800 flex items-center justify-between gap-2 text-xs cursor-pointer"
                     >
-                      นำทาง
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+                      <div className="min-w-0">
+                        <div className="font-bold text-white truncate">{st.name}</div>
+                        <div className="text-[10px] text-slate-400 mt-0.5 truncate">
+                          กม.ที่ {st.distFromOrigin} • {st.powerKw} kW • {access.occupancyBadgeText} ({access.isPureWalkIn ? 'ไม่ต้องจอง' : 'จองได้'})
+                        </div>
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onNavigate(st);
+                        }}
+                        className="px-2.5 py-1.5 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-bold text-[11px] flex-shrink-0"
+                      >
+                        นำทาง
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

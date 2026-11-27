@@ -271,3 +271,74 @@ export async function fetchRealDrivingRoute(originLat, originLng, destLat, destL
   }
 }
 
+// Live Destination Weather via Open-Meteo API (100% Free, No API Key Required, Thailand Timezone)
+export async function fetchDestinationWeather(lat, lng) {
+  if (!lat || !lng) return null;
+  try {
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m&timezone=Asia%2FBangkok`;
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const data = await res.json();
+    const cur = data?.current;
+    if (!cur) return null;
+
+    const tempC = Math.round(cur.temperature_2m);
+    const humidity = Math.round(cur.relative_humidity_2m || 0);
+    const windKmh = Math.round(cur.wind_speed_10m || 0);
+    const code = Number(cur.weather_code ?? 0);
+
+    let condition = 'clear'; // 'clear' | 'cloudy' | 'rain' | 'storm'
+    let label = 'ท้องฟ้าโปร่ง';
+    let isRainy = false;
+    let isHot = tempC >= 35;
+
+    if (code >= 95) {
+      condition = 'storm';
+      label = 'ฝนฟ้าคะนอง';
+      isRainy = true;
+    } else if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82)) {
+      condition = 'rain';
+      label = 'มีฝนตก';
+      isRainy = true;
+    } else if (code >= 45 && code <= 48) {
+      condition = 'cloudy';
+      label = 'มีหมอกบาง';
+    } else if (code >= 2 && code <= 3) {
+      condition = 'cloudy';
+      label = 'มีเมฆบางส่วน';
+    } else {
+      condition = 'clear';
+      label = tempC >= 34 ? 'แดดจัด อากาศร้อน' : 'ฟ้าโปร่ง อากาศดี';
+    }
+
+    let evAdvice = 'สภาพอากาศเหมาะกับการเดินทางด้วย EV ระยะทางวิ่งได้เต็มประสิทธิภาพ';
+    let efficiencyFactor = 1.0;
+
+    if (condition === 'storm') {
+      evAdvice = 'ปลายทางมีฝนฟ้าคะนอง แนะนำเลือกตู้ชาร์จในห้าง/อาคารจอดรถมีหลังคา และเผื่อพลังงาน ~6%';
+      efficiencyFactor = 0.93;
+    } else if (isRainy) {
+      evAdvice = 'ปลายทางมีฝนตก แนะนำแวะชาร์จตู้ที่มีหลังคากันฝนหรือในห้างสรรพสินค้า ถนนลื่นควรลดความเร็วลง';
+      efficiencyFactor = 0.94;
+    } else if (isHot) {
+      evAdvice = `อากาศร้อนจัด ${tempC}°C ระบบแอร์และทำความเย็นแบตทำงานหนักขึ้น ควรเผื่อไฟเพิ่ม ~4%`;
+      efficiencyFactor = 0.96;
+    }
+
+    return {
+      tempC,
+      humidity,
+      windKmh,
+      weatherCode: code,
+      condition,
+      label,
+      isRainy,
+      isHot,
+      evAdvice,
+      efficiencyFactor
+    };
+  } catch {
+    return null;
+  }
+}
+

@@ -33,7 +33,7 @@ import { StationDetailModal } from './components/StationDetailModal';
 import { VoiceModal } from './components/VoiceModal';
 import { DriveSimulatorBar } from './components/DriveSimulatorBar';
 import { BottomNav } from './components/BottomNav';
-import { getStationAccessInfo, syncStationPlugs } from './utils/stationStatus';
+import { getStationAccessInfo, syncStationPlugs, stationMatchesAmenity } from './utils/stationStatus';
 import {
   searchLocalThailandPlaces,
   searchOnlineThailandPlaces,
@@ -162,6 +162,7 @@ export function App() {
   const [emptyOnlyFilter, setEmptyOnlyFilter] = useState(false);
   const [walkInOnlyFilter, setWalkInOnlyFilter] = useState(false);
   const [fastOnlyFilter, setFastOnlyFilter] = useState(false);
+  const [amenityFilter, setAmenityFilter] = useState('ALL'); // 'ALL' | 'coffee' | 'food' | 'roofed'
   const [searchQuery, setSearchQuery] = useState('');
   const [driveAlertToast, setDriveAlertToast] = useState(null);
   const geoWatchIdRef = useRef(null);
@@ -499,6 +500,7 @@ export function App() {
       if (emptyOnlyFilter && access.occupancyState !== 'EMPTY_ALL_FREE') return false;
       if (walkInOnlyFilter && !access.isPureWalkIn) return false;
       if (fastOnlyFilter && (s.powerKw || 0) < 150) return false;
+      if (amenityFilter !== 'ALL' && !stationMatchesAmenity(s, amenityFilter)) return false;
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
         const matchName = (s.name || '').toLowerCase().includes(q);
@@ -851,6 +853,7 @@ export function App() {
                 (emptyOnlyFilter ? 1 : 0) +
                 (walkInOnlyFilter ? 1 : 0) +
                 (fastOnlyFilter ? 1 : 0) +
+                (amenityFilter !== 'ALL' ? 1 : 0) +
                 (sortBy !== 'distance' ? 1 : 0);
 
               return (
@@ -956,6 +959,7 @@ export function App() {
                               setEmptyOnlyFilter(false);
                               setWalkInOnlyFilter(false);
                               setFastOnlyFilter(false);
+                              setAmenityFilter('ALL');
                               setSortBy('distance');
                             }}
                             className="text-[11px] font-bold text-rose-400 hover:underline"
@@ -998,7 +1002,26 @@ export function App() {
 
                       {/* Special Conditions */}
                       <div className="space-y-1.5">
-                        <span className="text-[11px] font-bold text-slate-400 block">2. เงื่อนไขพิเศษ:</span>
+                        <span className="text-[11px] font-bold text-slate-400 block">2. สิ่งอำนวยความสะดวกในปั๊ม / ห้าง:</span>
+                        <div className="grid grid-cols-3 gap-1.5 text-[11px]">
+                          {[
+                            { id: 'coffee', label: 'มีร้านกาแฟ' },
+                            { id: 'food', label: '7-Eleven / อาหาร' },
+                            { id: 'roofed', label: 'ในห้าง / มีหลังคา' }
+                          ].map((am) => (
+                            <button
+                              key={am.id}
+                              onClick={() => setAmenityFilter(amenityFilter === am.id ? 'ALL' : am.id)}
+                              className={`py-2 px-1.5 rounded-xl font-extrabold border transition truncate ${
+                                amenityFilter === am.id
+                                  ? 'bg-emerald-500 text-slate-950 border-emerald-400'
+                                  : 'bg-slate-900 text-slate-300 border-slate-800'
+                              }`}
+                            >
+                              {am.label}
+                            </button>
+                          ))}
+                        </div>
                         <div className="grid grid-cols-2 gap-1.5 text-[11px]">
                           <button
                             onClick={() => setEmptyOnlyFilter(!emptyOnlyFilter)}
@@ -1170,6 +1193,7 @@ export function App() {
                         setEmptyOnlyFilter(false);
                         setWalkInOnlyFilter(false);
                         setFastOnlyFilter(false);
+                        setAmenityFilter('ALL');
                         setSearchQuery('');
                       }}
                       className="px-4 py-2 rounded-xl bg-emerald-500 text-slate-950 font-bold text-xs"
