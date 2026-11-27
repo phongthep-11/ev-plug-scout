@@ -1,7 +1,7 @@
 // Smart Occupancy, Booking Policy & Real-Time Tariff Analyzer for Thai EV Charging Networks
 
-export const APP_VERSION = 'v2.9.0';
-export const APP_BUILD_LABEL = 'Smart Weather & Trip Cockpit • 119 สถานี';
+export const APP_VERSION = 'v3.0.0';
+export const APP_BUILD_LABEL = 'Flagship Live Map & Auto-Scout • 119 สถานี';
 
 const WALK_IN_PURE_PROVIDERS = [
   'PEA VOLTA',

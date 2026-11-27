@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Car,
   BatteryCharging,
@@ -15,7 +15,11 @@ import {
   Sliders,
   CheckSquare,
   PhoneCall,
-  FileText
+  FileText,
+  Camera,
+  Timer,
+  Trash2,
+  PlusCircle
 } from 'lucide-react';
 import { MY_CAR_DATA } from '../data/stations';
 import { speechService } from '../services/speechService';
@@ -74,6 +78,169 @@ export function MyCarTab({ car: initialCar, batteryPct: initialBattery, onSaveCa
       };
     }
   });
+
+  // Mall Parking Pillar Photo (Compressed Canvas JPEG saved in LocalStorage)
+  const [parkingPhotoDataUrl, setParkingPhotoDataUrl] = useState(() => {
+    try {
+      return localStorage.getItem('ev_plug_scout_parking_photo') || '';
+    } catch {
+      return '';
+    }
+  });
+
+  // Free Mall Parking Countdown Timer (Survives app reopen)
+  const [parkingFreeEndsAt, setParkingFreeEndsAt] = useState(() => {
+    try {
+      const saved = Number(localStorage.getItem('ev_plug_scout_parking_free_end') || '0');
+      return saved > Date.now() ? saved : 0;
+    } catch {
+      return 0;
+    }
+  });
+  const [parkingRemainSec, setParkingRemainSec] = useState(() =>
+    parkingFreeEndsAt > 0 ? Math.max(0, Math.floor((parkingFreeEndsAt - Date.now()) / 1000)) : 0
+  );
+  const parkingWarned15Ref = useRef(false);
+
+  useEffect(() => {
+    if (!parkingFreeEndsAt) return;
+    const tick = setInterval(() => {
+      const left = Math.max(0, Math.floor((parkingFreeEndsAt - Date.now()) / 1000));
+      setParkingRemainSec(left);
+      if (left <= 900 && left > 0 && !parkingWarned15Ref.current) {
+        parkingWarned15Ref.current = true;
+        soundEffects.playAlert();
+        speechService.speak(
+          `แจ้งเตือนครับพี่นิค เหลือเวลาจอดรถฟรีที่ ${parkingMemo.mall} อีก 15 นาที เตรียมตัวเดินไปที่รถได้เลยครับ`
+        );
+      }
+      if (left <= 0) {
+        clearInterval(tick);
+        setParkingFreeEndsAt(0);
+        try {
+          localStorage.removeItem('ev_plug_scout_parking_free_end');
+        } catch {}
+        soundEffects.playAlert();
+        speechService.speak(`ครบกำหนดเวลาจอดรถฟรีที่ ${parkingMemo.mall} แล้วครับพี่นิค`);
+      }
+    }, 1000);
+    return () => clearInterval(tick);
+  }, [parkingFreeEndsAt, parkingMemo.mall]);
+
+  const handleStartFreeParkingTimer = (hours) => {
+    const endMs = Date.now() + hours * 3600 * 1000;
+    parkingWarned15Ref.current = false;
+    setParkingFreeEndsAt(endMs);
+    setParkingRemainSec(hours * 3600);
+    try {
+      localStorage.setItem('ev_plug_scout_parking_free_end', String(endMs));
+    } catch {}
+    const expStr = new Date(endMs).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.';
+    setSaveSuccessMsg(`เริ่มจับเวลาจอดฟรี ${hours} ชม. (หมดเวลาฟรี ${expStr}) ระบบจะเตือนก่อนหมด 15 นาที`);
+    setTimeout(() => setSaveSuccessMsg(''), 3500);
+  };
+
+  const handleStopFreeParkingTimer = () => {
+    setParkingFreeEndsAt(0);
+    setParkingRemainSec(0);
+    try {
+      localStorage.removeItem('ev_plug_scout_parking_free_end');
+    } catch {}
+  };
+
+  const handleParkingPhotoUpload = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const maxWidth = 720;
+        const scale = img.width > maxWidth ? maxWidth / img.width : 1;
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          const compressed = canvas.toDataURL('image/jpeg', 0.72);
+          setParkingPhotoDataUrl(compressed);
+          try {
+            localStorage.setItem('ev_plug_scout_parking_photo', compressed);
+          } catch {}
+          setSaveSuccessMsg('บันทึกรูปภาพเสาที่จอดรถเรียบร้อยแล้ว');
+          setTimeout(() => setSaveSuccessMsg(''), 3200);
+        }
+      };
+      img.src = String(reader.result || '');
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleClearParkingPhoto = () => {
+    setParkingPhotoDataUrl('');
+    try {
+      localStorage.removeItem('ev_plug_scout_parking_photo');
+    } catch {}
+  };
+
+  // EV Maintenance & Tire Rotation Service Log
+  const [serviceLogs, setServiceLogs] = useState(() => {
+    try {
+      const saved = localStorage.getItem('ev_plug_scout_service_logs');
+      return saved
+        ? JSON.parse(saved)
+        : [
+            {
+              id: 'srv-1',
+              date: '2026-10-15',
+              title: 'ตรวจเช็กระยะ 1,000 กม. แรก (ฟรีค่าแรงศูนย์ JAECOO)',
+              km: 1050,
+              costBaht: 0
+            }
+          ];
+    } catch {
+      return [];
+    }
+  });
+  const [newServiceTitle, setNewServiceTitle] = useState('เช็กระยะศูนย์ 10,000 กม.');
+  const [newServiceCost, setNewServiceCost] = useState('1200');
+
+  const totalServiceBaht = serviceLogs.reduce((sum, item) => sum + (Number(item.costBaht) || 0), 0);
+  const totalChargingBahtAllTime = (() => {
+    try {
+      const logs = JSON.parse(localStorage.getItem('ev_plug_scout_charge_logs') || '[]');
+      return logs.reduce((s, x) => s + (Number(x.costBaht) || 0), 0);
+    } catch {
+      return 0;
+    }
+  })();
+
+  const handleAddServiceLog = () => {
+    if (!newServiceTitle.trim()) return;
+    const entry = {
+      id: `srv-${Date.now()}`,
+      date: new Date().toISOString().slice(0, 10),
+      title: newServiceTitle.trim(),
+      km: odometerKm,
+      costBaht: Math.max(0, Number(newServiceCost) || 0)
+    };
+    const updated = [entry, ...serviceLogs];
+    setServiceLogs(updated);
+    try {
+      localStorage.setItem('ev_plug_scout_service_logs', JSON.stringify(updated));
+    } catch {}
+    setSaveSuccessMsg(`บันทึกประวัติการดูแลรถ "${entry.title}" เรียบร้อย`);
+    setTimeout(() => setSaveSuccessMsg(''), 3200);
+  };
+
+  const handleDeleteServiceLog = (id) => {
+    const updated = serviceLogs.filter((x) => x.id !== id);
+    setServiceLogs(updated);
+    try {
+      localStorage.setItem('ev_plug_scout_service_logs', JSON.stringify(updated));
+    } catch {}
+  };
 
   // Smart EV Odometer & Maintenance
   const [odometerKm, setOdometerKm] = useState(() => {
@@ -601,6 +768,108 @@ export function MyCarTab({ car: initialCar, batteryPct: initialBattery, onSaveCa
                 </button>
               </div>
             </div>
+
+            {/* Camera Photo Capture of Parking Pillar + Free Mall Parking Countdown */}
+            <div className="pt-3 border-t border-slate-800/90 space-y-3 text-xs">
+              {/* Free Parking Countdown */}
+              <div className="p-3 rounded-2xl bg-slate-950/90 border border-slate-800 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-extrabold text-white flex items-center gap-1.5">
+                    <Timer size={14} className="text-amber-400" />
+                    <span>จับเวลาจอดรถฟรีในห้าง (เตือนก่อนหมด 15 นาที)</span>
+                  </span>
+                  {parkingFreeEndsAt > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleStopFreeParkingTimer}
+                      className="text-[10px] font-bold text-rose-400 hover:underline"
+                    >
+                      ยกเลิกเวลา
+                    </button>
+                  )}
+                </div>
+
+                {parkingFreeEndsAt > 0 ? (
+                  <div className="flex items-center justify-between bg-amber-950/35 border border-amber-500/40 rounded-xl px-3 py-2">
+                    <div>
+                      <span className="text-[10px] text-amber-300 block">เวลาจอดฟรีคงเหลือ</span>
+                      <span className="text-xl font-extrabold font-mono text-amber-300">
+                        {String(Math.floor(parkingRemainSec / 3600)).padStart(2, '0')}:
+                        {String(Math.floor((parkingRemainSec % 3600) / 60)).padStart(2, '0')}:
+                        {String(parkingRemainSec % 60).padStart(2, '0')}
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-[10px] text-slate-400 block">หมดเวลาจอดฟรี</span>
+                      <span className="text-xs font-mono font-extrabold text-white">
+                        {new Date(parkingFreeEndsAt).toLocaleTimeString('th-TH', {
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}{' '}
+                        น.
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {[2, 3, 4, 6].map((hr) => (
+                      <button
+                        key={hr}
+                        type="button"
+                        onClick={() => handleStartFreeParkingTimer(hr)}
+                        className="py-2 px-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-amber-300 font-extrabold text-[11px] active:scale-95 transition"
+                      >
+                        ฟรี {hr} ชม.
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* S25 Ultra Camera Pillar Photo */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-extrabold text-slate-200 flex items-center gap-1.5">
+                    <Camera size={14} className="text-cyan-400" />
+                    <span>รูปถ่ายเสาที่จอดรถ (กันลืมชั้นจอด)</span>
+                  </span>
+
+                  <div className="flex items-center gap-1.5">
+                    {parkingPhotoDataUrl && (
+                      <button
+                        type="button"
+                        onClick={handleClearParkingPhoto}
+                        className="px-2 py-1 rounded-lg bg-rose-500/15 border border-rose-500/35 text-rose-300 text-[10px] font-bold flex items-center gap-1"
+                      >
+                        <Trash2 size={11} />
+                        <span>ลบรูป</span>
+                      </button>
+                    )}
+                    <label className="cursor-pointer px-3 py-1.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-extrabold text-[11px] flex items-center gap-1 active:scale-95 transition">
+                      <Camera size={13} />
+                      <span>{parkingPhotoDataUrl ? 'ถ่ายรูปใหม่' : 'ถ่ายรูปเสาจอดรถ'}</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        onChange={handleParkingPhotoUpload}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                {parkingPhotoDataUrl && (
+                  <div className="rounded-2xl overflow-hidden border border-cyan-500/40 bg-slate-950">
+                    <img
+                      src={parkingPhotoDataUrl}
+                      alt="รูปเสาที่จอดรถ"
+                      className="w-full max-h-56 object-cover"
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
 
           {/* Card 2: JAECOO 5 EV Maintenance & Tire Pressure Table */}
@@ -662,6 +931,84 @@ export function MyCarTab({ car: initialCar, batteryPct: initialBattery, onSaveCa
                 <div className="text-base font-extrabold text-white font-mono mt-0.5">หน้า 35 / หลัง 36 PSI</div>
                 <span className="text-[10px] text-slate-400 block mt-0.5">240-250 kPa • ประหยัดไฟ +4%</span>
               </div>
+            </div>
+
+            {/* EV Service & Tire Rotation Log + Total Ownership Cost */}
+            <div className="pt-3 border-t border-slate-800/90 space-y-3 text-xs">
+              <div className="grid grid-cols-2 gap-2 text-center">
+                <div className="p-2.5 rounded-2xl bg-slate-950/90 border border-slate-800">
+                  <span className="text-[10px] text-slate-400 block">ค่าบำรุงรักษาสะสม</span>
+                  <span className="text-base font-extrabold font-mono text-white">
+                    {totalServiceBaht.toLocaleString()} บ.
+                  </span>
+                </div>
+                <div className="p-2.5 rounded-2xl bg-emerald-950/45 border border-emerald-500/35">
+                  <span className="text-[10px] text-emerald-300 font-bold block">ต้นทุนรวม (ค่าไฟ + เซอร์วิส)</span>
+                  <span className="text-base font-extrabold font-mono text-emerald-300">
+                    {(totalServiceBaht + totalChargingBahtAllTime).toLocaleString()} บ.
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-12 gap-1.5">
+                <select
+                  value={newServiceTitle}
+                  onChange={(e) => setNewServiceTitle(e.target.value)}
+                  className="sm:col-span-6 bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-2 text-xs text-white font-semibold"
+                >
+                  <option value="เช็กระยะศูนย์ 10,000 กม.">เช็กระยะศูนย์ 10,000 กม.</option>
+                  <option value="เช็กระยะศูนย์ 20,000 กม.">เช็กระยะศูนย์ 20,000 กม.</option>
+                  <option value="สลับยาง & ตั้งศูนย์ล้อ">สลับยาง & ตั้งศูนย์ล้อ</option>
+                  <option value="เปลี่ยนกรองแอร์ PM2.5">เปลี่ยนกรองแอร์ PM2.5</option>
+                  <option value="เปลี่ยนใบปัดน้ำฝน">เปลี่ยนใบปัดน้ำฝน</option>
+                  <option value="ล้างรถ / เคลือบสี">ล้างรถ / เคลือบสี</option>
+                </select>
+                <input
+                  type="number"
+                  value={newServiceCost}
+                  onChange={(e) => setNewServiceCost(e.target.value)}
+                  placeholder="บาท"
+                  className="sm:col-span-3 bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-2 text-xs font-mono text-white font-bold"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddServiceLog}
+                  className="sm:col-span-3 py-2 px-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs flex items-center justify-center gap-1 active:scale-95 transition"
+                >
+                  <PlusCircle size={13} />
+                  <span>บันทึก</span>
+                </button>
+              </div>
+
+              {serviceLogs.length > 0 && (
+                <div className="space-y-1.5 max-h-44 overflow-y-auto">
+                  {serviceLogs.map((srv) => (
+                    <div
+                      key={srv.id}
+                      className="p-2.5 rounded-xl bg-slate-950/90 border border-slate-800 flex items-center justify-between gap-2"
+                    >
+                      <div className="min-w-0">
+                        <div className="font-bold text-white truncate">{srv.title}</div>
+                        <div className="text-[10px] text-slate-400">
+                          {srv.date} • เลขไมล์ {Number(srv.km || 0).toLocaleString()} กม.
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <span className="font-mono font-extrabold text-emerald-400">
+                          {Number(srv.costBaht || 0).toLocaleString()} บ.
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteServiceLog(srv.id)}
+                          className="p-1 text-slate-500 hover:text-rose-400"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 

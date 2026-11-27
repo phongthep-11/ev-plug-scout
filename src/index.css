@@ -289,3 +289,17 @@ html.theme-daylight ::-webkit-scrollbar-track {
 html.theme-daylight ::-webkit-scrollbar-thumb {
   background: #94a3b8;
 }
+
+/* Preserve true Leaflet map canvas colors & pin contrast in Daylight mode */
+.leaflet-container {
+  font-family: 'Prompt', sans-serif !important;
+  background: #0b1322 !important;
+}
+html.theme-daylight .leaflet-container {
+  background: #e2e8f0 !important;
+}
+.ev-station-pin,
+.ev-car-marker {
+  background: transparent !important;
+  border: none !important;
+}

@@ -16,6 +16,9 @@ export default defineConfig({
           if (id.includes('node_modules/lucide-react')) {
             return 'vendor-icons';
           }
+          if (id.includes('node_modules/leaflet')) {
+            return 'vendor-leaflet';
+          }
           if (id.includes('src/data/thailandStations')) {
             return 'data-thailand-stations';
           }

@@ -211,7 +211,8 @@ export function SavedStationsTab({ stations, userLocation, onSelect, onNavigate,
         odometer: localStorage.getItem('ev_plug_scout_odometer_km') || '3850',
         lfpCalDate: localStorage.getItem('ev_plug_scout_lfp_cal_date') || '',
         carDocs: JSON.parse(localStorage.getItem('ev_plug_scout_car_docs') || '{}'),
-        savedTrips: JSON.parse(localStorage.getItem('ev_plug_scout_saved_trips') || '[]')
+        savedTrips: JSON.parse(localStorage.getItem('ev_plug_scout_saved_trips') || '[]'),
+        serviceLogs: JSON.parse(localStorage.getItem('ev_plug_scout_service_logs') || '[]')
       };
       const jsonStr = JSON.stringify(payload);
       setBackupCodeText(jsonStr);
@@ -256,6 +257,9 @@ export function SavedStationsTab({ stations, userLocation, onSelect, onNavigate,
       }
       if (Array.isArray(parsed.savedTrips)) {
         localStorage.setItem('ev_plug_scout_saved_trips', JSON.stringify(parsed.savedTrips));
+      }
+      if (Array.isArray(parsed.serviceLogs)) {
+        localStorage.setItem('ev_plug_scout_service_logs', JSON.stringify(parsed.serviceLogs));
       }
       setFeedbackMsg('กู้คืนข้อมูลสถานีโปรด สมุดค่าไฟ และจุดจอดรถเรียบร้อยแล้ว');
       setTimeout(() => setFeedbackMsg(''), 3500);
@@ -624,10 +628,10 @@ export function SavedStationsTab({ stations, userLocation, onSelect, onNavigate,
                 <span className="text-slate-400 font-semibold">{APP_BUILD_LABEL}</span>
               </div>
               <ul className="text-slate-300 space-y-0.5 list-disc list-inside text-[11px]">
-                <li>เช็กสภาพอากาศจริง ณ ปลายทางอัตโนมัติ (Open-Meteo) พร้อมคำแนะนำชาร์จ EV</li>
-                <li>ปรับความเร็วขับจริง (90 / 110 / 120+ กม./ชม.) ในหน้าวางแผนทริป + เตือนแบตไม่พอ</li>
-                <li>บันทึกทริปประจำ (Saved Trips) และจัดหน้าวางแผนทริปใหม่ให้โล่ง สะอาด อ่านง่าย</li>
-                <li>ตัวกรองสิ่งอำนวยความสะดวกในปั๊ม (มีร้านกาแฟ / 7-Eleven / ในห้างมีหลังคา)</li>
+                <li>แผนที่ถนนจริงอินเทอร์แอกทีฟ (Leaflet) ปักหมุดครบ 119 สถานี ซูม-ลาก-สลับสีตามธีมได้</li>
+                <li>Live GPS Auto-Scout เตือนตู้ชาร์จว่างด้วยเสียงอัตโนมัติบนถนนจริงระยะ 2 กม.</li>
+                <li>ถ่ายรูปเสาที่จอดรถในห้างจากกล้อง S25 Ultra + จับเวลาจอดฟรีเตือนก่อนหมด 15 นาที</li>
+                <li>สมุดบันทึกประวัติเข้าศูนย์เช็กระยะ & สลับยาง พร้อมสรุปต้นทุนรวมทั้งปี</li>
               </ul>
             </div>
 

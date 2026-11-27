@@ -121,6 +121,27 @@ export function App() {
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
   const [isBatteryPickerOpen, setIsBatteryPickerOpen] = useState(false);
 
+  // Live GPS Auto-Scout Proximity Voice Alert (real road alerts when approaching free charger <= 2 km)
+  const [autoScoutEnabled, setAutoScoutEnabled] = useState(() => {
+    try {
+      const saved = localStorage.getItem('ev_plug_scout_auto_scout');
+      return saved === null ? true : saved === 'true';
+    } catch {
+      return true;
+    }
+  });
+  const autoScoutAlertedRef = useRef(new Set());
+
+  const handleToggleAutoScout = () => {
+    setAutoScoutEnabled((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('ev_plug_scout_auto_scout', String(next));
+      } catch {}
+      return next;
+    });
+  };
+
   // Daylight High-Contrast / Dark / Auto (06:00-18:00) Theme State
   const [themeMode, setThemeMode] = useState(() => {
     try {
@@ -526,6 +547,40 @@ export function App() {
       return (a.distanceKm ?? 9999) - (b.distanceKm ?? 9999);
     });
 
+  // Live GPS Auto-Scout Effect: Automatically alerts when driving near a free station on real roads
+  useEffect(() => {
+    if (!autoScoutEnabled || isSimulating || !userLocation || userLocation.isManual) return;
+    const alertRadiusKm = batteryPct <= 25 ? 5.0 : 2.0;
+    const nearbyFree = stations.find(
+      (s) =>
+        s.availablePlugs > 0 &&
+        s.distanceKm != null &&
+        s.distanceKm <= alertRadiusKm &&
+        !autoScoutAlertedRef.current.has(s.id)
+    );
+    if (!nearbyFree) return;
+
+    autoScoutAlertedRef.current.add(nearbyFree.id);
+    const access = getStationAccessInfo(nearbyFree);
+    const msg = `Auto-Scout: ข้างหน้าอีก ${nearbyFree.distanceKm} กม. สถานี ${nearbyFree.name} (${access.occupancyBadgeText} • ${
+      access.isPureWalkIn ? 'ไม่ต้องจอง เข้าได้เลย' : 'เข้าได้เลย'
+    })`;
+
+    const timer = setTimeout(() => {
+      soundEffects.playAlert();
+      if (voiceEnabled) {
+        speechService.speak(
+          `แจ้งเตือนอัตโนมัติครับพี่นิค ข้างหน้าอีก ${nearbyFree.distanceKm} กิโลเมตร มีตู้ชาร์จว่างที่ ${nearbyFree.name} ${access.occupancyBadgeText} ${
+            access.isPureWalkIn ? 'ไม่ต้องจอง ขับเข้าได้เลยครับ' : 'สามารถเลี้ยวเข้าชาร์จได้เลยครับ'
+          }`
+        );
+      }
+      setDriveAlertToast({ title: nearbyFree.name, message: msg, station: nearbyFree });
+    }, 0);
+
+    return () => clearTimeout(timer);
+  }, [autoScoutEnabled, isSimulating, userLocation, stations, batteryPct, voiceEnabled]);
+
   return (
     <div className="min-h-screen bg-[#0b0f17] text-slate-100 flex flex-col font-sans">
       {/* Top Header */}
@@ -541,6 +596,8 @@ export function App() {
         onOpenHud={() => setIsDrivingHudOpen(true)}
         themeMode={themeMode}
         onCycleThemeMode={handleCycleThemeMode}
+        autoScoutEnabled={autoScoutEnabled}
+        onToggleAutoScout={handleToggleAutoScout}
       />
 
       {/* Main Content Area */}

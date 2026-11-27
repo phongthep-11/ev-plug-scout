@@ -12,7 +12,8 @@ import {
   Zap,
   Maximize2,
   SlidersHorizontal,
-  X
+  X,
+  Radar
 } from 'lucide-react';
 import { APP_VERSION } from '../utils/stationStatus';
 
@@ -27,7 +28,9 @@ export function Header({
   onToggleWakeLock,
   onOpenHud,
   themeMode = 'dark',
-  onCycleThemeMode
+  onCycleThemeMode,
+  autoScoutEnabled = true,
+  onToggleAutoScout
 }) {
   const [isUpdatingOta, setIsUpdatingOta] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -200,6 +203,23 @@ export function Header({
               <span className="text-[10px] font-extrabold">{isSimulating ? 'กำลังรัน' : 'เริ่ม'}</span>
             </button>
           </div>
+
+          {onToggleAutoScout && (
+            <button
+              onClick={onToggleAutoScout}
+              className={`w-full py-2.5 px-3 rounded-xl border font-bold flex items-center justify-between transition active:scale-95 ${
+                autoScoutEnabled
+                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/45'
+                  : 'bg-slate-900 text-slate-400 border-slate-800'
+              }`}
+            >
+              <span className="flex items-center gap-1.5">
+                <Radar size={14} />
+                <span>Auto-Scout เตือนตู้ว่างบนถนนจริง (2 กม.)</span>
+              </span>
+              <span className="text-[10px] font-extrabold">{autoScoutEnabled ? 'เปิดอัตโนมัติ' : 'ปิด'}</span>
+            </button>
+          )}
 
           <button
             onClick={handleOtaLiveUpdate}
