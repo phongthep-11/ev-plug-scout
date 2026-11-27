@@ -15,7 +15,10 @@ import {
   CalendarCheck,
   Download,
   Upload,
-  FileText
+  FileText,
+  Sun,
+  Moon,
+  Sunrise
 } from 'lucide-react';
 import { speechService } from '../services/speechService';
 import { soundEffects } from '../services/soundEffects';
@@ -41,7 +44,7 @@ const EMERGENCY_HOTLINES = [
   { name: 'ตำรวจทางหลวง / มอเตอร์เวย์', phone: '1193', display: '1193', badge: 'เหตุด่วนบนทางหลวง 24 ชม.' }
 ];
 
-export function SavedStationsTab({ stations, userLocation, onSelect, onNavigate }) {
+export function SavedStationsTab({ stations, userLocation, onSelect, onNavigate, themeMode = 'dark', onChangeThemeMode }) {
   const [activeSubMenu, setActiveSubMenu] = useState('emergency'); // 'emergency' | 'saved' | 'ota'
 
   const [favIds, setFavIds] = useState(() => {
@@ -206,7 +209,8 @@ export function SavedStationsTab({ stations, userLocation, onSelect, onNavigate 
         logs: JSON.parse(localStorage.getItem('ev_plug_scout_charge_logs') || '[]'),
         parking: JSON.parse(localStorage.getItem('ev_plug_scout_parking_memo') || '{}'),
         odometer: localStorage.getItem('ev_plug_scout_odometer_km') || '3850',
-        lfpCalDate: localStorage.getItem('ev_plug_scout_lfp_cal_date') || ''
+        lfpCalDate: localStorage.getItem('ev_plug_scout_lfp_cal_date') || '',
+        carDocs: JSON.parse(localStorage.getItem('ev_plug_scout_car_docs') || '{}')
       };
       const jsonStr = JSON.stringify(payload);
       setBackupCodeText(jsonStr);
@@ -245,6 +249,9 @@ export function SavedStationsTab({ stations, userLocation, onSelect, onNavigate 
       }
       if (parsed.lfpCalDate) {
         localStorage.setItem('ev_plug_scout_lfp_cal_date', String(parsed.lfpCalDate));
+      }
+      if (parsed.carDocs && typeof parsed.carDocs === 'object') {
+        localStorage.setItem('ev_plug_scout_car_docs', JSON.stringify(parsed.carDocs));
       }
       setFeedbackMsg('กู้คืนข้อมูลสถานีโปรด สมุดค่าไฟ และจุดจอดรถเรียบร้อยแล้ว');
       setTimeout(() => setFeedbackMsg(''), 3500);
@@ -613,12 +620,46 @@ export function SavedStationsTab({ stations, userLocation, onSelect, onNavigate 
                 <span className="text-slate-400 font-semibold">{APP_BUILD_LABEL}</span>
               </div>
               <ul className="text-slate-300 space-y-0.5 list-disc list-inside text-[11px]">
-                <li>มาตรวัดความเร็ว GPS สด + เข็มทิศ + คัดเฉพาะตู้ชาร์จด้านหน้าในโหมด HUD</li>
-                <li>ปุ่มแชร์พิกัดสถานีและแผนทริปเข้า LINE / แชทในคลิกเดียว (1-Tap Share)</li>
-                <li>กราฟเทียบค่าไฟ EV vs น้ำมัน แยกสัดส่วนตามค่าย และส่งออกไฟล์ Excel (CSV)</li>
-                <li>ตัวแจ้งเตือนชาร์จ LFP 100% คาลิเบรต BMS และกราฟความเร็วชาร์จ DC 130 kW</li>
+                <li>โหมดหน้าจอกลางวันสู้แดด / มืดกลางคืน / ออโต้ตามเวลา (06:00-18:00 น.)</li>
+                <li>ระบบเทียบ 2 สถานีเคียงข้างกัน + ลิงก์ตรงเปิดแอปค่ายชาร์จ Android 11 ค่าย</li>
+                <li>นาฬิกาบอกเวลาชาร์จเสร็จเป๊ะ (Finish-At) + ปุ่มบันทึกค่าไฟ 1 คลิกจากหน้าต่างสถานี</li>
+                <li>สมุดเตือนต่ออายุ พ.ร.บ. / ประกันชั้น 1 / ภาษีรถ พร้อมโทรแจ้งเคลมฉุกเฉิน 24 ชม.</li>
               </ul>
             </div>
+
+            {/* Theme Mode Selector (Dark / Daylight / Auto) */}
+            {onChangeThemeMode && (
+              <div className="p-3 rounded-2xl bg-slate-950/85 border border-slate-800 space-y-2 text-xs">
+                <span className="text-[11px] font-extrabold text-white block">
+                  โหมดความสว่างหน้าจอ (กลางวันสู้แดด / กลางคืน / ออโต้):
+                </span>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {[
+                    { id: 'dark', label: 'มืดกลางคืน', icon: Moon },
+                    { id: 'daylight', label: 'สว่างสู้แดด', icon: Sun },
+                    { id: 'auto', label: 'ออโต้ (6-18 น.)', icon: Sunrise }
+                  ].map((m) => {
+                    const Icon = m.icon;
+                    const active = themeMode === m.id;
+                    return (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => onChangeThemeMode(m.id)}
+                        className={`py-2 px-2 rounded-xl text-[11px] font-extrabold flex items-center justify-center gap-1 border transition active:scale-95 ${
+                          active
+                            ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow'
+                            : 'bg-slate-900 text-slate-300 border-slate-800'
+                        }`}
+                      >
+                        <Icon size={13} />
+                        <span>{m.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
               <button

@@ -106,3 +106,186 @@
 .animate-fade-in {
   animation: fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
+
+/* ============================================================
+   DAYLIGHT HIGH-CONTRAST THEME (สู้แดดกลางวันบน S25 Ultra / มือถือทุกรุ่น)
+   ============================================================ */
+html.theme-daylight,
+html.theme-daylight body {
+  background-color: #eef2f6 !important;
+  color: #0f172a !important;
+}
+
+html.theme-daylight .bg-\[\#0b0f17\],
+html.theme-daylight .bg-\[\#050811\] {
+  background-color: #eef2f6 !important;
+  color: #0f172a !important;
+}
+
+html.theme-daylight header,
+html.theme-daylight nav {
+  background-color: rgba(255, 255, 255, 0.96) !important;
+  border-color: #cbd5e1 !important;
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.08) !important;
+}
+
+html.theme-daylight [class*="bg-gradient-to-br"][class*="from-[#"],
+html.theme-daylight [class*="bg-gradient-to-b"][class*="from-[#"],
+html.theme-daylight [class*="bg-gradient-to-r"][class*="from-slate-900"],
+html.theme-daylight [class*="bg-gradient-to-r"][class*="from-emerald-950"],
+html.theme-daylight [class*="bg-gradient-to-r"][class*="from-amber-950"],
+html.theme-daylight [class*="bg-gradient-to-r"][class*="from-[#"],
+html.theme-daylight .bg-\[\#111726\],
+html.theme-daylight .bg-\[\#121826\],
+html.theme-daylight .bg-\[\#111725\],
+html.theme-daylight .bg-\[\#0e1626\],
+html.theme-daylight .bg-\[\#0f1624\],
+html.theme-daylight .bg-\[\#0e1525\],
+html.theme-daylight .bg-\[\#0b1322\],
+html.theme-daylight .bg-\[\#090f1d\],
+html.theme-daylight .bg-\[\#131b2e\],
+html.theme-daylight .bg-\[\#07111e\] {
+  background-image: none !important;
+  background-color: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.07) !important;
+}
+
+html.theme-daylight [class*="bg-slate-950"],
+html.theme-daylight [class*="bg-slate-900"] {
+  background-color: #f8fafc !important;
+  border-color: #cbd5e1 !important;
+}
+
+html.theme-daylight [class*="bg-slate-800"] {
+  background-color: #e2e8f0 !important;
+  border-color: #cbd5e1 !important;
+}
+
+html.theme-daylight [class*="bg-emerald-950"],
+html.theme-daylight [class*="bg-teal-950"] {
+  background-color: #ecfdf5 !important;
+  border-color: #6ee7b7 !important;
+}
+
+html.theme-daylight [class*="bg-cyan-950"],
+html.theme-daylight [class*="bg-sky-950"],
+html.theme-daylight [class*="bg-blue-950"],
+html.theme-daylight [class*="bg-indigo-950"] {
+  background-color: #ecfeff !important;
+  border-color: #67e8f9 !important;
+}
+
+html.theme-daylight [class*="bg-amber-950"],
+html.theme-daylight [class*="bg-orange-950"] {
+  background-color: #fffbeb !important;
+  border-color: #fcd34d !important;
+}
+
+html.theme-daylight [class*="bg-rose-950"] {
+  background-color: #fff1f2 !important;
+  border-color: #fda4af !important;
+}
+
+html.theme-daylight [class*="bg-purple-950"] {
+  background-color: #faf5ff !important;
+  border-color: #d8b4fe !important;
+}
+
+html.theme-daylight [class*="bg-lime-950"] {
+  background-color: #f7fee7 !important;
+  border-color: #bef264 !important;
+}
+
+/* Crisp High-Contrast Daylight Text */
+html.theme-daylight .text-white,
+html.theme-daylight .text-slate-100,
+html.theme-daylight .text-slate-200 {
+  color: #0f172a !important;
+}
+
+html.theme-daylight .text-slate-300 {
+  color: #1e293b !important;
+}
+
+html.theme-daylight .text-slate-400,
+html.theme-daylight .text-slate-500 {
+  color: #475569 !important;
+}
+
+html.theme-daylight .text-emerald-200,
+html.theme-daylight .text-emerald-300,
+html.theme-daylight .text-emerald-400 {
+  color: #047857 !important;
+}
+
+html.theme-daylight .text-cyan-200,
+html.theme-daylight .text-cyan-300,
+html.theme-daylight .text-cyan-400,
+html.theme-daylight .text-sky-300,
+html.theme-daylight .text-sky-400 {
+  color: #0e7490 !important;
+}
+
+html.theme-daylight .text-amber-200,
+html.theme-daylight .text-amber-300,
+html.theme-daylight .text-amber-400,
+html.theme-daylight .text-yellow-300,
+html.theme-daylight .text-orange-300 {
+  color: #b45309 !important;
+}
+
+html.theme-daylight .text-rose-300,
+html.theme-daylight .text-rose-400 {
+  color: #be123c !important;
+}
+
+html.theme-daylight .text-purple-300,
+html.theme-daylight .text-purple-400,
+html.theme-daylight .text-indigo-300 {
+  color: #6d28d9 !important;
+}
+
+html.theme-daylight .text-lime-300 {
+  color: #3f6212 !important;
+}
+
+html.theme-daylight .text-blue-300 {
+  color: #1d4ed8 !important;
+}
+
+/* Keep solid vivid CTA button text crisp */
+html.theme-daylight .bg-emerald-500,
+html.theme-daylight .bg-emerald-400,
+html.theme-daylight .bg-cyan-500,
+html.theme-daylight .bg-amber-400,
+html.theme-daylight .bg-amber-500 {
+  color: #020617 !important;
+}
+
+html.theme-daylight .bg-rose-500,
+html.theme-daylight .bg-red-500,
+html.theme-daylight .bg-rose-500 * {
+  color: #ffffff !important;
+}
+
+html.theme-daylight [class*="border-slate-800"],
+html.theme-daylight [class*="border-slate-700"] {
+  border-color: #cbd5e1 !important;
+}
+
+html.theme-daylight input,
+html.theme-daylight select,
+html.theme-daylight textarea {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #94a3b8 !important;
+}
+
+html.theme-daylight ::-webkit-scrollbar-track {
+  background: #e2e8f0;
+}
+
+html.theme-daylight ::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+}

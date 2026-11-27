@@ -19,7 +19,8 @@ import {
   Crosshair,
   ExternalLink,
   CheckCircle2,
-  CalendarCheck
+  CalendarCheck,
+  ArrowLeftRight
 } from 'lucide-react';
 import { INITIAL_STATIONS, ROUTES, ALL_STATIONS, ALL_STATIONS_FLAT, MY_CAR_DATA } from './data/stations';
 import { speechService } from './services/speechService';
@@ -56,6 +57,9 @@ const InteractiveRadarMap = lazy(() =>
 );
 const DrivingHudModal = lazy(() =>
   import('./components/DrivingHudModal').then((m) => ({ default: m.DrivingHudModal }))
+);
+const StationCompareModal = lazy(() =>
+  import('./components/StationCompareModal').then((m) => ({ default: m.StationCompareModal }))
 );
 
 function TabLoadingFallback() {
@@ -111,6 +115,38 @@ export function App() {
   const [selectedStation, setSelectedStation] = useState(null);
   const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
   const [isDrivingHudOpen, setIsDrivingHudOpen] = useState(false);
+  const [isCompareOpen, setIsCompareOpen] = useState(false);
+  const [compareStationAId, setCompareStationAId] = useState(null);
+
+  // Daylight High-Contrast / Dark / Auto (06:00-18:00) Theme State
+  const [themeMode, setThemeMode] = useState(() => {
+    try {
+      return localStorage.getItem('ev_plug_scout_theme_mode') || 'dark';
+    } catch {
+      return 'dark';
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('ev_plug_scout_theme_mode', themeMode);
+    } catch {}
+
+    const applyTheme = () => {
+      const hour = new Date().getHours();
+      const shouldBeDaylight = themeMode === 'daylight' || (themeMode === 'auto' && hour >= 6 && hour < 18);
+      document.documentElement.classList.toggle('theme-daylight', shouldBeDaylight);
+    };
+
+    applyTheme();
+    if (themeMode !== 'auto') return;
+    const interval = setInterval(applyTheme, 60000);
+    return () => clearInterval(interval);
+  }, [themeMode]);
+
+  const handleCycleThemeMode = () => {
+    setThemeMode((prev) => (prev === 'dark' ? 'daylight' : prev === 'daylight' ? 'auto' : 'dark'));
+  };
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [isSimulating, setIsSimulating] = useState(false);
@@ -498,6 +534,8 @@ export function App() {
         isWakeLocked={isWakeLocked}
         onToggleWakeLock={handleToggleWakeLock}
         onOpenHud={() => setIsDrivingHudOpen(true)}
+        themeMode={themeMode}
+        onCycleThemeMode={handleCycleThemeMode}
       />
 
       {/* Main Content Area */}
@@ -1075,6 +1113,17 @@ export function App() {
                   </div>
 
                   <button
+                    onClick={() => {
+                      setCompareStationAId(filteredStations[0]?.id || stations[0]?.id || null);
+                      setIsCompareOpen(true);
+                    }}
+                    className="px-2.5 py-1.5 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 flex items-center gap-1 text-xs text-cyan-300 font-extrabold active:scale-95 transition-all whitespace-nowrap"
+                  >
+                    <ArrowLeftRight size={12} />
+                    <span>เทียบ 2 ตู้</span>
+                  </button>
+
+                  <button
                     onClick={handleRefresh}
                     disabled={isRefreshing}
                     className="px-2.5 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center gap-1 text-xs text-emerald-400 hover:text-emerald-300 active:scale-95 transition-all font-semibold"
@@ -1195,10 +1244,26 @@ export function App() {
               userLocation={userLocation}
               onSelect={(s) => setSelectedStation(s)}
               onNavigate={(s) => handleNavigate(s)}
+              themeMode={themeMode}
+              onChangeThemeMode={setThemeMode}
             />
           </Suspense>
         )}
       </main>
+
+      {/* Side-by-Side 2-Station Comparator Modal */}
+      {isCompareOpen && (
+        <Suspense fallback={null}>
+          <StationCompareModal
+            isOpen={isCompareOpen}
+            onClose={() => setIsCompareOpen(false)}
+            stations={filteredStations.length >= 2 ? filteredStations : stations}
+            initialStationAId={compareStationAId}
+            onNavigate={handleNavigate}
+            onSelectStation={(s) => setSelectedStation(s)}
+          />
+        </Suspense>
+      )}
 
       {/* Full-Screen Driving HUD Mode */}
       {isDrivingHudOpen && (
@@ -1226,6 +1291,10 @@ export function App() {
         onClose={() => setSelectedStation(null)}
         onNavigate={handleNavigate}
         onReportStatus={handleReportStatus}
+        onCompare={(s) => {
+          setCompareStationAId(s.id);
+          setIsCompareOpen(true);
+        }}
       />
 
       {/* Voice Assistant Modal */}

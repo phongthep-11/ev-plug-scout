@@ -13,7 +13,9 @@ import {
   Wrench,
   Activity,
   Sliders,
-  CheckSquare
+  CheckSquare,
+  PhoneCall,
+  FileText
 } from 'lucide-react';
 import { MY_CAR_DATA } from '../data/stations';
 import { speechService } from '../services/speechService';
@@ -113,6 +115,56 @@ export function MyCarTab({ car: initialCar, batteryPct: initialBattery, onSaveCa
       localStorage.setItem('ev_plug_scout_lfp_cal_date', todayIso);
     } catch {}
     setSaveSuccessMsg('บันทึกการชาร์จแบต LFP เต็ม 100% เพื่อปรับเทียบ BMS เรียบร้อยแล้ว (รอบถัดไปอีก 30 วัน)');
+    setTimeout(() => setSaveSuccessMsg(''), 3500);
+  };
+
+  // Car Insurance, CMI (พ.ร.บ.), Annual Tax & 24h Emergency Claim Hotline Tracker
+  const [carDocs, setCarDocs] = useState(() => {
+    try {
+      const saved = localStorage.getItem('ev_plug_scout_car_docs');
+      return saved
+        ? JSON.parse(saved)
+        : {
+            insurer: 'วิริยะประกันภัย (ประกันชั้น 1 EV)',
+            policyNo: '',
+            claimPhone: '1557',
+            insuranceExpiry: '2027-06-30',
+            cmiExpiry: '2027-06-30',
+            taxExpiry: '2027-06-30'
+          };
+    } catch {
+      return {
+        insurer: 'วิริยะประกันภัย (ประกันชั้น 1 EV)',
+        policyNo: '',
+        claimPhone: '1557',
+        insuranceExpiry: '2027-06-30',
+        cmiExpiry: '2027-06-30',
+        taxExpiry: '2027-06-30'
+      };
+    }
+  });
+
+  const INSURER_PRESETS = [
+    { name: 'วิริยะประกันภัย', phone: '1557' },
+    { name: 'กรุงเทพประกันภัย', phone: '1620' },
+    { name: 'ธนชาตประกันภัย', phone: '1736' },
+    { name: 'เมืองไทยประกันภัย', phone: '1484' },
+    { name: 'ทิพยประกันภัย', phone: '1736' }
+  ];
+
+  const getDaysUntilDate = (isoDate) => {
+    if (!isoDate) return null;
+    const d = new Date(isoDate);
+    if (Number.isNaN(d.getTime())) return null;
+    return Math.ceil((d.getTime() - todayMs) / 86400000);
+  };
+
+  const handleSaveCarDocs = (nextDocs) => {
+    setCarDocs(nextDocs);
+    try {
+      localStorage.setItem('ev_plug_scout_car_docs', JSON.stringify(nextDocs));
+    } catch {}
+    setSaveSuccessMsg('บันทึกข้อมูลประกันภัย พ.ร.บ. ภาษีรถ และเบอร์แจ้งเคลมเรียบร้อยแล้ว');
     setTimeout(() => setSaveSuccessMsg(''), 3500);
   };
 
@@ -716,6 +768,163 @@ export function MyCarTab({ car: initialCar, batteryPct: initialBattery, onSaveCa
                 กำลังไฟจะลดลงเหลือ 24-52 kW เพื่อถนอมเซลล์แบต แนะนำถอดสายที่ 80% จะประหยัดเวลาเดินทางที่สุด
               </p>
             </div>
+          </div>
+
+          {/* Card 4: Car Insurance, CMI (พ.ร.บ.), Annual Tax & 24h Emergency Claim Hotline */}
+          <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-br from-[#1d1729] to-[#0c0e1b] border border-rose-500/35 space-y-3.5 shadow-xl">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <h3 className="text-sm font-extrabold text-white flex items-center gap-2">
+                  <FileText size={17} className="text-rose-400" />
+                  <span>สมุดเตือนต่ออายุ พ.ร.บ. / ประกันชั้น 1 / ภาษีรถ</span>
+                </h3>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  เก็บข้อมูลกรมธรรม์เฉพาะในเครื่อง พร้อมนับถอยหลังวันต่ออายุและโทรแจ้งเคลมฉุกเฉิน 24 ชม.
+                </p>
+              </div>
+            </div>
+
+            {/* 1-Tap Emergency Claim Hotline Banner */}
+            <div className="p-3 rounded-2xl bg-rose-950/40 border border-rose-500/45 flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <span className="text-[10px] text-rose-300 font-bold block">สายด่วนแจ้งเคลมประกัน 24 ชม.</span>
+                <div className="text-xs sm:text-sm font-extrabold text-white truncate mt-0.5">
+                  {carDocs.insurer || 'ยังไม่ระบุบริษัทประกัน'}
+                </div>
+                {carDocs.policyNo && (
+                  <span className="text-[10px] font-mono text-slate-300 block">
+                    กรมธรรม์: {carDocs.policyNo}
+                  </span>
+                )}
+              </div>
+              <a
+                href={`tel:${(carDocs.claimPhone || '1557').replace(/[^0-9+]/g, '')}`}
+                className="min-h-[40px] px-3 py-2 rounded-xl bg-rose-500 hover:bg-rose-400 text-white font-extrabold text-xs flex items-center gap-1.5 shadow flex-shrink-0 active:scale-95 transition"
+              >
+                <PhoneCall size={14} />
+                <span>โทรเคลม {carDocs.claimPhone || '1557'}</span>
+              </a>
+            </div>
+
+            {/* Expiry Countdowns Row */}
+            <div className="grid grid-cols-3 gap-2 text-center text-xs">
+              {[
+                { label: 'ประกันชั้น 1', date: carDocs.insuranceExpiry },
+                { label: 'พ.ร.บ. รถยนต์', date: carDocs.cmiExpiry },
+                { label: 'ภาษีประจำปี', date: carDocs.taxExpiry }
+              ].map((doc) => {
+                const daysLeft = getDaysUntilDate(doc.date);
+                const isUrgent = daysLeft != null && daysLeft <= 30;
+                return (
+                  <div
+                    key={doc.label}
+                    className={`p-2.5 rounded-2xl border ${
+                      isUrgent
+                        ? 'bg-amber-950/45 border-amber-500/45'
+                        : 'bg-slate-950/90 border-slate-800'
+                    }`}
+                  >
+                    <span className="text-[10px] text-slate-400 block">{doc.label}</span>
+                    <span
+                      className={`text-sm font-extrabold font-mono block mt-0.5 ${
+                        daysLeft == null
+                          ? 'text-slate-400'
+                          : daysLeft <= 0
+                          ? 'text-rose-400'
+                          : isUrgent
+                          ? 'text-amber-300'
+                          : 'text-emerald-400'
+                      }`}
+                    >
+                      {daysLeft == null ? '-' : daysLeft <= 0 ? 'เลยกำหนด' : `${daysLeft} วัน`}
+                    </span>
+                    <span className="text-[9px] font-mono text-slate-500 block mt-0.5">{doc.date || '-'}</span>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Quick Insurer Presets */}
+            <div className="flex flex-wrap gap-1.5 text-[10px]">
+              {INSURER_PRESETS.map((ins) => (
+                <button
+                  key={ins.name}
+                  type="button"
+                  onClick={() =>
+                    setCarDocs((prev) => ({ ...prev, insurer: `${ins.name} (ประกันชั้น 1 EV)`, claimPhone: ins.phone }))
+                  }
+                  className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 font-bold active:scale-95 transition"
+                >
+                  {ins.name} ({ins.phone})
+                </button>
+              ))}
+            </div>
+
+            {/* Editable Fields */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+              <input
+                type="text"
+                value={carDocs.insurer}
+                onChange={(e) => setCarDocs({ ...carDocs, insurer: e.target.value })}
+                placeholder="ชื่อบริษัทประกันภัย..."
+                className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-semibold focus:outline-none focus:border-emerald-400"
+              />
+              <div className="grid grid-cols-2 gap-1.5">
+                <input
+                  type="text"
+                  value={carDocs.claimPhone}
+                  onChange={(e) => setCarDocs({ ...carDocs, claimPhone: e.target.value })}
+                  placeholder="เบอร์เคลม (เช่น 1557)"
+                  className="bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-2 text-xs font-mono text-white font-semibold focus:outline-none focus:border-emerald-400"
+                />
+                <input
+                  type="text"
+                  value={carDocs.policyNo}
+                  onChange={(e) => setCarDocs({ ...carDocs, policyNo: e.target.value })}
+                  placeholder="เลขกรมธรรม์"
+                  className="bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-2 text-xs font-mono text-white font-semibold focus:outline-none focus:border-emerald-400"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2 text-[11px]">
+              <label className="space-y-1">
+                <span className="text-slate-400 block">หมดอายุประกัน</span>
+                <input
+                  type="date"
+                  value={carDocs.insuranceExpiry}
+                  onChange={(e) => setCarDocs({ ...carDocs, insuranceExpiry: e.target.value })}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2 py-1.5 text-[11px] font-mono text-white"
+                />
+              </label>
+              <label className="space-y-1">
+                <span className="text-slate-400 block">หมดอายุ พ.ร.บ.</span>
+                <input
+                  type="date"
+                  value={carDocs.cmiExpiry}
+                  onChange={(e) => setCarDocs({ ...carDocs, cmiExpiry: e.target.value })}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2 py-1.5 text-[11px] font-mono text-white"
+                />
+              </label>
+              <label className="space-y-1">
+                <span className="text-slate-400 block">ต่อภาษีประจำปี</span>
+                <input
+                  type="date"
+                  value={carDocs.taxExpiry}
+                  onChange={(e) => setCarDocs({ ...carDocs, taxExpiry: e.target.value })}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2 py-1.5 text-[11px] font-mono text-white"
+                />
+              </label>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => handleSaveCarDocs(carDocs)}
+              className="w-full min-h-[40px] py-2 px-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs flex items-center justify-center gap-1.5 active:scale-95 transition"
+            >
+              <Save size={14} />
+              <span>บันทึกข้อมูลประกัน พ.ร.บ. และภาษีรถ</span>
+            </button>
           </div>
         </div>
       )}

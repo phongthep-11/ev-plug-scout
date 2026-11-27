@@ -20,11 +20,13 @@ import {
   FileText,
   Save,
   Car,
-  Share2
+  Share2,
+  ArrowLeftRight,
+  PlusCircle
 } from 'lucide-react';
 import { speechService } from '../services/speechService';
 import { soundEffects } from '../services/soundEffects';
-import { getStationAccessInfo } from '../utils/stationStatus';
+import { getStationAccessInfo, getProviderAppLink } from '../utils/stationStatus';
 import { shareTextOrCopy } from '../utils/shareUtils';
 
 const PROVIDER_HOTLINES = {
@@ -57,7 +59,7 @@ function getStationHotline(provider = '') {
   return { phone: '021143350', display: '02-114-3350', name: 'ศูนย์ช่วยเหลือตู้ชาร์จ' };
 }
 
-export function StationDetailModal({ station, carData, batteryPct = 80, onClose, onNavigate, onReportStatus }) {
+export function StationDetailModal({ station, carData, batteryPct = 80, onClose, onNavigate, onReportStatus, onCompare }) {
   const [reportFeedback, setReportFeedback] = useState('');
   const [isFavorite, setIsFavorite] = useState(false);
   const [stationMemo, setStationMemo] = useState('');
@@ -127,6 +129,34 @@ export function StationDetailModal({ station, carData, batteryPct = 80, onClose,
     } catch {}
   };
 
+  const handleLogThisStationCharge = () => {
+    const validKwh = kwhToAdd > 0 ? kwhToAdd : 33.5;
+    const validCost = kwhToAdd > 0 ? estSessionCostBaht : access.estCost30To80Baht;
+    const todayStr = new Date().toLocaleDateString('th-TH', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    });
+    const newEntry = {
+      id: `log-${Date.now()}`,
+      date: todayStr,
+      station: station.name,
+      kwh: validKwh,
+      costBaht: validCost,
+      rateType: access.offPeakNow
+        ? `Off-Peak (${access.currentRateBaht.toFixed(2)} บาท)`
+        : `On-Peak (${access.currentRateBaht.toFixed(2)} บาท)`
+    };
+    try {
+      const existing = JSON.parse(localStorage.getItem('ev_plug_scout_charge_logs') || '[]');
+      localStorage.setItem('ev_plug_scout_charge_logs', JSON.stringify([newEntry, ...existing]));
+      window.dispatchEvent(new Event('ev-charge-logs-updated'));
+      soundEffects.playListening();
+      setShareFeedback(`บันทึกยอดชาร์จ +${validKwh} kWh (${validCost} บ.) ที่ ${station.name} ลงสมุดค่าไฟแล้ว`);
+      setTimeout(() => setShareFeedback(''), 3800);
+    } catch {}
+  };
+
   const handleShareStation = async () => {
     const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
       station.googleMapsQuery || `${station.name} ${station.province || ''}`.trim()
@@ -191,6 +221,18 @@ export function StationDetailModal({ station, carData, batteryPct = 80, onClose,
           </div>
 
           <div className="flex items-center gap-1.5 flex-shrink-0">
+            {onCompare && (
+              <button
+                onClick={() => {
+                  onClose();
+                  onCompare(station);
+                }}
+                title="เปรียบเทียบกับสถานีอื่น"
+                className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-emerald-300 transition-colors"
+              >
+                <ArrowLeftRight size={17} />
+              </button>
+            )}
             <button
               onClick={handleShareStation}
               title="แชร์พิกัดสถานีนี้เข้า LINE / แชท"
@@ -311,6 +353,17 @@ export function StationDetailModal({ station, carData, batteryPct = 80, onClose,
               </span>
             </div>
           </div>
+
+          <button
+            type="button"
+            onClick={handleLogThisStationCharge}
+            className="w-full py-2 px-3 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-300 font-extrabold text-xs flex items-center justify-center gap-1.5 active:scale-95 transition"
+          >
+            <PlusCircle size={14} />
+            <span>
+              บันทึกยอดชาร์จตู้นี้ลงสมุดค่าไฟ ({kwhToAdd > 0 ? `+${kwhToAdd} kWh • ${estSessionCostBaht} บ.` : `+33.5 kWh • ${access.estCost30To80Baht} บ.`})
+            </span>
+          </button>
         </div>
 
         {/* Real-time Plugs Status */}
@@ -575,15 +628,20 @@ export function StationDetailModal({ station, carData, batteryPct = 80, onClose,
             <span>นำทาง Google Maps</span>
           </button>
 
-          <a
-            href={station.providerAppUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="w-full min-h-[46px] py-3 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 border border-slate-700 whitespace-nowrap truncate transition-all text-center active:scale-95"
-          >
-            <ExternalLink size={14} className="flex-shrink-0" />
-            <span className="truncate">แอป {station.provider}</span>
-          </a>
+          {(() => {
+            const appLink = getProviderAppLink(station.provider, station.providerAppUrl);
+            return (
+              <a
+                href={appLink.openUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full min-h-[46px] py-3 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 border border-slate-700 whitespace-nowrap truncate transition-all text-center active:scale-95"
+              >
+                <ExternalLink size={14} className="flex-shrink-0" />
+                <span className="truncate">เปิดแอป {appLink.appName}</span>
+              </a>
+            );
+          })()}
         </div>
       </div>
     </div>

@@ -1,5 +1,17 @@
 import React, { useState } from 'react';
-import { Volume2, VolumeX, Gauge, MapPin, Sun, RefreshCw, Zap, Maximize2 } from 'lucide-react';
+import {
+  Volume2,
+  VolumeX,
+  Gauge,
+  MapPin,
+  Sun,
+  Moon,
+  Sunrise,
+  Eye,
+  RefreshCw,
+  Zap,
+  Maximize2
+} from 'lucide-react';
 import { APP_VERSION } from '../utils/stationStatus';
 
 export function Header({
@@ -11,7 +23,9 @@ export function Header({
   onToggleRealGps,
   isWakeLocked,
   onToggleWakeLock,
-  onOpenHud
+  onOpenHud,
+  themeMode = 'dark',
+  onCycleThemeMode
 }) {
   const [isUpdatingOta, setIsUpdatingOta] = useState(false);
 
@@ -35,10 +49,17 @@ export function Header({
     }, 350);
   };
 
+  const themeTooltip =
+    themeMode === 'daylight'
+      ? 'โหมดกลางวันสู้แดด (แตะเพื่อสลับเป็นออโต้)'
+      : themeMode === 'auto'
+      ? 'โหมดสีออโต้ตามเวลา (แตะเพื่อสลับเป็นกลางคืน)'
+      : 'โหมดมืดกลางคืน (แตะเพื่อสลับเป็นกลางวันสู้แดด)';
+
   return (
     <header className="sticky top-0 z-40 bg-[#0b101b]/95 backdrop-blur-xl border-b border-slate-800/90 px-2.5 sm:px-4 safe-top pb-2.5 shadow-md">
       <div className="max-w-xl mx-auto flex items-center justify-between gap-1.5 sm:gap-2">
-        {/* Left: Compact Responsive Cockpit Branding (Never crowded on narrow 360px screens) */}
+        {/* Left: Compact Responsive Cockpit Branding */}
         <div className="flex items-center gap-2 min-w-0 flex-1">
           <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-br from-emerald-500/25 to-teal-500/10 border border-emerald-500/40 flex items-center justify-center text-emerald-400 flex-shrink-0 shadow-[0_0_15px_rgba(16,185,129,0.2)]">
             <Zap size={16} className="stroke-[2.4]" />
@@ -52,13 +73,13 @@ export function Header({
                 {APP_VERSION}
               </span>
             </div>
-            <p className="text-[10px] text-slate-400 font-medium truncate leading-tight mt-0.5 hidden min-[370px]:block">
-              JAECOO 5 EV • 100+ สถานี
+            <p className="text-[10px] text-slate-400 font-medium truncate leading-tight mt-0.5 hidden min-[390px]:block">
+              JAECOO 5 EV • 119 สถานี
             </p>
           </div>
         </div>
 
-        {/* Right: Responsive Compact Touch Controls (Fits 360px - S25 Ultra smoothly) */}
+        {/* Right: Responsive Compact Touch Controls */}
         <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0">
           {/* Full-Screen Driving HUD Launcher */}
           {onOpenHud && (
@@ -69,6 +90,29 @@ export function Header({
             >
               <Maximize2 size={13} className="flex-shrink-0" />
               <span>HUD</span>
+            </button>
+          )}
+
+          {/* Daylight / Dark / Auto Theme Switcher */}
+          {onCycleThemeMode && (
+            <button
+              onClick={onCycleThemeMode}
+              title={themeTooltip}
+              className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center transition-all active:scale-95 border ${
+                themeMode === 'daylight'
+                  ? 'bg-amber-400 text-slate-950 border-amber-300 shadow'
+                  : themeMode === 'auto'
+                  ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+                  : 'bg-slate-900 text-slate-300 border-slate-800 hover:text-amber-300'
+              }`}
+            >
+              {themeMode === 'daylight' ? (
+                <Sun size={14} />
+              ) : themeMode === 'auto' ? (
+                <Sunrise size={14} />
+              ) : (
+                <Moon size={14} />
+              )}
             </button>
           )}
 
@@ -93,7 +137,7 @@ export function Header({
             }`}
           >
             <MapPin size={13} className="flex-shrink-0" />
-            <span className="hidden min-[400px]:inline">GPS</span>
+            <span className="hidden min-[430px]:inline">GPS</span>
           </button>
 
           {/* Drive Simulator Toggle */}
@@ -119,7 +163,7 @@ export function Header({
                 : 'bg-slate-900 text-slate-400 border border-slate-800'
             }`}
           >
-            <Sun size={14} />
+            <Eye size={14} />
           </button>
 
           {/* Voice Alert Toggle */}

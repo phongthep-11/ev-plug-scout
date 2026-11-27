@@ -48,6 +48,8 @@ export function ChargingCalculatorTab({ car, batteryPct, onSaveCarSettings }) {
   const [targetChargePct, setTargetChargePct] = useState(80);
   const [selectedChargerKw, setSelectedChargerKw] = useState(130);
   const [selectedTariff, setSelectedTariff] = useState('station'); // 'station' | 'home'
+  const [startMode, setStartMode] = useState('now'); // 'now' | 'offpeak22'
+  const [nowClockMs, setNowClockMs] = useState(() => Date.now());
   const [feedbackMsg, setFeedbackMsg] = useState('');
 
   // Smart Charging Countdown Timer
@@ -71,9 +73,23 @@ export function ChargingCalculatorTab({ car, batteryPct, onSaveCarSettings }) {
 
   useEffect(() => {
     const id = setInterval(() => {
-      setOffPeakCountdown(getOffPeakCountdownInfo(new Date()));
+      const nowD = new Date();
+      setNowClockMs(nowD.getTime());
+      setOffPeakCountdown(getOffPeakCountdownInfo(nowD));
     }, 30000);
-    return () => clearInterval(id);
+
+    const handleLogsUpdated = () => {
+      try {
+        const saved = localStorage.getItem('ev_plug_scout_charge_logs');
+        if (saved) setChargeLogs(JSON.parse(saved));
+      } catch {}
+    };
+    window.addEventListener('ev-charge-logs-updated', handleLogsUpdated);
+
+    return () => {
+      clearInterval(id);
+      window.removeEventListener('ev-charge-logs-updated', handleLogsUpdated);
+    };
   }, []);
 
   const isOffPeakNow = offPeakCountdown.isOffPeak;
@@ -93,6 +109,23 @@ export function ChargingCalculatorTab({ car, batteryPct, onSaveCarSettings }) {
   const onPeakCostBaht = Math.round(kwhToAdd * onPeakRate);
   const offPeakCostBaht = Math.round(kwhToAdd * offPeakRate);
   const savingsBaht = Math.max(0, onPeakCostBaht - offPeakCostBaht);
+
+  // Exact Finish-At Clock Calculator
+  const finishClockInfo = (() => {
+    const startDate = new Date(nowClockMs);
+    if (startMode === 'offpeak22') {
+      startDate.setHours(22, 0, 0, 0);
+    }
+    const finishDate = new Date(startDate.getTime() + chargeMinutes * 60000);
+    const fmtTime = (d) =>
+      `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')} น.`;
+    const isNextDay = finishDate.getDate() !== startDate.getDate();
+    return {
+      startStr: fmtTime(startDate),
+      finishStr: fmtTime(finishDate),
+      isNextDay
+    };
+  })();
 
   useEffect(() => {
     if (!timerRunning) return;
@@ -412,6 +445,46 @@ export function ChargingCalculatorTab({ car, batteryPct, onSaveCarSettings }) {
             {/* Results Grid */}
             {pctToAdd > 0 ? (
               <>
+                {/* Exact Finish-At Clock Strip */}
+                <div className="p-3 rounded-2xl bg-cyan-950/35 border border-cyan-500/40 space-y-2 text-xs">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <span className="text-[11px] font-bold text-cyan-300">เวลาชาร์จเสร็จโดยประมาณ (Finish-At Clock):</span>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setStartMode('now')}
+                        className={`px-2 py-0.5 rounded-lg text-[10px] font-extrabold border transition ${
+                          startMode === 'now'
+                            ? 'bg-cyan-500 text-slate-950 border-cyan-400'
+                            : 'bg-slate-900 text-slate-400 border-slate-700'
+                        }`}
+                      >
+                        เสียบตอนนี้
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setStartMode('offpeak22')}
+                        className={`px-2 py-0.5 rounded-lg text-[10px] font-extrabold border transition ${
+                          startMode === 'offpeak22'
+                            ? 'bg-cyan-500 text-slate-950 border-cyan-400'
+                            : 'bg-slate-900 text-slate-400 border-slate-700'
+                        }`}
+                      >
+                        เริ่ม 22:00 น. (Off-Peak)
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between text-xs sm:text-sm font-extrabold">
+                    <span className="text-slate-300">
+                      เริ่ม <b className="text-white font-mono">{finishClockInfo.startStr}</b> ({chargeTimeFormatted})
+                    </span>
+                    <span className="text-cyan-300 font-mono">
+                      ครบ {targetChargePct}% เวลา {finishClockInfo.finishStr}
+                      {finishClockInfo.isNextDay ? ' (พรุ่งนี้)' : ''}
+                    </span>
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-3 gap-2 text-center pt-1">
                   <div className="p-3 rounded-2xl bg-slate-950/90 border border-slate-800">
                     <span className="text-[10px] text-slate-400 block">พลังงานที่เติม (+{pctToAdd}%)</span>

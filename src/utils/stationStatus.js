@@ -1,6 +1,6 @@
 // Smart Occupancy, Booking Policy & Real-Time Tariff Analyzer for Thai EV Charging Networks
 
-export const APP_VERSION = 'v2.6.0';
+export const APP_VERSION = 'v2.7.0';
 export const APP_BUILD_LABEL = 'JAECOO 5 EV Cockpit • 119 สถานีทั่วไทย';
 
 const WALK_IN_PURE_PROVIDERS = [
@@ -263,4 +263,44 @@ export function isStationAheadOnHeading(userLat, userLng, headingDeg, stLat, stL
   let diff = Math.abs(bearing - headingDeg) % 360;
   if (diff > 180) diff = 360 - diff;
   return diff <= maxAngleDeg;
+}
+
+// Direct Android App / Play Store Deep Links for All 11 Thai EV Charging Networks
+const PROVIDER_ANDROID_APPS = [
+  { match: 'PLUZ', appName: 'EV Station PluZ', packageId: 'com.pttor.evstation', webUrl: 'https://www.pttor.com' },
+  { match: 'ON-ION', appName: 'on-ion EV', packageId: 'com.pttor.onion', webUrl: 'https://www.on-ionev.com' },
+  { match: 'PEA', appName: 'PEA VOLTA', packageId: 'th.co.pea.peavolta', webUrl: 'https://peavoltaev.pea.co.th' },
+  { match: 'VOLTA', appName: 'PEA VOLTA', packageId: 'th.co.pea.peavolta', webUrl: 'https://peavoltaev.pea.co.th' },
+  { match: 'ALTERVIM', appName: 'Altervim Super Charge', packageId: 'com.altervim.supercharge', webUrl: 'https://www.altervim.com' },
+  { match: 'ELEXA', appName: 'EleXA', packageId: 'com.egat.elexa', webUrl: 'https://www.elexaev.com' },
+  { match: 'MEA', appName: 'MEA EV', packageId: 'th.or.mea.meaev', webUrl: 'https://www.mea.or.th' },
+  { match: 'EA', appName: 'EA Anywhere', packageId: 'com.energyabsolute.eaanywhere', webUrl: 'https://www.eaanywhere.com' },
+  { match: 'SHELL', appName: 'Shell Recharge Asia', packageId: 'com.shell.recharge.asia', webUrl: 'https://www.shell.co.th' },
+  { match: 'EVOLT', appName: 'Evolt', packageId: 'th.co.evolt.app', webUrl: 'https://evolt.co.th' },
+  { match: 'SHARGE', appName: 'SHARGE', packageId: 'th.co.sharge.app', webUrl: 'https://www.sharge.co.th' },
+  { match: 'REVER', appName: 'RêverSharger / SHARGE', packageId: 'th.co.sharge.app', webUrl: 'https://www.sharge.co.th' },
+  { match: 'GWM', appName: 'GWM Thailand', packageId: 'com.gwm.app.th', webUrl: 'https://www.gwm.co.th' }
+];
+
+export function getProviderAppLink(provider = '', fallbackUrl = 'https://www.google.com/maps') {
+  const upper = (provider || '').toUpperCase();
+  const found = PROVIDER_ANDROID_APPS.find((item) => upper.includes(item.match));
+  if (!found) {
+    return {
+      appName: provider || 'แอปสถานีชาร์จ',
+      playStoreUrl: fallbackUrl,
+      androidIntentUrl: fallbackUrl,
+      webUrl: fallbackUrl
+    };
+  }
+  const playStoreUrl = `https://play.google.com/store/apps/details?id=${found.packageId}`;
+  const isAndroid = typeof navigator !== 'undefined' && /android/i.test(navigator.userAgent || '');
+  return {
+    appName: found.appName,
+    packageId: found.packageId,
+    playStoreUrl,
+    // On Android S25 Ultra, Google Play URL opens the installed app screen ("Open") or installs directly
+    openUrl: isAndroid ? playStoreUrl : playStoreUrl,
+    webUrl: found.webUrl
+  };
 }
